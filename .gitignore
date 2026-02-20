@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+build_log.txt
+*.log
+.obsidian/
+test-vault/
+clean_build.sh
+do_build.sh
+nuke_and_deploy.sh

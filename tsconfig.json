@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "lib": ["DOM", "ESNext"],
+    "types": ["node"],
+    "sourceMap": true,
+    "inlineSources": true,
+    "declaration": false,
+    "importHelpers": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["**/*.ts", "**/*.svelte"]
+}
