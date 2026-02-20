@@ -1,7 +1,7 @@
 {
-  "name": "obsidian_ai_copilot",
-  "version": "1.0.0",
-  "description": "",
+  "name": "ai-copilot",
+  "version": "1.1.2",
+  "description": "Your intelligent writing and thinking assistant.",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,8 +9,8 @@
     "dev": "node esbuild.config.mjs"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Alex Jiaguo",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.2.3",
     "builtin-modules": "^4.0.0",

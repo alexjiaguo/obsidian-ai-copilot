@@ -1,9 +1,9 @@
 {
-	"id": "obsidian_ai_copilot",
+	"id": "ai-copilot",
 	"name": "AI Copilot",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"minAppVersion": "1.0.0",
-	"description": "Your intelligent writing and thinking assistant, right inside Obsidian.",
+	"description": "Your intelligent writing and thinking assistant.",
 	"author": "Alex Jiaguo",
 	"authorUrl": "https://github.com/alexjiaguo",
 	"fundingUrl": "https://github.com/sponsors/alexjiaguo",
