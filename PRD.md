@@ -82,7 +82,35 @@ Obsidian users often have vast amounts of information but struggle to:
 - **V3**: Vault-wide Q&A (RAG) + Local LLM support.
 - **V4**: Custom prompt templates + Multi-language support.
 
-## 11. Acceptance Criteria
+## 11. Notion AI Feature Comparison & Gap Analysis
+
+Based on an investigation of official Notion AI features, here is a comparison with the Obsidian AI Copilot roadmap:
+
+### 11.1 Features Currently on the Roadmap (Aligned with Notion AI)
+- **Powerful Writing Capabilities**: Summarize, Expand, Shorten, Change Tone, Fix Grammar, Translate, and Brainstorming. (V1 & V4 Roadmap)
+- **Document Summarization**: Summarizing long notes and selected text. (V1 Roadmap)
+- **Vault/Workspace Search**: Semantic search and Q&A across the user's knowledge base. (V3 Roadmap)
+- **Multiple AI Models**: Allowing users to choose between Claude, GPT, Gemini, and Local models. (V1 & V3 Roadmap)
+- **Context Mentions & AI Actions**: Referencing specific files and autonomous reading/appending. (V2 Roadmap)
+
+### 11.2 Features Currently Missing from the Roadmap
+These are Notion AI capabilities that are not currently planned for Obsidian AI Copilot:
+- **Autonomous Agents (Notion Agent)**: Multi-step execution across integrated third-party applications.
+- **Enterprise Connectors**: Searching outside the Obsidian Vault (e.g., Slack, Google Drive, Google Workspace integrations).
+- **AI Meeting Notes**: Direct audio transcription and meeting specific actionable extractions.
+- **AI for Databases (Frontmatter/Dataview Autofill)**: Automatically populating YAML properties or Dataview fields with AI-extracted metadata, summaries, and keywords.
+- **Image Analysis**: Directly analyzing images for information extraction (text-based Q&A is covered).
+- **Workflow Automation**: Generating project timelines and automated stakeholder updates.
+- **Email Integration (Notion Mail)**: AI-powered email client features.
+
+### 11.3 Features Already Implemented
+- Basic editor selection actions (Summarize, Fix Grammar).
+- Multiple AI providers support (OpenAI, Anthropic, Gemini, Groq, Ollama).
+- AI Sidebar Chat interface.
+- Context mentions (`@` files) and fuzzy searching.
+- Vault-wide Q&A (RAG / Vector Indexing).
+
+## 12. Acceptance Criteria
 - User can trigger AI actions on selected text.
 - AI-generated text is correctly inserted into the note.
 - API keys can be saved and validated.

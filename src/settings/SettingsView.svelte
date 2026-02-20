@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AICopilotSettings, ProviderType, Persona } from "./Settings";
+  import type {
+    AICopilotSettings,
+    ProviderType,
+    Persona,
+    CustomAction,
+  } from "./Settings";
   import {
     PROVIDER_MODELS,
     PROVIDER_DEFAULT_URLS,
@@ -17,6 +22,7 @@
   let testMessage = "";
 
   let editingPersonaId: string | null = null;
+  let editingCustomActionId: string | null = null;
 
   // When provider changes, auto-update baseUrl and reset model
   function onProviderChange() {
@@ -86,6 +92,29 @@
     const p = settings.personas.find((p) => p.id === id);
     if (p) settings.systemPrompt = p.prompt;
     saveSettings();
+  }
+
+  function addCustomAction() {
+    // Ensure array exists to prevent issues with older settings profiles
+    if (!settings.customActions) settings.customActions = [];
+    const newAction: CustomAction = {
+      id: generateId(),
+      name: "New Action",
+      promptTemplate: "Summarize this exactly as following:\n\n{{selection}}",
+    };
+    settings.customActions = [...settings.customActions, newAction];
+    editingCustomActionId = newAction.id;
+    saveSettings();
+  }
+
+  function deleteCustomAction(id: string) {
+    settings.customActions = settings.customActions.filter((a) => a.id !== id);
+    if (editingCustomActionId === id) editingCustomActionId = null;
+    saveSettings();
+  }
+
+  function selectCustomAction(id: string) {
+    editingCustomActionId = editingCustomActionId === id ? null : id;
   }
 
   $: currentModels = PROVIDER_MODELS[settings.provider as ProviderType] ?? [];
@@ -282,6 +311,73 @@
     {/each}
 
     <button class="add-btn" on:click={addPersona}>+ Add New Persona</button>
+  </div>
+
+  <!-- ── Custom Actions ── -->
+  <div class="setting-section-title" style="margin-top:24px;">
+    Custom Actions
+  </div>
+  <div class="setting-description">
+    Create custom commands that operate on your selected text. Use <code
+      >{`{{selection}}`}</code
+    > in your prompt to refer to the highlighted text. They will appear in the Obsidian
+    Command Palette. Let the prompt guide the behavior.
+  </div>
+
+  <div class="personas-container">
+    {#each settings.customActions || [] as action (action.id)}
+      <div
+        class="persona-card {editingCustomActionId === action.id
+          ? 'active'
+          : ''}"
+      >
+        <div
+          class="persona-header"
+          on:click={() => selectCustomAction(action.id)}
+        >
+          <div class="persona-name">
+            <span class="name-text">{action.name}</span>
+          </div>
+          <div class="persona-actions">
+            <button
+              class="icon-btn"
+              on:click|stopPropagation={() => deleteCustomAction(action.id)}
+              title="Delete">🗑️</button
+            >
+            <span class="chevron"
+              >{editingCustomActionId === action.id ? "▼" : "▶"}</span
+            >
+          </div>
+        </div>
+
+        {#if editingCustomActionId === action.id}
+          <div class="persona-editor">
+            <div class="form-group">
+              <label>Command Name</label>
+              <input
+                type="text"
+                bind:value={action.name}
+                on:change={handleChange}
+                placeholder="e.g. Expand, Translate to French"
+              />
+            </div>
+            <div class="form-group">
+              <label>Prompt Template</label>
+              <textarea
+                bind:value={action.promptTemplate}
+                on:change={handleChange}
+                rows="6"
+                placeholder="Translate the following text into French:\n\n{`{{selection}}`}"
+              ></textarea>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/each}
+
+    <button class="add-btn" on:click={addCustomAction}
+      >+ Add Custom Action</button
+    >
   </div>
 </div>
 

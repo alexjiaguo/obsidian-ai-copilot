@@ -177,7 +177,7 @@
   <div class="chat-input-wrapper" class:disabled>
     <textarea
       bind:this={textarea}
-      {value}
+      bind:value
       {placeholder}
       {disabled}
       on:input={handleInput}
@@ -242,6 +242,8 @@
     border-radius: 8px;
     padding: 8px;
     transition: border-color 0.2s ease;
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   .chat-input-wrapper:focus-within {
@@ -267,6 +269,9 @@
     padding: 0;
     margin: 0;
     color: var(--text-normal);
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
   }
 
   textarea::placeholder {

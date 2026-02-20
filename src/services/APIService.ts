@@ -9,6 +9,7 @@ export interface AIProvider {
     generateText(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }): Promise<string>;
     generateResponse(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }, tools?: any[]): Promise<AIResponse>;
     summarize(text: string): Promise<string>;
+    executeAction(text: string, systemPrompt: string): Promise<string>;
     testConnection(): Promise<{ ok: boolean; message: string }>;
 }
 
@@ -145,6 +146,14 @@ export class OpenAIProvider implements AIProvider {
     async summarize(text: string): Promise<string> {
         const prompt = `Summarize the following text:\n\n${text}\n\nSummary:`;
         return this.generateText(prompt, { max_tokens: 300 });
+    }
+
+    async executeAction(text: string, systemPrompt: string): Promise<string> {
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text }
+        ];
+        return this.generateText(messages);
     }
 
     async testConnection(): Promise<{ ok: boolean; message: string }> {

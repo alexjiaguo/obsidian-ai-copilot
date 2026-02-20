@@ -1,3 +1,9 @@
+export interface CustomAction {
+    id: string;
+    name: string;
+    promptTemplate: string;
+}
+
 export interface Persona {
     id: string;
     name: string;
@@ -28,6 +34,7 @@ export interface AICopilotSettings {
     baseUrl: string;
     personas: Persona[];
     defaultPersonaId: string;
+    customActions: CustomAction[];
     sessions: ChatSession[];
     activeSessionId: string;
 }
@@ -143,6 +150,7 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     baseUrl: PROVIDER_DEFAULT_URLS.openai,
     personas: DEFAULT_PERSONAS,
     defaultPersonaId: 'default',
+    customActions: [],
     sessions: [],
     activeSessionId: ''
 };

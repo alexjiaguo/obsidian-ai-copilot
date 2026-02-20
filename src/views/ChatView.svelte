@@ -531,6 +531,8 @@
     flex-direction: column;
     height: 100%;
     background-color: var(--background-primary);
+    user-select: text;
+    -webkit-user-select: text;
   }
 
   .header {

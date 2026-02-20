@@ -147,6 +147,13 @@ ${text2}
 Summary:`;
         return this.generateText(prompt, { max_tokens: 300 });
       }
+      async executeAction(text2, systemPrompt) {
+        const messages = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text2 }
+        ];
+        return this.generateText(messages);
+      }
       async testConnection() {
         try {
           if (!this.settings.apiKey && this.settings.provider !== "ollama") {
@@ -288,7 +295,10 @@ var DEFAULT_SETTINGS = {
   systemPrompt: DEFAULT_PERSONAS[0].prompt,
   baseUrl: PROVIDER_DEFAULT_URLS.openai,
   personas: DEFAULT_PERSONAS,
-  defaultPersonaId: "default"
+  defaultPersonaId: "default",
+  customActions: [],
+  sessions: [],
+  activeSessionId: ""
 };
 
 // main.ts
@@ -368,7 +378,10 @@ var STALE_REACTION = new class StaleReactionError extends Error {
   name = "StaleReactionError";
   message = "The reaction that called `getAbortSignal()` was re-run or destroyed";
 }();
-var IS_XHTML = /* @__PURE__ */ globalThis.document?.contentType?.includes("xml") ?? false;
+var IS_XHTML = (
+  // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+  !!globalThis.document?.contentType && /* @__PURE__ */ globalThis.document.contentType.includes("xml")
+);
 var TEXT_NODE = 3;
 var COMMENT_NODE = 8;
 
@@ -428,6 +441,17 @@ https://svelte.dev/e/each_key_duplicate`);
     throw error;
   } else {
     throw new Error(`https://svelte.dev/e/each_key_duplicate`);
+  }
+}
+function each_key_volatile(index2, a, b) {
+  if (dev_fallback_default) {
+    const error = new Error(`each_key_volatile
+Keyed each block has key that is not idempotent \u2014 the key for item at index ${index2} was \`${a}\` but is now \`${b}\`. Keys must be the same each time for a given item
+https://svelte.dev/e/each_key_volatile`);
+    error.name = "Svelte error";
+    throw error;
+  } else {
+    throw new Error(`https://svelte.dev/e/each_key_volatile`);
   }
 }
 function effect_in_teardown(rune) {
@@ -571,6 +595,7 @@ var TEMPLATE_USE_SVG = 1 << 2;
 var TEMPLATE_USE_MATHML = 1 << 3;
 var HYDRATION_START = "[";
 var HYDRATION_START_ELSE = "[!";
+var HYDRATION_START_FAILED = "[?";
 var HYDRATION_END = "]";
 var HYDRATION_ERROR = {};
 var ELEMENT_PRESERVE_ATTRIBUTE_CASE = 1 << 1;
@@ -578,6 +603,8 @@ var ELEMENT_IS_INPUT = 1 << 2;
 var UNINITIALIZED = /* @__PURE__ */ Symbol();
 var FILENAME = /* @__PURE__ */ Symbol("filename");
 var NAMESPACE_HTML = "http://www.w3.org/1999/xhtml";
+var NAMESPACE_SVG = "http://www.w3.org/2000/svg";
+var NAMESPACE_MATHML = "http://www.w3.org/1998/Math/MathML";
 
 // node_modules/svelte/src/internal/client/warnings.js
 var bold = "font-weight: bold";
@@ -1012,7 +1039,6 @@ var last_scheduled_effect = null;
 var is_flushing = false;
 var is_flushing_sync = false;
 var Batch = class _Batch {
-  committed = false;
   /**
    * The current values of any sources that are updated in this batch
    * They keys of this map are identical to `this.#previous`
@@ -1070,7 +1096,7 @@ var Batch = class _Batch {
   #skipped_branches = /* @__PURE__ */ new Map();
   is_fork = false;
   #decrement_queued = false;
-  is_deferred() {
+  #is_deferred() {
     return this.is_fork || this.#blocking_pending > 0;
   }
   /**
@@ -1110,10 +1136,10 @@ var Batch = class _Batch {
     this.apply();
     var effects = [];
     var render_effects = [];
-    for (const root9 of root_effects) {
-      this.#traverse_effect_tree(root9, effects, render_effects);
+    for (const root10 of root_effects) {
+      this.#traverse_effect_tree(root10, effects, render_effects);
     }
-    if (this.is_deferred()) {
+    if (this.#is_deferred()) {
       this.#defer_effects(render_effects);
       this.#defer_effects(effects);
       for (const [e, t] of this.#skipped_branches) {
@@ -1141,23 +1167,17 @@ var Batch = class _Batch {
    * @param {Effect[]} effects
    * @param {Effect[]} render_effects
    */
-  #traverse_effect_tree(root9, effects, render_effects) {
-    root9.f ^= CLEAN;
-    var effect2 = root9.first;
-    var pending_boundary = null;
+  #traverse_effect_tree(root10, effects, render_effects) {
+    root10.f ^= CLEAN;
+    var effect2 = root10.first;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
       var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.#skipped_branches.has(effect2);
-      if (async_mode_flag && pending_boundary === null && (flags2 & BOUNDARY_EFFECT) !== 0 && effect2.b?.is_pending) {
-        pending_boundary = effect2;
-      }
       if (!skip && effect2.fn !== null) {
         if (is_branch) {
           effect2.f ^= CLEAN;
-        } else if (pending_boundary !== null && (flags2 & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
-          pending_boundary.b.defer_effect(effect2);
         } else if ((flags2 & EFFECT) !== 0) {
           effects.push(effect2);
         } else if (async_mode_flag && (flags2 & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0) {
@@ -1172,14 +1192,13 @@ var Batch = class _Batch {
           continue;
         }
       }
-      var parent = effect2.parent;
-      effect2 = effect2.next;
-      while (effect2 === null && parent !== null) {
-        if (parent === pending_boundary) {
-          pending_boundary = null;
+      while (effect2 !== null) {
+        var next2 = effect2.next;
+        if (next2 !== null) {
+          effect2 = next2;
+          break;
         }
-        effect2 = parent.next;
-        parent = parent.parent;
+        effect2 = effect2.parent;
       }
     }
   }
@@ -1267,8 +1286,8 @@ var Batch = class _Batch {
           if (queued_root_effects.length > 0) {
             current_batch = batch;
             batch.apply();
-            for (const root9 of queued_root_effects) {
-              batch.#traverse_effect_tree(root9, [], []);
+            for (const root10 of queued_root_effects) {
+              batch.#traverse_effect_tree(root10, [], []);
             }
             batch.deactivate();
           }
@@ -1278,7 +1297,6 @@ var Batch = class _Batch {
       current_batch = null;
       batch_values = previous_batch_values;
     }
-    this.committed = true;
     batches.delete(this);
   }
   /**
@@ -1300,7 +1318,7 @@ var Batch = class _Batch {
     this.#decrement_queued = true;
     queue_micro_task(() => {
       this.#decrement_queued = false;
-      if (!this.is_deferred()) {
+      if (!this.#is_deferred()) {
         this.revive();
       } else if (queued_root_effects.length > 0) {
         this.flush();
@@ -1538,14 +1556,21 @@ function depends_on(reaction, sources, checked) {
 }
 function schedule_effect(signal) {
   var effect2 = last_scheduled_effect = signal;
+  var boundary2 = effect2.b;
+  if (boundary2?.is_pending && (signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (signal.f & REACTION_RAN) === 0) {
+    boundary2.defer_effect(signal);
+    return;
+  }
   while (effect2.parent !== null) {
     effect2 = effect2.parent;
     var flags2 = effect2.f;
-    if (is_flushing && effect2 === active_effect && (flags2 & BLOCK_EFFECT) !== 0 && (flags2 & HEAD_EFFECT) === 0) {
+    if (is_flushing && effect2 === active_effect && (flags2 & BLOCK_EFFECT) !== 0 && (flags2 & HEAD_EFFECT) === 0 && (flags2 & REACTION_RAN) !== 0) {
       return;
     }
     if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
-      if ((flags2 & CLEAN) === 0) return;
+      if ((flags2 & CLEAN) === 0) {
+        return;
+      }
       effect2.f ^= CLEAN;
     }
   }
@@ -1600,14 +1625,20 @@ function createSubscriber(start) {
 }
 
 // node_modules/svelte/src/internal/client/dom/blocks/boundary.js
-var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED | BOUNDARY_EFFECT;
-function boundary(node, props, children) {
-  new Boundary(node, props, children);
+var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
+function boundary(node, props, children, transform_error) {
+  new Boundary(node, props, children, transform_error);
 }
 var Boundary = class {
   /** @type {Boundary | null} */
   parent;
   is_pending = false;
+  /**
+   * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
+   * Inherited from parent boundary, or defaults to identity.
+   * @type {(error: unknown) => unknown}
+   */
+  transform_error;
   /** @type {TemplateNode} */
   #anchor;
   /** @type {TemplateNode | null} */
@@ -1626,12 +1657,9 @@ var Boundary = class {
   #failed_effect = null;
   /** @type {DocumentFragment | null} */
   #offscreen_fragment = null;
-  /** @type {TemplateNode | null} */
-  #pending_anchor = null;
   #local_pending_count = 0;
   #pending_count = 0;
   #pending_count_update_queued = false;
-  #is_creating_fallback = false;
   /** @type {Set<Effect>} */
   #dirty_effects = /* @__PURE__ */ new Set();
   /** @type {Set<Effect>} */
@@ -1657,48 +1685,43 @@ var Boundary = class {
    * @param {TemplateNode} node
    * @param {BoundaryProps} props
    * @param {((anchor: Node) => void)} children
+   * @param {((error: unknown) => unknown) | undefined} [transform_error]
    */
-  constructor(node, props, children) {
+  constructor(node, props, children, transform_error) {
     this.#anchor = node;
     this.#props = props;
-    this.#children = children;
+    this.#children = (anchor) => {
+      var effect2 = (
+        /** @type {Effect} */
+        active_effect
+      );
+      effect2.b = this;
+      effect2.f |= BOUNDARY_EFFECT;
+      children(anchor);
+    };
     this.parent = /** @type {Effect} */
     active_effect.b;
-    this.is_pending = !!this.#props.pending;
+    this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
     this.#effect = block(() => {
-      active_effect.b = this;
       if (hydrating) {
-        const comment2 = this.#hydrate_open;
-        hydrate_next();
-        const server_rendered_pending = (
+        const comment2 = (
           /** @type {Comment} */
-          comment2.nodeType === COMMENT_NODE && /** @type {Comment} */
-          comment2.data === HYDRATION_START_ELSE
+          this.#hydrate_open
         );
-        if (server_rendered_pending) {
+        hydrate_next();
+        const server_rendered_pending = comment2.data === HYDRATION_START_ELSE;
+        const server_rendered_failed = comment2.data.startsWith(HYDRATION_START_FAILED);
+        if (server_rendered_failed) {
+          const serialized_error = JSON.parse(comment2.data.slice(HYDRATION_START_FAILED.length));
+          this.#hydrate_failed_content(serialized_error);
+        } else if (server_rendered_pending) {
           this.#hydrate_pending_content();
         } else {
           this.#hydrate_resolved_content();
-          if (this.#pending_count === 0) {
-            this.is_pending = false;
-          }
         }
       } else {
-        var anchor = this.#get_anchor();
-        try {
-          this.#main_effect = branch(() => children(anchor));
-        } catch (error) {
-          this.error(error);
-        }
-        if (this.#pending_count > 0) {
-          this.#show_pending_snippet();
-        } else {
-          this.is_pending = false;
-        }
+        this.#render();
       }
-      return () => {
-        this.#pending_anchor?.remove();
-      };
     }, flags);
     if (hydrating) {
       this.#anchor = hydrate_node;
@@ -1711,19 +1734,37 @@ var Boundary = class {
       this.error(error);
     }
   }
+  /**
+   * @param {unknown} error The deserialized error from the server's hydration comment
+   */
+  #hydrate_failed_content(error) {
+    const failed = this.#props.failed;
+    if (!failed) return;
+    this.#failed_effect = branch(() => {
+      failed(
+        this.#anchor,
+        () => error,
+        () => () => {
+        }
+      );
+    });
+  }
   #hydrate_pending_content() {
     const pending2 = this.#props.pending;
     if (!pending2) return;
+    this.is_pending = true;
     this.#pending_effect = branch(() => pending2(this.#anchor));
     queue_micro_task(() => {
-      var anchor = this.#get_anchor();
+      var fragment = this.#offscreen_fragment = document.createDocumentFragment();
+      var anchor = create_text();
+      fragment.append(anchor);
       this.#main_effect = this.#run(() => {
         Batch.ensure();
         return branch(() => this.#children(anchor));
       });
-      if (this.#pending_count > 0) {
-        this.#show_pending_snippet();
-      } else {
+      if (this.#pending_count === 0) {
+        this.#anchor.before(fragment);
+        this.#offscreen_fragment = null;
         pause_effect(
           /** @type {Effect} */
           this.#pending_effect,
@@ -1731,18 +1772,45 @@ var Boundary = class {
             this.#pending_effect = null;
           }
         );
-        this.is_pending = false;
+        this.#resolve();
       }
     });
   }
-  #get_anchor() {
-    var anchor = this.#anchor;
-    if (this.is_pending) {
-      this.#pending_anchor = create_text();
-      this.#anchor.before(this.#pending_anchor);
-      anchor = this.#pending_anchor;
+  #render() {
+    try {
+      this.is_pending = this.has_pending_snippet();
+      this.#pending_count = 0;
+      this.#local_pending_count = 0;
+      this.#main_effect = branch(() => {
+        this.#children(this.#anchor);
+      });
+      if (this.#pending_count > 0) {
+        var fragment = this.#offscreen_fragment = document.createDocumentFragment();
+        move_effect(this.#main_effect, fragment);
+        const pending2 = (
+          /** @type {(anchor: Node) => void} */
+          this.#props.pending
+        );
+        this.#pending_effect = branch(() => pending2(this.#anchor));
+      } else {
+        this.#resolve();
+      }
+    } catch (error) {
+      this.error(error);
     }
-    return anchor;
+  }
+  #resolve() {
+    this.is_pending = false;
+    for (const e of this.#dirty_effects) {
+      set_signal_status(e, DIRTY);
+      schedule_effect(e);
+    }
+    for (const e of this.#maybe_dirty_effects) {
+      set_signal_status(e, MAYBE_DIRTY);
+      schedule_effect(e);
+    }
+    this.#dirty_effects.clear();
+    this.#maybe_dirty_effects.clear();
   }
   /**
    * Defer an effect inside a pending boundary until the boundary resolves
@@ -1762,7 +1830,8 @@ var Boundary = class {
     return !!this.#props.pending;
   }
   /**
-   * @param {() => Effect | null} fn
+   * @template T
+   * @param {() => T} fn
    */
   #run(fn) {
     var previous_effect = active_effect;
@@ -1782,23 +1851,6 @@ var Boundary = class {
       set_component_context(previous_ctx);
     }
   }
-  #show_pending_snippet() {
-    const pending2 = (
-      /** @type {(anchor: Node) => void} */
-      this.#props.pending
-    );
-    if (this.#main_effect !== null) {
-      this.#offscreen_fragment = document.createDocumentFragment();
-      this.#offscreen_fragment.append(
-        /** @type {TemplateNode} */
-        this.#pending_anchor
-      );
-      move_effect(this.#main_effect, this.#offscreen_fragment);
-    }
-    if (this.#pending_effect === null) {
-      this.#pending_effect = branch(() => pending2(this.#anchor));
-    }
-  }
   /**
    * Updates the pending count associated with the currently visible pending snippet,
    * if any, such that we can replace the snippet with content once work is done
@@ -1813,17 +1865,7 @@ var Boundary = class {
     }
     this.#pending_count += d;
     if (this.#pending_count === 0) {
-      this.is_pending = false;
-      for (const e of this.#dirty_effects) {
-        set_signal_status(e, DIRTY);
-        schedule_effect(e);
-      }
-      for (const e of this.#maybe_dirty_effects) {
-        set_signal_status(e, MAYBE_DIRTY);
-        schedule_effect(e);
-      }
-      this.#dirty_effects.clear();
-      this.#maybe_dirty_effects.clear();
+      this.#resolve();
       if (this.#pending_effect) {
         pause_effect(this.#pending_effect, () => {
           this.#pending_effect = null;
@@ -1864,7 +1906,7 @@ var Boundary = class {
   error(error) {
     var onerror = this.#props.onerror;
     let failed = this.#props.failed;
-    if (this.#is_creating_fallback || !onerror && !failed) {
+    if (!onerror && !failed) {
       throw error;
     }
     if (this.#main_effect) {
@@ -1898,28 +1940,20 @@ var Boundary = class {
       if (calling_on_error) {
         svelte_boundary_reset_onerror();
       }
-      Batch.ensure();
-      this.#local_pending_count = 0;
       if (this.#failed_effect !== null) {
         pause_effect(this.#failed_effect, () => {
           this.#failed_effect = null;
         });
       }
-      this.is_pending = this.has_pending_snippet();
-      this.#main_effect = this.#run(() => {
-        this.#is_creating_fallback = false;
-        return branch(() => this.#children(this.#anchor));
+      this.#run(() => {
+        Batch.ensure();
+        this.#render();
       });
-      if (this.#pending_count > 0) {
-        this.#show_pending_snippet();
-      } else {
-        this.is_pending = false;
-      }
     };
-    queue_micro_task(() => {
+    const handle_error_result = (transformed_error) => {
       try {
         calling_on_error = true;
-        onerror?.(error, reset2);
+        onerror?.(transformed_error, reset2);
         calling_on_error = false;
       } catch (error2) {
         invoke_error_boundary(error2, this.#effect && this.#effect.parent);
@@ -1927,12 +1961,17 @@ var Boundary = class {
       if (failed) {
         this.#failed_effect = this.#run(() => {
           Batch.ensure();
-          this.#is_creating_fallback = true;
           try {
             return branch(() => {
+              var effect2 = (
+                /** @type {Effect} */
+                active_effect
+              );
+              effect2.b = this;
+              effect2.f |= BOUNDARY_EFFECT;
               failed(
                 this.#anchor,
-                () => error,
+                () => transformed_error,
                 () => reset2
               );
             });
@@ -1943,10 +1982,27 @@ var Boundary = class {
               this.#effect.parent
             );
             return null;
-          } finally {
-            this.#is_creating_fallback = false;
           }
         });
+      }
+    };
+    queue_micro_task(() => {
+      var result;
+      try {
+        result = this.transform_error(error);
+      } catch (e) {
+        invoke_error_boundary(e, this.#effect && this.#effect.parent);
+        return;
+      }
+      if (result !== null && typeof result === "object" && typeof /** @type {any} */
+      result.then === "function") {
+        result.then(
+          handle_error_result,
+          /** @param {unknown} e */
+          (e) => invoke_error_boundary(e, this.#effect && this.#effect.parent)
+        );
+      } else {
+        handle_error_result(result);
       }
     });
   }
@@ -1976,7 +2032,6 @@ function flatten(blockers, sync, async2, fn) {
         invoke_error_boundary(error, parent);
       }
     }
-    batch?.deactivate();
     unset_context();
   }
   if (async2.length === 0) {
@@ -2012,14 +2067,33 @@ function capture() {
     }
   };
 }
-function unset_context() {
+function unset_context(deactivate_batch = true) {
   set_active_effect(null);
   set_active_reaction(null);
   set_component_context(null);
+  if (deactivate_batch) current_batch?.deactivate();
   if (dev_fallback_default) {
     set_from_async_derived(null);
     set_dev_stack(null);
   }
+}
+function increment_pending() {
+  var boundary2 = (
+    /** @type {Boundary} */
+    /** @type {Effect} */
+    active_effect.b
+  );
+  var batch = (
+    /** @type {Batch} */
+    current_batch
+  );
+  var blocking = boundary2.is_rendered();
+  boundary2.update_pending_count(1);
+  batch.increment(blocking);
+  return () => {
+    boundary2.update_pending_count(-1);
+    batch.decrement(blocking);
+  };
 }
 
 // node_modules/svelte/src/internal/client/reactivity/deriveds.js
@@ -2069,10 +2143,6 @@ function async_derived(fn, label, location) {
   if (parent === null) {
     async_derived_orphan();
   }
-  var boundary2 = (
-    /** @type {Boundary} */
-    parent.b
-  );
   var promise = (
     /** @type {Promise<V>} */
     /** @type {unknown} */
@@ -2090,12 +2160,7 @@ function async_derived(fn, label, location) {
     var d = deferred();
     promise = d.promise;
     try {
-      Promise.resolve(fn()).then(d.resolve, d.reject).then(() => {
-        if (batch === current_batch && batch.committed) {
-          batch.deactivate();
-        }
-        unset_context();
-      });
+      Promise.resolve(fn()).then(d.resolve, d.reject).finally(unset_context);
     } catch (error) {
       d.reject(error);
       unset_context();
@@ -2106,9 +2171,7 @@ function async_derived(fn, label, location) {
       current_batch
     );
     if (should_suspend) {
-      var blocking = boundary2.is_rendered();
-      boundary2.update_pending_count(1);
-      batch.increment(blocking);
+      var decrement_pending = increment_pending();
       deferreds.get(batch)?.reject(STALE_REACTION);
       deferreds.delete(batch);
       deferreds.set(batch, d);
@@ -2145,9 +2208,8 @@ function async_derived(fn, label, location) {
           });
         }
       }
-      if (should_suspend) {
-        boundary2.update_pending_count(-1);
-        batch.decrement(blocking);
+      if (decrement_pending) {
+        decrement_pending();
       }
     };
     d.promise.then(handler, (e) => handler(null, e || "unknown"));
@@ -3498,7 +3560,7 @@ function is_dirty(reaction) {
   }
   return false;
 }
-function schedule_possible_effect_self_invalidation(signal, effect2, root9 = true) {
+function schedule_possible_effect_self_invalidation(signal, effect2, root10 = true) {
   var reactions = signal.reactions;
   if (reactions === null) return;
   if (!async_mode_flag && current_sources !== null && includes.call(current_sources, signal)) {
@@ -3514,7 +3576,7 @@ function schedule_possible_effect_self_invalidation(signal, effect2, root9 = tru
         false
       );
     } else if (effect2 === reaction) {
-      if (root9) {
+      if (root10) {
         set_signal_status(reaction, DIRTY);
       } else if ((reaction.f & CLEAN) !== 0) {
         set_signal_status(reaction, MAYBE_DIRTY);
@@ -4058,12 +4120,12 @@ function handle_event_propagation(event2) {
   );
   last_propagated_event = event2;
   var path_idx = 0;
-  var handled_at = last_propagated_event === event2 && event2.__root;
+  var handled_at = last_propagated_event === event2 && event2[event_symbol];
   if (handled_at) {
     var at_idx = path.indexOf(handled_at);
     if (at_idx !== -1 && (handler_element === document || handler_element === /** @type {any} */
     window)) {
-      event2.__root = handler_element;
+      event2[event_symbol] = handler_element;
       return;
     }
     var handler_idx = path.indexOf(handler_element);
@@ -4122,7 +4184,7 @@ function handle_event_propagation(event2) {
       throw throw_error;
     }
   } finally {
-    event2.__root = handler_element;
+    event2[event_symbol] = handler_element;
     delete event2.currentTarget;
     set_active_reaction(previous_reaction);
     set_active_effect(previous_effect);
@@ -4130,14 +4192,14 @@ function handle_event_propagation(event2) {
 }
 
 // node_modules/svelte/src/internal/client/dom/reconciler.js
-var policy = /* @__PURE__ */ globalThis?.window?.trustedTypes?.createPolicy(
-  "svelte-trusted-html",
-  {
+var policy = (
+  // We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+  globalThis?.window?.trustedTypes && /* @__PURE__ */ globalThis.window.trustedTypes.createPolicy("svelte-trusted-html", {
     /** @param {string} html */
     createHTML: (html2) => {
       return html2;
     }
-  }
+  })
 );
 function create_trusted_html(html2) {
   return (
@@ -4145,10 +4207,9 @@ function create_trusted_html(html2) {
     policy?.createHTML(html2) ?? html2
   );
 }
-function create_fragment_from_html(html2, trusted2 = false) {
+function create_fragment_from_html(html2) {
   var elem = create_element("template");
-  html2 = html2.replaceAll("<!>", "<!---->");
-  elem.innerHTML = trusted2 ? create_trusted_html(html2) : html2;
+  elem.innerHTML = create_trusted_html(html2.replaceAll("<!>", "<!---->"));
   return elem.content;
 }
 
@@ -4174,7 +4235,7 @@ function from_html(content, flags2) {
       return hydrate_node;
     }
     if (node === void 0) {
-      node = create_fragment_from_html(has_start ? content : "<!>" + content, true);
+      node = create_fragment_from_html(has_start ? content : "<!>" + content);
       if (!is_fragment) node = /** @type {TemplateNode} */
       get_first_child(node);
     }
@@ -4212,23 +4273,23 @@ function from_namespace(content, flags2, ns = "svg") {
     if (!node) {
       var fragment = (
         /** @type {DocumentFragment} */
-        create_fragment_from_html(wrapped, true)
+        create_fragment_from_html(wrapped)
       );
-      var root9 = (
+      var root10 = (
         /** @type {Element} */
         get_first_child(fragment)
       );
       if (is_fragment) {
         node = document.createDocumentFragment();
-        while (get_first_child(root9)) {
+        while (get_first_child(root10)) {
           node.appendChild(
             /** @type {TemplateNode} */
-            get_first_child(root9)
+            get_first_child(root10)
           );
         }
       } else {
         node = /** @type {Element} */
-        get_first_child(root9);
+        get_first_child(root10);
       }
     }
     var clone = (
@@ -4353,33 +4414,8 @@ function hydrate(component2, options) {
   }
 }
 var listeners = /* @__PURE__ */ new Map();
-function _mount(Component, { target, anchor, props = {}, events, context, intro = true }) {
+function _mount(Component, { target, anchor, props = {}, events, context, intro = true, transformError }) {
   init_operations();
-  var registered_events = /* @__PURE__ */ new Set();
-  var event_handle = (events2) => {
-    for (var i = 0; i < events2.length; i++) {
-      var event_name = events2[i];
-      if (registered_events.has(event_name)) continue;
-      registered_events.add(event_name);
-      var passive2 = is_passive_event(event_name);
-      for (const node of [target, document]) {
-        var counts = listeners.get(node);
-        if (counts === void 0) {
-          counts = /* @__PURE__ */ new Map();
-          listeners.set(node, counts);
-        }
-        var count = counts.get(event_name);
-        if (count === void 0) {
-          node.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
-          counts.set(event_name, 1);
-        } else {
-          counts.set(event_name, count + 1);
-        }
-      }
-    }
-  };
-  event_handle(array_from(all_registered_events));
-  root_event_handles.add(event_handle);
   var component2 = void 0;
   var unmount2 = component_root(() => {
     var anchor_node = anchor ?? target.appendChild(create_text());
@@ -4419,8 +4455,34 @@ function _mount(Component, { target, anchor, props = {}, events, context, intro 
           }
         }
         pop();
-      }
+      },
+      transformError
     );
+    var registered_events = /* @__PURE__ */ new Set();
+    var event_handle = (events2) => {
+      for (var i = 0; i < events2.length; i++) {
+        var event_name = events2[i];
+        if (registered_events.has(event_name)) continue;
+        registered_events.add(event_name);
+        var passive2 = is_passive_event(event_name);
+        for (const node of [target, document]) {
+          var counts = listeners.get(node);
+          if (counts === void 0) {
+            counts = /* @__PURE__ */ new Map();
+            listeners.set(node, counts);
+          }
+          var count = counts.get(event_name);
+          if (count === void 0) {
+            node.addEventListener(event_name, handle_event_propagation, { passive: passive2 });
+            counts.set(event_name, 1);
+          } else {
+            counts.set(event_name, count + 1);
+          }
+        }
+      }
+    };
+    event_handle(array_from(all_registered_events));
+    root_event_handles.add(event_handle);
     return () => {
       for (var event_name of registered_events) {
         for (const node of [target, document]) {
@@ -4815,6 +4877,12 @@ function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = nu
       }
       var value = array[index2];
       var key2 = get_key(value, index2);
+      if (dev_fallback_default) {
+        var key_again = get_key(value, index2);
+        if (key2 !== key_again) {
+          each_key_volatile(String(index2), String(key2), String(key_again));
+        }
+      }
       var item = first_run ? null : items.get(key2);
       if (item) {
         if (item.v) internal_set(item.v, value);
@@ -5180,14 +5248,17 @@ function html(node, get_value, svg = false, mathml = false, skip_warning = false
       anchor = set_hydrate_node(next2);
       return;
     }
-    var html2 = value + "";
-    if (svg) html2 = `<svg>${html2}</svg>`;
-    else if (mathml) html2 = `<math>${html2}</math>`;
-    var node2 = create_fragment_from_html(html2);
-    if (svg || mathml) {
-      node2 = /** @type {Element} */
-      get_first_child(node2);
-    }
+    var ns = svg ? NAMESPACE_SVG : mathml ? NAMESPACE_MATHML : void 0;
+    var wrapper = (
+      /** @type {HTMLTemplateElement | SVGElement | MathMLElement} */
+      create_element(svg ? "svg" : mathml ? "math" : "template", ns)
+    );
+    wrapper.innerHTML = /** @type {any} */
+    value;
+    var node2 = svg || mathml ? wrapper : (
+      /** @type {HTMLTemplateElement} */
+      wrapper.content
+    );
     assign_nodes(
       /** @type {TemplateNode} */
       get_first_child(node2),
@@ -5210,16 +5281,16 @@ function html(node, get_value, svg = false, mathml = false, skip_warning = false
 // node_modules/svelte/src/internal/client/dom/css.js
 function append_styles(anchor, css) {
   effect(() => {
-    var root9 = anchor.getRootNode();
+    var root10 = anchor.getRootNode();
     var target = (
       /** @type {ShadowRoot} */
-      root9.host ? (
+      root10.host ? (
         /** @type {ShadowRoot} */
-        root9
+        root10
       ) : (
         /** @type {Document} */
-        root9.head ?? /** @type {Document} */
-        root9.ownerDocument.head
+        root10.head ?? /** @type {Document} */
+        root10.ownerDocument.head
       )
     );
     if (!target.querySelector("#" + css.hash)) {
@@ -5242,7 +5313,7 @@ function to_class(value, hash2, directives) {
     classname = classname ? classname + " " + hash2 : hash2;
   }
   if (directives) {
-    for (var key2 in directives) {
+    for (var key2 of Object.keys(directives)) {
       if (directives[key2]) {
         classname = classname ? classname + " " + key2 : key2;
       } else if (classname.length) {
@@ -5386,7 +5457,6 @@ function get_option_value(option) {
 var IS_CUSTOM_ELEMENT = /* @__PURE__ */ Symbol("is custom element");
 var IS_HTML = /* @__PURE__ */ Symbol("is html");
 var LINK_TAG = IS_XHTML ? "link" : "LINK";
-var PROGRESS_TAG = IS_XHTML ? "progress" : "PROGRESS";
 function remove_input_defaults(input) {
   if (!hydrating) return;
   var already_removed = false;
@@ -5407,16 +5477,6 @@ function remove_input_defaults(input) {
   input.__on_r = remove_defaults;
   queue_micro_task(remove_defaults);
   add_form_reset_listener();
-}
-function set_value(element2, value) {
-  var attributes = get_attributes(element2);
-  if (attributes.value === (attributes.value = // treat null and undefined the same for the initial value
-  value ?? void 0) || // @ts-expect-error
-  // `progress` elements always need their value set when it's `0`
-  element2.value === value && (value !== 0 || element2.nodeName !== PROGRESS_TAG)) {
-    return;
-  }
-  element2.value = value ?? "";
 }
 function set_selected(element2, selected) {
   if (selected) {
@@ -5865,7 +5925,8 @@ var Svelte4Component = class {
       props,
       context: options.context,
       intro: options.intro ?? false,
-      recover: options.recover
+      recover: options.recover,
+      transformError: options.transformError
     });
     if (!async_mode_flag && (!options?.props?.$$host || options.sync === false)) {
       flushSync();
@@ -6360,10 +6421,10 @@ function SuggestionList($$anchor, $$props) {
 }
 
 // src/components/ChatInput.svelte
-var root2 = from_html(`<div class="chat-input-wrapper-container" style="position: relative; width: 100%; border: 2px solid red;"><input type="file" style="display: none;" multiple="" accept="image/*,.pdf,.txt,.md,.json,.js,.ts,.py,.java,.c,.cpp,.h,.css,.html,.xml,.yml,.yaml"/> <!> <div><textarea rows="1" class="svelte-iawcui"></textarea> <div class="actions svelte-iawcui"><div class="left-actions svelte-iawcui"><button class="action-btn svelte-iawcui" aria-label="Upload file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button></div> <button class="send-btn svelte-iawcui" aria-label="Send message"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></div></div>`);
+var root2 = from_html(`<div class="chat-input-wrapper-container" style="position: relative; width: 100%;"><input type="file" style="display: none;" multiple="" accept="image/*,.pdf,.txt,.md,.json,.js,.ts,.py,.java,.c,.cpp,.h,.css,.html,.xml,.yml,.yaml"/> <!> <div><textarea rows="1" class="svelte-iawcui"></textarea> <div class="actions svelte-iawcui"><div class="left-actions svelte-iawcui"><button class="action-btn svelte-iawcui" aria-label="Upload file"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-paperclip"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button></div> <button class="send-btn svelte-iawcui" aria-label="Send message"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div></div></div>`);
 var $$css2 = {
   hash: "svelte-iawcui",
-  code: ".chat-input-wrapper.svelte-iawcui {display:flex;flex-direction:column;background-color:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;padding:8px;transition:border-color 0.2s ease;}.chat-input-wrapper.svelte-iawcui:focus-within {border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.chat-input-wrapper.disabled.svelte-iawcui {opacity:0.7;pointer-events:none;}textarea.svelte-iawcui {width:100%;background:transparent;border:none;outline:none;resize:none;font-family:inherit;font-size:var(--font-ui-medium);line-height:1.5;max-height:200px;padding:0;margin:0;color:var(--text-normal);}textarea.svelte-iawcui::placeholder {color:var(--text-muted);}.actions.svelte-iawcui {display:flex;justify-content:space-between;align-items:center;margin-top:8px;}.left-actions.svelte-iawcui {display:flex;gap:8px;}.action-btn.svelte-iawcui {background:transparent;color:var(--text-muted);border:none;border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color 0.2s,\n      background-color 0.2s;padding:0;}.action-btn.svelte-iawcui:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.send-btn.svelte-iawcui {background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color 0.2s;padding:0;}.send-btn.svelte-iawcui:hover {background-color:var(--interactive-accent-hover);}.send-btn.svelte-iawcui:disabled {background-color:var(--background-modifier-cover);cursor:not-allowed;}"
+  code: ".chat-input-wrapper.svelte-iawcui {display:flex;flex-direction:column;background-color:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;padding:8px;transition:border-color 0.2s ease;user-select:text;-webkit-user-select:text;}.chat-input-wrapper.svelte-iawcui:focus-within {border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.chat-input-wrapper.disabled.svelte-iawcui {opacity:0.7;pointer-events:none;}textarea.svelte-iawcui {width:100%;background:transparent;border:none;outline:none;resize:none;font-family:inherit;font-size:var(--font-ui-medium);line-height:1.5;max-height:200px;padding:0;margin:0;color:var(--text-normal);user-select:text;-webkit-user-select:text;cursor:text;}textarea.svelte-iawcui::placeholder {color:var(--text-muted);}.actions.svelte-iawcui {display:flex;justify-content:space-between;align-items:center;margin-top:8px;}.left-actions.svelte-iawcui {display:flex;gap:8px;}.action-btn.svelte-iawcui {background:transparent;color:var(--text-muted);border:none;border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color 0.2s,\n      background-color 0.2s;padding:0;}.action-btn.svelte-iawcui:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.send-btn.svelte-iawcui {background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color 0.2s;padding:0;}.send-btn.svelte-iawcui:hover {background-color:var(--interactive-accent-hover);}.send-btn.svelte-iawcui:disabled {background-color:var(--background-modifier-cover);cursor:not-allowed;}"
 };
 function ChatInput($$anchor, $$props) {
   push($$props, false);
@@ -6528,12 +6589,12 @@ function ChatInput($$anchor, $$props) {
   reset(div);
   template_effect(() => {
     classes = set_class(div_1, 1, "chat-input-wrapper svelte-iawcui", null, classes, { disabled: disabled() });
-    set_value(textarea_1, value());
     set_attribute2(textarea_1, "placeholder", placeholder());
     textarea_1.disabled = disabled();
     button_1.disabled = disabled();
   });
   event("change", input, handleFileChange);
+  bind_value(textarea_1, value);
   event("input", textarea_1, handleInput);
   event("keydown", textarea_1, handleKeydown);
   event("click", button, triggerFileUpload);
@@ -6857,31 +6918,210 @@ function PersonaSelector($$anchor, $$props) {
   pop();
 }
 
-// src/views/ChatView.svelte
-var root_15 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button> <button class="svelte-1mg2b0j">Fix grammar</button></div></div>`);
-var root_34 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
-var root7 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="title svelte-1mg2b0j">AI Copilot <span style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;">v1.1</span></div> <div class="controls svelte-1mg2b0j"><!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!></div></div>`);
+// src/components/SessionHistory.svelte
+var root_24 = from_html(`<button><div class="session-info svelte-lf7hc0"><span class="item-name svelte-lf7hc0"> </span> <span class="item-date svelte-lf7hc0"> </span></div> <div class="delete-btn svelte-lf7hc0" title="Delete Session" aria-label="Delete Session">\u2715</div></button>`);
+var root_34 = from_html(`<div class="dropdown-item empty svelte-lf7hc0">No history found</div>`);
+var root_15 = from_html(`<div class="dropdown-menu svelte-lf7hc0"><!> <!></div>`);
+var root7 = from_html(`<div class="session-selector svelte-lf7hc0"><button title="Chat History"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-history"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg></button> <!></div>`);
 var $$css7 = {
+  hash: "svelte-lf7hc0",
+  code: ".session-selector.svelte-lf7hc0 {position:relative;display:inline-flex;align-items:center;}.selector-btn.svelte-lf7hc0 {background:transparent;border:none;padding:4px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:var(--font-ui-smaller);transition:color 0.2s,\n      background-color 0.2s;}.selector-btn.svelte-lf7hc0:hover,\n  .selector-btn.active.svelte-lf7hc0 {color:var(--text-normal);background-color:var(--background-modifier-hover);}.dropdown-menu.svelte-lf7hc0 {position:absolute;top:100%;left:0;margin-top:4px;background-color:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;box-shadow:0 4px 12px rgba(0, 0, 0, 0.1);z-index:1000;min-width:260px;padding:4px;max-height:350px;overflow-y:auto;}.dropdown-item.svelte-lf7hc0 {display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;border-radius:4px;cursor:pointer;color:var(--text-normal);gap:8px;}.dropdown-item.svelte-lf7hc0:hover {background-color:var(--background-modifier-hover);}.dropdown-item.current.svelte-lf7hc0 {background-color:var(--interactive-accent);color:var(--text-on-accent);}.dropdown-item.current.svelte-lf7hc0 .item-date:where(.svelte-lf7hc0),\n  .dropdown-item.current.svelte-lf7hc0 .delete-btn:where(.svelte-lf7hc0) {color:var(--text-on-accent);opacity:0.8;}.session-info.svelte-lf7hc0 {display:flex;flex-direction:column;overflow:hidden;flex:1;}.item-name.svelte-lf7hc0 {font-weight:500;font-size:var(--font-ui-smaller);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.item-date.svelte-lf7hc0 {font-size:0.8em;color:var(--text-muted);}.empty.svelte-lf7hc0 {justify-content:center;color:var(--text-muted);cursor:default;}.empty.svelte-lf7hc0:hover {background-color:transparent;}.delete-btn.svelte-lf7hc0 {background:transparent;border:none;padding:4px;border-radius:4px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s,\n      background-color 0.2s,\n      color 0.2s;}.dropdown-item.svelte-lf7hc0:hover .delete-btn:where(.svelte-lf7hc0) {opacity:1;}.delete-btn.svelte-lf7hc0:hover {background-color:var(--background-modifier-error-hover) !important;color:var(--text-error) !important;opacity:1;}"
+};
+function SessionHistory($$anchor, $$props) {
+  push($$props, false);
+  append_styles($$anchor, $$css7);
+  const sortedSessions = mutable_source();
+  let sessions = prop($$props, "sessions", 24, () => []);
+  let currentSessionId = prop($$props, "currentSessionId", 8);
+  const dispatch = createEventDispatcher();
+  let isOpen = mutable_source(false);
+  function toggle() {
+    set(isOpen, !get(isOpen));
+  }
+  function select(id) {
+    set(isOpen, false);
+    if (id !== currentSessionId()) {
+      dispatch("select", id);
+    }
+  }
+  function deleteSession(id, e) {
+    e.stopPropagation();
+    dispatch("delete", id);
+  }
+  function close(e) {
+    if (get(isOpen)) set(isOpen, false);
+  }
+  legacy_pre_effect(() => deep_read_state(sessions()), () => {
+    set(sortedSessions, [...sessions()].sort((a, b) => b.updatedAt - a.updatedAt));
+  });
+  legacy_pre_effect_reset();
+  init();
+  var div = root7();
+  event("click", $window, close);
+  var button = child(div);
+  let classes;
+  var node = sibling(button, 2);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var div_1 = root_15();
+      var node_1 = child(div_1);
+      each(node_1, 1, () => get(sortedSessions), index, ($$anchor3, session) => {
+        var button_1 = root_24();
+        let classes_1;
+        var div_2 = child(button_1);
+        var span = child(div_2);
+        var text2 = child(span, true);
+        reset(span);
+        var span_1 = sibling(span, 2);
+        var text_1 = child(span_1, true);
+        reset(span_1);
+        reset(div_2);
+        var div_3 = sibling(div_2, 2);
+        reset(button_1);
+        template_effect(
+          ($0) => {
+            classes_1 = set_class(button_1, 1, "dropdown-item svelte-lf7hc0", null, classes_1, { current: get(session).id === currentSessionId() });
+            set_attribute2(button_1, "title", (get(session), untrack(() => get(session).title)));
+            set_text(text2, (get(session), untrack(() => get(session).title || "New Chat")));
+            set_text(text_1, $0);
+          },
+          [
+            () => (get(session), untrack(() => new Date(get(session).updatedAt).toLocaleDateString()))
+          ]
+        );
+        event("click", div_3, (e) => deleteSession(get(session).id, e));
+        event("click", button_1, () => select(get(session).id));
+        append($$anchor3, button_1);
+      });
+      var node_2 = sibling(node_1, 2);
+      {
+        var consequent = ($$anchor3) => {
+          var div_4 = root_34();
+          append($$anchor3, div_4);
+        };
+        if_block(node_2, ($$render) => {
+          if (get(sortedSessions), untrack(() => get(sortedSessions).length === 0)) $$render(consequent);
+        });
+      }
+      reset(div_1);
+      append($$anchor2, div_1);
+    };
+    if_block(node, ($$render) => {
+      if (get(isOpen)) $$render(consequent_1);
+    });
+  }
+  reset(div);
+  template_effect(() => classes = set_class(button, 1, "selector-btn svelte-lf7hc0", null, classes, { active: get(isOpen) }));
+  event("click", button, stopPropagation(toggle));
+  append($$anchor, div);
+  pop();
+}
+
+// src/views/ChatView.svelte
+var root_16 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button> <button class="svelte-1mg2b0j">Fix grammar</button></div></div>`);
+var root_35 = from_html(`<div class="active-file-indicator svelte-1mg2b0j"><span class="indicator-icon">\u{1F4C4}</span> <span class="indicator-text"> </span></div>`);
+var root_43 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
+var root8 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="title svelte-1mg2b0j">AI Copilot <span style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;">v1.1</span></div> <div class="controls svelte-1mg2b0j"><!> <button class="new-chat-btn svelte-1mg2b0j" aria-label="New Chat"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-circle"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg></button> <!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!> <!></div></div>`);
+var $$css8 = {
   hash: "svelte-1mg2b0j",
-  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);}.header.svelte-1mg2b0j {padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);display:flex;justify-content:space-between;align-items:center;}.title.svelte-1mg2b0j {font-weight:600;font-size:var(--font-ui-medium);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}"
+  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);user-select:text;-webkit-user-select:text;}.header.svelte-1mg2b0j {padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);display:flex;justify-content:space-between;align-items:center;position:relative;z-index:10;}.title.svelte-1mg2b0j {font-weight:600;font-size:var(--font-ui-medium);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:75%;box-sizing:border-box;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}.new-chat-btn.svelte-1mg2b0j {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;}.new-chat-btn.svelte-1mg2b0j:hover {color:var(--text-normal);}.active-file-indicator.svelte-1mg2b0j {font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:4px;padding:0 4px;}"
 };
 function ChatView($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css7);
+  append_styles($$anchor, $$css8);
+  const sessionsList = mutable_source();
   const currentModels = mutable_source();
   let plugin = prop($$props, "plugin", 12);
   let query = mutable_source("");
-  let chatHistory = mutable_source([]);
+  let messages = mutable_source([]);
   let isLoading = mutable_source(false);
+  let activeContextFile = mutable_source(null);
+  let currentSessionId = mutable_source("");
   let selectedContext = mutable_source([]);
   let currentModel = mutable_source("gpt-4o-mini");
   let selectedPersonaId = mutable_source("default");
-  onMount(() => {
+  onMount(async () => {
     if (plugin().settings) {
       set(currentModel, plugin().settings.model || "gpt-4o-mini");
       set(selectedPersonaId, plugin().settings.defaultPersonaId || "default");
+      if (plugin().settings.activeSessionId) {
+        loadSession(plugin().settings.activeSessionId);
+      } else {
+        createNewSession();
+      }
     }
+    checkActiveFile();
+    plugin().app.workspace.on("active-leaf-change", () => checkActiveFile());
   });
+  async function checkActiveFile() {
+    if (plugin().contextManager) {
+      set(activeContextFile, await plugin().contextManager.getActiveFileContent());
+    }
+  }
+  function loadSession(id) {
+    const session = plugin().settings.sessions.find((s) => s.id === id);
+    if (session) {
+      set(currentSessionId, session.id);
+      set(messages, session.messages);
+      plugin(plugin().settings.activeSessionId = session.id, true);
+      plugin().saveSettings();
+    } else {
+      createNewSession();
+    }
+  }
+  function handleSessionDelete(event2) {
+    const idToDelete = event2.detail;
+    let sessions = plugin().settings.sessions;
+    sessions = sessions.filter((s) => s.id !== idToDelete);
+    plugin(plugin().settings.sessions = sessions, true);
+    plugin().saveSettings();
+    plugin(plugin().settings = { ...plugin().settings }, true);
+    if (idToDelete === get(currentSessionId)) {
+      if (sessions.length > 0) {
+        const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+        loadSession(sorted[0].id);
+      } else {
+        createNewSession();
+      }
+    }
+  }
+  function createNewSession() {
+    const newSession = {
+      id: crypto.randomUUID(),
+      title: "New Chat",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      messages: []
+    };
+    plugin(plugin().settings.sessions = [...plugin().settings.sessions, newSession], true);
+    plugin(plugin().settings.activeSessionId = newSession.id, true);
+    set(currentSessionId, newSession.id);
+    set(messages, newSession.messages);
+    plugin().saveSettings();
+    plugin(plugin().settings = { ...plugin().settings }, true);
+  }
+  function updateSessionTitle(firstMessage) {
+    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    if (session && session.title === "New Chat") {
+      session.title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+      plugin().saveSettings();
+    }
+  }
+  function saveMessageToHistory(role, content) {
+    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    if (session) {
+      session.messages.push({ role, content });
+      session.updatedAt = Date.now();
+      set(
+        messages,
+        session.messages
+        // Force reactivity
+      );
+      plugin(plugin().settings.sessions = [...plugin().settings.sessions], true);
+      plugin(plugin().settings = { ...plugin().settings }, true);
+      plugin().saveSettings();
+    }
+  }
   function handleModelChange(model) {
     set(currentModel, model);
     if (plugin().settings) {
@@ -6959,18 +7199,31 @@ ${c.content}`).join("");
     const fullPromptText = `${contextText}
 
 User Question: ${get(query)}`;
+    let systemBase = "";
+    if (get(activeContextFile) && !textContexts.some((c) => c.path === get(activeContextFile)?.path)) {
+      systemBase += `
+
+=== CURRENT ACTIVE FILE (${get(activeContextFile).path}) ===
+${get(activeContextFile).content}
+==========================
+`;
+    }
     const displayContent = get(query) + (imageContexts.length > 0 ? `
 [Attached ${imageContexts.length} images]` : "");
-    set(chatHistory, [
-      ...get(chatHistory),
-      { role: "user", content: displayContent }
-    ]);
+    saveMessageToHistory("user", displayContent);
+    if (get(messages).length === 1) {
+      updateSessionTitle(get(query));
+    }
     set(query, "");
     set(isLoading, true);
     try {
       let currentMessages = [];
       const persona = plugin().settings.personas.find((p) => p.id === get(selectedPersonaId)) || DEFAULT_PERSONAS[0];
-      currentMessages.push({ role: "system", content: persona.prompt });
+      const finalSystemPrompt = persona.prompt + (systemBase ? `
+
+Context:
+${systemBase}` : "");
+      currentMessages.push({ role: "system", content: finalSystemPrompt });
       if (imageContexts.length > 0) {
         const contentParts = [];
         if (fullPromptText.trim()) {
@@ -6996,8 +7249,8 @@ User Question: ${get(query)}`;
             tool_calls: response.tool_calls
           });
           for (const tool of response.tool_calls) {
-            set(chatHistory, [
-              ...get(chatHistory),
+            set(messages, [
+              ...get(messages),
               {
                 role: "assistant",
                 content: `\u{1F6E0}\uFE0F Using tool: \`${tool.function.name}\`...`
@@ -7015,8 +7268,8 @@ User Question: ${get(query)}`;
               result = `Error executing tool: ${e.message}`;
             }
             currentMessages.push({ role: "tool", tool_call_id: tool.id, content: result });
-            set(chatHistory, [
-              ...get(chatHistory),
+            set(messages, [
+              ...get(messages),
               { role: "assistant", content: `> ${result}` }
             ]);
           }
@@ -7026,16 +7279,10 @@ User Question: ${get(query)}`;
           break;
         }
       }
-      set(chatHistory, [
-        ...get(chatHistory),
-        { role: "assistant", content: finalContent }
-      ]);
+      saveMessageToHistory("assistant", finalContent);
     } catch (error) {
       console.error("AI Chat Error:", error);
-      set(chatHistory, [
-        ...get(chatHistory),
-        { role: "assistant", content: "Error: " + error.message }
-      ]);
+      saveMessageToHistory("error", "Error: " + error.message);
     } finally {
       set(isLoading, false);
       await tick();
@@ -7060,6 +7307,9 @@ User Question: ${get(query)}`;
     navigator.clipboard.writeText(content);
     new import_obsidian.Notice("Copied to clipboard");
   }
+  legacy_pre_effect(() => deep_read_state(plugin()), () => {
+    set(sessionsList, plugin().settings?.sessions || []);
+  });
   legacy_pre_effect(
     () => (deep_read_state(plugin()), PROVIDER_MODELS, get(currentModel)),
     () => {
@@ -7068,13 +7318,27 @@ User Question: ${get(query)}`;
   );
   legacy_pre_effect_reset();
   init();
-  var div = root7();
+  var div = root8();
   var div_1 = child(div);
   var div_2 = sibling(child(div_1), 2);
   var node = child(div_2);
+  SessionHistory(node, {
+    get sessions() {
+      return get(sessionsList);
+    },
+    get currentSessionId() {
+      return get(currentSessionId);
+    },
+    $$events: {
+      select: (e) => loadSession(e.detail),
+      delete: handleSessionDelete
+    }
+  });
+  var button = sibling(node, 2);
+  var node_1 = sibling(button, 2);
   {
     let $0 = derived_safe_equal(() => (deep_read_state(plugin()), deep_read_state(DEFAULT_PERSONAS), untrack(() => plugin().settings?.personas || DEFAULT_PERSONAS)));
-    PersonaSelector(node, {
+    PersonaSelector(node_1, {
       get personas() {
         return get($0);
       },
@@ -7087,8 +7351,8 @@ User Question: ${get(query)}`;
       $$legacy: true
     });
   }
-  var node_1 = sibling(node, 2);
-  ModelSelector(node_1, {
+  var node_2 = sibling(node_1, 2);
+  ModelSelector(node_2, {
     get models() {
       return get(currentModels);
     },
@@ -7104,33 +7368,33 @@ User Question: ${get(query)}`;
   reset(div_2);
   reset(div_1);
   var div_3 = sibling(div_1, 2);
-  var node_2 = child(div_3);
+  var node_3 = child(div_3);
   {
     var consequent = ($$anchor2) => {
-      var div_4 = root_15();
+      var div_4 = root_16();
       var div_5 = sibling(child(div_4), 4);
-      var button = child(div_5);
-      var button_1 = sibling(button, 2);
+      var button_1 = child(div_5);
+      var button_2 = sibling(button_1, 2);
       reset(div_5);
       reset(div_4);
-      event("click", button, () => {
+      event("click", button_1, () => {
         set(query, "Summarize this note");
         sendMessage();
       });
-      event("click", button_1, () => {
+      event("click", button_2, () => {
         set(query, "Fix grammar");
         sendMessage();
       });
       append($$anchor2, div_4);
     };
-    if_block(node_2, ($$render) => {
-      if (get(chatHistory), untrack(() => get(chatHistory).length === 0)) $$render(consequent);
+    if_block(node_3, ($$render) => {
+      if (get(messages), untrack(() => get(messages).length === 0)) $$render(consequent);
     });
   }
-  var node_3 = sibling(node_2, 2);
-  each(node_3, 1, () => get(chatHistory), index, ($$anchor2, message) => {
+  var node_4 = sibling(node_3, 2);
+  each(node_4, 1, () => get(messages), index, ($$anchor2, message) => {
     {
-      let $0 = derived_safe_equal(() => (get(isLoading), get(message), get(chatHistory), untrack(() => get(isLoading) && get(message) === get(chatHistory)[get(chatHistory).length - 1])));
+      let $0 = derived_safe_equal(() => (get(isLoading), get(message), get(messages), untrack(() => get(isLoading) && get(message) === get(messages)[get(messages).length - 1])));
       MessageBubble($$anchor2, {
         get role() {
           return get(message), untrack(() => get(message).role);
@@ -7151,11 +7415,26 @@ User Question: ${get(query)}`;
   });
   reset(div_3);
   var div_6 = sibling(div_3, 2);
-  var node_4 = child(div_6);
+  var node_5 = child(div_6);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_7 = root_34();
-      each(div_7, 5, () => get(selectedContext), index, ($$anchor3, context, i) => {
+      var div_7 = root_35();
+      var span = sibling(child(div_7), 2);
+      var text2 = child(span);
+      reset(span);
+      reset(div_7);
+      template_effect(() => set_text(text2, `Viewing: ${(get(activeContextFile), untrack(() => get(activeContextFile).path)) ?? ""}`));
+      append($$anchor2, div_7);
+    };
+    if_block(node_5, ($$render) => {
+      if (get(activeContextFile)) $$render(consequent_1);
+    });
+  }
+  var node_6 = sibling(node_5, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var div_8 = root_43();
+      each(div_8, 5, () => get(selectedContext), index, ($$anchor3, context, i) => {
         ContextPill($$anchor3, {
           get text() {
             return get(context), untrack(() => get(context).text);
@@ -7166,15 +7445,15 @@ User Question: ${get(query)}`;
           $$events: { remove: () => removeContext(i) }
         });
       });
-      reset(div_7);
-      append($$anchor2, div_7);
+      reset(div_8);
+      append($$anchor2, div_8);
     };
-    if_block(node_4, ($$render) => {
-      if (get(selectedContext), untrack(() => get(selectedContext).length > 0)) $$render(consequent_1);
+    if_block(node_6, ($$render) => {
+      if (get(selectedContext), untrack(() => get(selectedContext).length > 0)) $$render(consequent_2);
     });
   }
-  var node_5 = sibling(node_4, 2);
-  ChatInput(node_5, {
+  var node_7 = sibling(node_6, 2);
+  ChatInput(node_7, {
     onSearch: handleSearch,
     get value() {
       return get(query);
@@ -7190,6 +7469,7 @@ User Question: ${get(query)}`;
   });
   reset(div_6);
   reset(div);
+  event("click", button, createNewSession);
   append($$anchor, div);
   pop();
 }
@@ -7214,7 +7494,7 @@ var AIChatView = class extends import_obsidian2.ItemView {
     return "bot";
   }
   async onOpen() {
-    const container = this.containerEl.children[1];
+    const container = this.contentEl;
     container.empty();
     this.component = mount(ChatView, {
       target: container,
@@ -7306,6 +7586,21 @@ var ContextManager = class {
 Contains: ${file.children.map((c) => c.name).join(", ")}`;
     }
     return `Error: File not found at ${path}`;
+  }
+  // Get active file content
+  async getActiveFileContent() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) return null;
+    try {
+      const content = await this.app.vault.read(activeFile);
+      return {
+        content,
+        path: activeFile.path
+      };
+    } catch (e) {
+      console.error("Error reading active file:", e);
+      return null;
+    }
   }
   // Resolve multiple context items
   async resolveContexts(items) {
@@ -7523,24 +7818,27 @@ ${content}`);
 
 // src/settings/SettingsView.svelte
 var import_obsidian6 = require("obsidian");
-var root_16 = from_html(`<option> </option>`);
-var root_24 = from_html(`<option> </option>`);
-var root_35 = from_html(`<option> </option>`);
-var root_43 = from_html(`<input type="text" placeholder="or type custom model name" style="margin-top: 6px; width: 100%;" class="svelte-1av9wh"/>`);
+var root_17 = from_html(`<option> </option>`);
+var root_25 = from_html(`<option> </option>`);
+var root_36 = from_html(`<option> </option>`);
+var root_44 = from_html(`<input type="text" placeholder="or type custom model name" style="margin-top: 6px; width: 100%;" class="svelte-1av9wh"/>`);
 var root_53 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">API Key</div> <div class="setting-item-description svelte-1av9wh">Your secret API key</div></div> <div class="setting-item-control svelte-1av9wh"><input type="password" placeholder="sk-..." class="svelte-1av9wh"/></div></div>`);
 var root_63 = from_html(`<div> </div>`);
 var root_8 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
 var root_9 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
 var root_10 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" placeholder="Optional description" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">System Prompt</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
 var root_72 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root8 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Personas</div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Persona</button></div></div>`);
-var $$css8 = {
+var root_122 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command Name</label> <input type="text" placeholder="e.g. Expand, Translate to French" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Prompt Template</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
+var root_11 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
+var root9 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Personas</div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Persona</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Custom Actions</div> <div class="setting-description svelte-1av9wh">Create custom commands that operate on your selected text. Use <code></code> in your prompt to refer to the highlighted text. They will appear in the Obsidian
+    Command Palette. Let the prompt guide the behavior.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add Custom Action</button></div></div>`);
+var $$css9 = {
   hash: "svelte-1av9wh",
   code: '.settings-view.svelte-1av9wh {padding-top:10px;}.setting-section-title.svelte-1av9wh {font-size:1.1em;font-weight:700;color:var(--text-normal);margin-bottom:4px;padding-bottom:6px;border-bottom:2px solid var(--interactive-accent);}.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:12px;font-size:0.9em;}.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:14px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:var(--font-ui-medium);font-weight:600;color:var(--text-normal);}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:var(--font-ui-small);line-height:1.5;margin-top:4px;}.setting-item-control.svelte-1av9wh {flex-shrink:0;min-width:220px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:100%;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:6px 10px;font-size:var(--font-ui-small);}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Test connection */.test-control.svelte-1av9wh {align-items:flex-start;}.test-btn.svelte-1av9wh {padding:6px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:var(--font-ui-small);transition:background-color 0.2s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.6;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:8px;padding:6px 10px;border-radius:4px;font-size:var(--font-ui-small);background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* Personas */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:10px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;display:flex;align-items:center;gap:10px;}.default-badge.svelte-1av9wh {font-size:0.7em;background:var(--interactive-accent);color:var(--text-on-accent);padding:2px 6px;border-radius:4px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:8px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.6;font-size:1.1em;padding:2px;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.persona-editor.svelte-1av9wh {padding:15px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:12px;}.form-group.svelte-1av9wh {display:flex;flex-direction:column;gap:4px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.85em;color:var(--text-muted);}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {width:100%;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:8px;box-sizing:border-box;}textarea.svelte-1av9wh {font-family:var(--font-monospace);font-size:var(--font-ui-smaller);resize:vertical;line-height:1.5;}textarea.svelte-1av9wh:focus,\n  input.svelte-1av9wh:focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.add-btn.svelte-1av9wh {margin-top:10px;padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;align-self:flex-start;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}'
 };
 function SettingsView($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css8);
+  append_styles($$anchor, $$css9);
   const currentModels = mutable_source();
   let settings = prop($$props, "settings", 12);
   let saveSettings = prop($$props, "saveSettings", 8);
@@ -7554,6 +7852,7 @@ function SettingsView($$anchor, $$props) {
   let testStatus = mutable_source("idle");
   let testMessage = mutable_source("");
   let editingPersonaId = mutable_source(null);
+  let editingCustomActionId = mutable_source(null);
   function onProviderChange() {
     settings(settings().baseUrl = PROVIDER_DEFAULT_URLS[settings().provider] ?? "", true), invalidate_inner_signals(() => {
       onProviderChange;
@@ -7655,17 +7954,54 @@ function SettingsView($$anchor, $$props) {
     });
     saveSettings()();
   }
+  function addCustomAction() {
+    if (!settings().customActions) settings(settings().customActions = [], true), invalidate_inner_signals(() => {
+      onProviderChange;
+      ALL_PROVIDERS;
+      PROVIDER_LABELS;
+      onModelChange;
+      get(currentModels);
+    });
+    const newAction = {
+      id: generateId(),
+      name: "New Action",
+      promptTemplate: "Summarize this exactly as following:\n\n{{selection}}"
+    };
+    settings(settings().customActions = [...settings().customActions, newAction], true), invalidate_inner_signals(() => {
+      onProviderChange;
+      ALL_PROVIDERS;
+      PROVIDER_LABELS;
+      onModelChange;
+      get(currentModels);
+    });
+    set(editingCustomActionId, newAction.id);
+    saveSettings()();
+  }
+  function deleteCustomAction(id) {
+    settings(settings().customActions = settings().customActions.filter((a) => a.id !== id), true), invalidate_inner_signals(() => {
+      onProviderChange;
+      ALL_PROVIDERS;
+      PROVIDER_LABELS;
+      onModelChange;
+      get(currentModels);
+    });
+    if (get(editingCustomActionId) === id) set(editingCustomActionId, null);
+    saveSettings()();
+  }
+  function selectCustomAction(id) {
+    set(editingCustomActionId, get(editingCustomActionId) === id ? null : id);
+  }
   legacy_pre_effect(() => (PROVIDER_MODELS, deep_read_state(settings())), () => {
     set(currentModels, PROVIDER_MODELS[settings().provider] ?? []);
   });
   legacy_pre_effect_reset();
   init();
-  var div = root8();
+  var div = root9();
   var div_1 = sibling(child(div), 2);
   var div_2 = sibling(child(div_1), 2);
   var select = child(div_2);
   each(select, 5, () => ALL_PROVIDERS, index, ($$anchor2, p) => {
-    var option = root_16();
+    var option = root_17();
     var text2 = child(option, true);
     reset(option);
     var option_value = {};
@@ -7690,7 +8026,7 @@ function SettingsView($$anchor, $$props) {
   var select_1 = child(div_6);
   var node = child(select_1);
   each(node, 1, () => get(currentModels), index, ($$anchor2, m) => {
-    var option_1 = root_24();
+    var option_1 = root_25();
     var text_2 = child(option_1, true);
     reset(option_1);
     var option_1_value = {};
@@ -7705,7 +8041,7 @@ function SettingsView($$anchor, $$props) {
   var node_1 = sibling(node);
   {
     var consequent = ($$anchor2) => {
-      var option_2 = root_35();
+      var option_2 = root_36();
       var text_3 = child(option_2);
       reset(option_2);
       var option_2_value = {};
@@ -7726,7 +8062,7 @@ function SettingsView($$anchor, $$props) {
   var node_2 = sibling(select_1, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var input = root_43();
+      var input = root_44();
       remove_input_defaults(input);
       bind_value(input, () => settings().model, ($$value) => (settings(settings().model = $$value, true), invalidate_inner_signals(() => {
         onProviderChange;
@@ -7891,6 +8227,75 @@ function SettingsView($$anchor, $$props) {
   );
   var button_3 = sibling(node_5, 2);
   reset(div_14);
+  var div_23 = sibling(div_14, 4);
+  var code = sibling(child(div_23));
+  code.textContent = "{{selection}}";
+  next();
+  reset(div_23);
+  var div_24 = sibling(div_23, 2);
+  var node_9 = child(div_24);
+  each(
+    node_9,
+    1,
+    () => (deep_read_state(settings()), untrack(() => settings().customActions || [])),
+    (action2) => action2.id,
+    ($$anchor2, action2, $$index_3) => {
+      var div_25 = root_11();
+      var div_26 = child(div_25);
+      var div_27 = child(div_26);
+      var span_3 = child(div_27);
+      var text_8 = child(span_3, true);
+      reset(span_3);
+      reset(div_27);
+      var div_28 = sibling(div_27, 2);
+      var button_4 = child(div_28);
+      var span_4 = sibling(button_4, 2);
+      var text_9 = child(span_4, true);
+      reset(span_4);
+      reset(div_28);
+      reset(div_26);
+      var node_10 = sibling(div_26, 2);
+      {
+        var consequent_7 = ($$anchor3) => {
+          var div_29 = root_122();
+          var div_30 = child(div_29);
+          var input_5 = sibling(child(div_30), 2);
+          remove_input_defaults(input_5);
+          reset(div_30);
+          var div_31 = sibling(div_30, 2);
+          var textarea_1 = sibling(child(div_31), 2);
+          remove_textarea_child(textarea_1);
+          set_attribute2(textarea_1, "placeholder", "Translate the following text into French:\\n\\n{{selection}}");
+          reset(div_31);
+          reset(div_29);
+          bind_value(input_5, () => get(action2).name, ($$value) => (get(action2).name = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_5, handleChange);
+          bind_value(textarea_1, () => get(action2).promptTemplate, ($$value) => (get(action2).promptTemplate = $$value, invalidate_inner_signals(() => settings())));
+          event("change", textarea_1, handleChange);
+          append($$anchor3, div_29);
+        };
+        if_block(node_10, ($$render) => {
+          if (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id)) $$render(consequent_7);
+        });
+      }
+      reset(div_25);
+      template_effect(() => {
+        set_class(
+          div_25,
+          1,
+          `persona-card ${(get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "active" : "")) ?? ""}`,
+          "svelte-1av9wh"
+        );
+        set_text(text_8, (get(action2), untrack(() => get(action2).name)));
+        set_text(text_9, (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "\u25BC" : "\u25B6")));
+      });
+      event("click", button_4, stopPropagation(() => deleteCustomAction(get(action2).id)));
+      event("click", div_26, () => selectCustomAction(get(action2).id));
+      append($$anchor2, div_25);
+    }
+  );
+  var button_5 = sibling(node_9, 2);
+  reset(div_24);
   reset(div);
   template_effect(() => {
     set_text(text_1, `Choose a model from ${(deep_read_state(PROVIDER_LABELS), deep_read_state(settings()), untrack(() => PROVIDER_LABELS[settings().provider] ?? settings().provider)) ?? ""}`);
@@ -7924,6 +8329,7 @@ function SettingsView($$anchor, $$props) {
   event("change", input_2, handleChange);
   event("click", button, testConnection);
   event("click", button_3, addPersona);
+  event("click", button_5, addCustomAction);
   append($$anchor, div);
   pop();
 }
@@ -7964,7 +8370,7 @@ var AICopilotPlugin = class extends import_obsidian7.Plugin {
     this.addCommand({
       id: "summarize-selection",
       name: "Summarize Selection",
-      editorCallback: async (editor, view) => {
+      editorCallback: async (editor, ctx) => {
         if (!this.aiProvider) {
           new import_obsidian7.Notice("AI Provider not configured.");
           return;
@@ -7990,7 +8396,70 @@ var AICopilotPlugin = class extends import_obsidian7.Plugin {
         this.activateView();
       }
     });
+    this.addTextTransformCommand("expand-selection", "Expand Selection", "You are an AI assistant. Expand the provided text by adding more detail, explanations, and context while preserving the original meaning.", "replace");
+    this.addTextTransformCommand("shorten-selection", "Shorten Selection", "You are an AI assistant. Shorten the provided text to be much more concise, keeping only the core message.", "replace");
+    this.addTextTransformCommand("tone-professional", "Change Tone: Professional", "Rewrite the provided text in a highly professional, polite, and business-appropriate tone.", "replace");
+    this.addTextTransformCommand("tone-casual", "Change Tone: Casual", "Rewrite the provided text in a friendly, relaxed, and casual tone.", "replace");
+    this.addTextTransformCommand("tone-academic", "Change Tone: Academic", "Rewrite the provided text in a formal academic tone suitable for a research paper or essay.", "replace");
+    this.addTextTransformCommand("brainstorm-ideas", "Brainstorm Ideas", "Based on the provided text, brainstorm a list of 5-10 related ideas, bullet points, or next steps.", "insertBelow");
+    this.addTextTransformCommand("continue-writing", "Continue Writing", "You are a co-writer. Continue the provided text logically and seamlessly. ONLY output the continuation, do NOT repeat any of the original text.", "append", false);
+    this.settings.customActions?.forEach((action2) => {
+      this.addTextTransformCommand(
+        `custom-action-${action2.id}`,
+        `Custom: ${action2.name}`,
+        action2.promptTemplate,
+        "replace",
+        true
+      );
+    });
     this.addSettingTab(new AICopilotSettingTab(this.app, this));
+  }
+  addTextTransformCommand(id, name, systemInstruction, actionType = "replace", requiresSelection = true) {
+    this.addCommand({
+      id,
+      name,
+      editorCallback: async (editor, ctx) => {
+        if (!this.aiProvider) {
+          new import_obsidian7.Notice("AI Provider not configured.");
+          return;
+        }
+        const selection = editor.getSelection();
+        if (requiresSelection && !selection) {
+          new import_obsidian7.Notice(`Please select some text to run "${name}"`);
+          return;
+        }
+        try {
+          new import_obsidian7.Notice(`AI Copilot: ${name}...`);
+          let contextText = selection;
+          if (!requiresSelection && !selection) {
+            const cursor = editor.getCursor();
+            const startLine = Math.max(0, cursor.line - 50);
+            contextText = editor.getRange({ line: startLine, ch: 0 }, cursor);
+          }
+          const result = await this.aiProvider.executeAction(contextText, systemInstruction);
+          if (actionType === "replace" && selection) {
+            editor.replaceSelection(result);
+          } else if (actionType === "append") {
+            const cursor = editor.getCursor("to");
+            editor.replaceRange(result, cursor);
+          } else if (actionType === "insertBelow") {
+            const cursor = editor.getCursor("to");
+            const newCursor = { line: cursor.line, ch: editor.getLine(cursor.line).length };
+            editor.replaceRange(`
+
+${result}`, newCursor);
+          } else if (actionType === "replace" && !selection) {
+            const cursor = editor.getCursor("to");
+            editor.replaceRange(`
+
+${result}`, cursor);
+          }
+          new import_obsidian7.Notice(`AI Copilot: ${name} completed.`);
+        } catch (error) {
+          new import_obsidian7.Notice(`Error: ${error.message}`);
+        }
+      }
+    });
   }
   async activateView() {
     const { workspace } = this.app;
@@ -7998,11 +8467,13 @@ var AICopilotPlugin = class extends import_obsidian7.Plugin {
     const leaves = workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
     if (leaves.length > 0) {
       leaf = leaves[0];
-      workspace.revealLeaf(leaf);
+      if (leaf) workspace.revealLeaf(leaf);
     } else {
       leaf = workspace.getRightLeaf(false);
-      await leaf.setViewState({ type: VIEW_TYPE_AI_CHAT, active: true });
-      workspace.revealLeaf(leaf);
+      if (leaf) {
+        await leaf.setViewState({ type: VIEW_TYPE_AI_CHAT, active: true });
+        workspace.revealLeaf(leaf);
+      }
     }
   }
   onunload() {
