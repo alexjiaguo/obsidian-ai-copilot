@@ -4,8 +4,8 @@
 	"version": "1.1.1",
 	"minAppVersion": "1.0.0",
 	"description": "Your intelligent writing and thinking assistant, right inside Obsidian.",
-	"author": "Obsidian AI Copilot Team",
-	"authorUrl": "https://github.com/obsidian-ai-copilot",
-	"fundingUrl": "https://github.com/sponsors/obsidian-ai-copilot",
+	"author": "Alex Jiaguo",
+	"authorUrl": "https://github.com/alexjiaguo",
+	"fundingUrl": "https://github.com/sponsors/alexjiaguo",
 	"isDesktopOnly": false
 }
