@@ -19,9 +19,9 @@ export default class AICopilotPlugin extends Plugin {
     toolManager!: ToolManager;
 
     async onload() {
-        console.log('🚀 AI Copilot v1.1.1 LOADED - RED BORDER DEBUG');
-        new Notice("🚀 AI Copilot v1.1.1 LOADED"); // Visual confirmation
-        this.addStatusBarItem().setText("AI Copilot v1.1.1"); // Persistent confirmation
+        console.log('🚀 AI Copilot v1.2.0 LOADED');
+        new Notice("🚀 AI Copilot v1.2.0 LOADED");
+        this.addStatusBarItem().setText("AI Copilot v1.2.0");
         
         console.log('Docs GPT: Loading plugin...');
         await this.loadSettings();
@@ -83,6 +83,38 @@ export default class AICopilotPlugin extends Plugin {
 			name: 'Open AI Chat',
 			callback: () => {
 				this.activateView();
+			},
+		});
+
+		// Command to send selected text to chat
+		this.addCommand({
+			id: 'send-selection-to-chat',
+			name: 'Send Selection to Chat',
+			editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+				const selection = editor.getSelection();
+				if (!selection) {
+					new Notice('Please select some text first.');
+					return;
+				}
+
+				// Get file path
+				const filePath = (ctx instanceof MarkdownView && ctx.file)
+					? ctx.file.basename
+					: 'unknown';
+
+				// Open or focus the chat view
+				await this.activateView();
+
+				// Find the chat view and inject the selection
+				const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
+				if (leaves.length > 0) {
+					const chatView = leaves[0].view as AIChatView;
+					// Small delay to ensure view is mounted
+					setTimeout(() => {
+						chatView.addSelectionContext(selection, filePath);
+						new Notice(`📋 Selection added to AI Chat`);
+					}, 100);
+				}
 			},
 		});
 

@@ -6,6 +6,7 @@ export const VIEW_TYPE_AI_CHAT = 'ai-chat-view';
 
 export class AIChatView extends ItemView {
     component!: ReturnType<typeof mount>;
+    private svelteExports: any = null;
     plugin: any; // Using any for now to avoid circular dependency issues in MVP
 
     constructor(leaf: WorkspaceLeaf, plugin: any) {
@@ -35,6 +36,16 @@ export class AIChatView extends ItemView {
                 plugin: this.plugin
             }
         });
+
+        // Store reference to Svelte exports for external method calls
+        this.svelteExports = this.component;
+    }
+
+    // Public method to inject selection context from command palette
+    addSelectionContext(text: string, filePath: string) {
+        if (this.svelteExports && typeof this.svelteExports.addSelectionContext === 'function') {
+            this.svelteExports.addSelectionContext(text, filePath);
+        }
     }
 
     async onClose() {
@@ -43,4 +54,3 @@ export class AIChatView extends ItemView {
         }
     }
 }
-

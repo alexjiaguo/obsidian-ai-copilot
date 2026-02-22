@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { MarkdownRenderer, Notice } from "obsidian";
+  import { Notice } from "obsidian";
   import ChatInput from "../components/ChatInput.svelte";
   import MessageBubble from "../components/MessageBubble.svelte";
   import ContextPill from "../components/ContextPill.svelte";
@@ -15,6 +15,20 @@
   } from "../settings/Settings";
 
   export let plugin: any;
+
+  // Public method for external context injection (e.g., from command palette)
+  export function addSelectionContext(text: string, filePath: string) {
+    selectedContext = [
+      ...selectedContext,
+      {
+        type: "selection",
+        text: `📋 Selection from ${filePath}`,
+        path: filePath,
+        data: text,
+        content: text,
+      },
+    ];
+  }
 
   let query = "";
   let messages: ChatMessage[] = [];
@@ -168,11 +182,30 @@
   }
 
   function handleAddContext(item: any) {
-    // Deduplicate by path
-    if (item.path && selectedContext.some((c) => c.path === item.path)) return;
+    // Deduplicate by path (but allow multiple selections)
+    if (
+      item.type !== "selection" &&
+      item.path &&
+      selectedContext.some(
+        (c) => c.path === item.path && c.type !== "selection",
+      )
+    )
+      return;
 
-    // Raw Obsidian TFile from @mention suggestions (has .extension, .basename, .path but no .type)
-    if (!item.type && item.path && item.basename !== undefined) {
+    // Selection from editor
+    if (item.type === "selection") {
+      selectedContext = [
+        ...selectedContext,
+        {
+          type: "selection",
+          text: item.text || "📋 Selection",
+          path: item.path,
+          data: item.data,
+          content: item.content,
+        },
+      ];
+      // Raw Obsidian TFile from @mention suggestions (has .extension, .basename, .path but no .type)
+    } else if (!item.type && item.path && item.basename !== undefined) {
       selectedContext = [
         ...selectedContext,
         {
@@ -488,6 +521,7 @@
         role={message.role}
         content={message.content}
         isStreaming={isLoading && message === messages[messages.length - 1]}
+        app={plugin.app}
         on:insert={() => handleInsert(message.content)}
         on:replace={() => handleReplace(message.content)}
         on:copy={() => handleCopy(message.content)}
@@ -519,6 +553,7 @@
       on:submit={sendMessage}
       on:add-context={(e) => handleAddContext(e.detail)}
       onSearch={handleSearch}
+      editorHandler={plugin.editorHandler}
     >
       <!-- <button slot="actions">Add</button> -->
     </ChatInput>

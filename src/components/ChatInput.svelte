@@ -6,15 +6,15 @@
   export let value = "";
   export let placeholder = "Ask AI anything... (Type @ to mention)";
   export let disabled = false;
-  // We need a way to search files. Ideally passed as a prop function.
   export let onSearch: (query: string) => Promise<any[]> = async () => [];
+  export let editorHandler: any = null; // For grabbing selection from editor
 
   const dispatch = createEventDispatcher();
   let textarea: HTMLTextAreaElement;
 
   // Suggestion state
   let showSuggestions = false;
-  let suggestions: any[] = []; // TFiles
+  let suggestions: any[] = [];
   let suggestionIndex = 0;
   let mentionQuery = "";
   let mentionStartIndex = -1;
@@ -37,21 +37,16 @@
     const textBeforeCursor = value.slice(0, cursor);
     const lastAt = textBeforeCursor.lastIndexOf("@");
 
-    console.log("ChatInput: Handling input", { value, cursor, lastAt });
-
     // Simple heuristic: if @ is found and no space after it (or we are typing a name)
     if (lastAt !== -1 && cursor - lastAt <= 20) {
       // arbitrary limit for search query length
       const query = textBeforeCursor.slice(lastAt + 1);
-      console.log("ChatInput: Potential mention detected", { query });
 
       if (!query.includes(" ")) {
         mentionQuery = query;
         mentionStartIndex = lastAt;
         showSuggestions = true;
-        console.log("ChatInput: Triggering search for", query);
         suggestions = await onSearch(query);
-        console.log("ChatInput: Search results", suggestions);
         suggestionIndex = 0;
         return;
       }
@@ -99,13 +94,33 @@
     dispatch("add-context", item);
     showSuggestions = false;
     resize();
+  }
 
-    // Focus back and maybe move cursor?
-    // For now just keep it simple.
+  function grabSelection() {
+    if (!editorHandler) return;
+    const selectedText = editorHandler.getSelectedText();
+    if (!selectedText) {
+      // No text selected — show a brief notice-like feedback
+      return;
+    }
+    dispatch("add-context", {
+      type: "selection",
+      text: "📋 Selection",
+      path: editorHandler.getActiveFileName() || "unknown",
+      data: selectedText,
+      content: selectedText,
+    });
   }
 
   $: if (value === "") resize();
-  onMount(resize);
+  onMount(() => {
+    resize();
+    // Ensure textarea is focusable on mount
+    if (textarea) {
+      textarea.focus();
+    }
+  });
+
   let fileInput: HTMLInputElement;
 
   async function handleFileChange(event: Event) {
@@ -149,8 +164,6 @@
   function triggerFileUpload() {
     fileInput.click();
   }
-
-  // ... rest of script ...
 </script>
 
 <div
@@ -177,19 +190,19 @@
   <div class="chat-input-wrapper" class:disabled>
     <textarea
       bind:this={textarea}
-      bind:value
       {placeholder}
       {disabled}
       on:input={handleInput}
       on:keydown={handleKeydown}
-      rows="1"
-    ></textarea>
+      rows="1">{value}</textarea
+    >
     <div class="actions">
       <div class="left-actions">
         <button
           class="action-btn"
           on:click={triggerFileUpload}
           aria-label="Upload file"
+          title="Attach file"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -205,6 +218,27 @@
             ><path
               d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
             /></svg
+          >
+        </button>
+        <button
+          class="action-btn"
+          on:click={grabSelection}
+          aria-label="Grab selected text"
+          title="Add selected text from editor"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path
+              d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+            ></path></svg
           >
         </button>
       </div>
@@ -272,6 +306,16 @@
     user-select: text;
     -webkit-user-select: text;
     cursor: text;
+    -webkit-appearance: none;
+    appearance: none;
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  textarea:focus {
+    outline: none;
+    border: none;
   }
 
   textarea::placeholder {
