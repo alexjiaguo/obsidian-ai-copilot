@@ -44,6 +44,102 @@ export default class AICopilotPlugin extends Plugin {
 			})
 		);
 
+		// Register Right-Click Context Menu
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu, editor, view) => {
+				const selection = editor.getSelection();
+				const hasSelection = selection && selection.trim().length > 0;
+				const filePath = view.file?.basename || 'unknown';
+
+				// Add selection to chat context
+				menu.addItem((item) => {
+					item
+						.setTitle('Add selection to chat context')
+						.setIcon('message-square-plus')
+						.setDisabled(!hasSelection)
+						.onClick(async () => {
+							if (!selection) return;
+							await this.activateView();
+							const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
+							if (leaves.length > 0) {
+								const chatView = leaves[0].view as AIChatView;
+								setTimeout(() => {
+									chatView.addSelectionContext(selection, filePath);
+									new Notice('📋 Selection added to AI Chat');
+								}, 100);
+							}
+						});
+				});
+
+				// Copilot submenu with quick actions
+				menu.addItem((item) => {
+					const sub = (item as any)
+						.setTitle('AI Copilot')
+						.setIcon('bot');
+
+					if ((item as any).setSubmenu) {
+						const submenu = (item as any).setSubmenu();
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Fix grammar and spelling')
+								.setIcon('check-circle')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Fix all grammar and spelling errors in the text. Only output the corrected text, nothing else.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Summarize')
+								.setIcon('align-left')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Summarize this text concisely. Only output the summary.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Simplify')
+								.setIcon('minimize')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Simplify this text to make it easier to understand. Only output the simplified text.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Make shorter')
+								.setIcon('scissors')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Make this text significantly shorter while keeping the core meaning. Only output the shortened text.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Make longer')
+								.setIcon('expand')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Expand this text with more detail and explanation. Only output the expanded text.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Translate to Chinese')
+								.setIcon('languages')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Translate this text to Chinese (Simplified). Only output the translation.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
+								.setTitle('Explain like I am 5')
+								.setIcon('baby')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Explain this text as if you are talking to a 5 year old. Use simple words and short sentences. Only output the explanation.'));
+						});
+					}
+				});
+			})
+		);
+
 		// Register the Chat View
 		this.registerView(
 			VIEW_TYPE_AI_CHAT,
@@ -140,6 +236,21 @@ export default class AICopilotPlugin extends Plugin {
 
 		// Settings Tab
 		this.addSettingTab(new AICopilotSettingTab(this.app, this));
+	}
+
+	private async runQuickAction(editor: Editor, text: string, instruction: string) {
+		if (!this.aiProvider) {
+			new Notice('AI Provider not configured.');
+			return;
+		}
+		try {
+			new Notice('AI Copilot: Processing...');
+			const result = await this.aiProvider.executeAction(text, instruction);
+			editor.replaceSelection(result);
+			new Notice('AI Copilot: Done!');
+		} catch (error: any) {
+			new Notice(`Error: ${error.message}`);
+		}
 	}
 
 	private addTextTransformCommand(id: string, name: string, systemInstruction: string, actionType: 'replace' | 'insertBelow' | 'append' = 'replace', requiresSelection: boolean = true) {
