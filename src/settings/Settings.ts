@@ -1,7 +1,33 @@
+export interface CustomPrompt {
+    id: string;
+    name: string;
+    template: string;
+}
+
+export interface MCPServerConfig {
+    id: string;
+    name: string;
+    command: string; // e.g., "npx" or "/path/to/python"
+    args: string[];  // e.g., ["-y", "@modelcontextprotocol/server-postgres", "postgresql://..."]
+    env: Record<string, string>; // Custom environment variables
+    enabled: boolean;
+}
+
 export interface CustomAction {
     id: string;
     name: string;
     promptTemplate: string;
+}
+
+export interface Project {
+    id: string;
+    name: string;
+    description: string;
+    includeFolders: string; // Comma separated paths
+    excludeFolders: string; // Comma separated paths
+    includeTags: string;    // Comma separated tags
+    systemPrompt: string;   // Override system prompt
+    defaultModel: string;   // Override model
 }
 
 export interface Persona {
@@ -12,8 +38,16 @@ export interface Persona {
 }
 
 export interface ChatMessage {
-    role: 'user' | 'assistant' | 'error';
+    role: 'user' | 'assistant' | 'error' | 'tool';
     content: string;
+    tool_calls?: any[];
+    tool_call_id?: string;
+    composerDiff?: {
+        path: string;
+        oldText: string;
+        newText: string;
+        status: 'pending' | 'accepted' | 'rejected';
+    };
 }
 
 export interface ChatSession {
@@ -22,6 +56,7 @@ export interface ChatSession {
     createdAt: number;
     updatedAt: number;
     messages: ChatMessage[];
+    projectId?: string | null;
 }
 
 export type ProviderType = 'openai' | 'anthropic' | 'ollama' | 'groq' | 'gemini';
@@ -35,8 +70,25 @@ export interface AICopilotSettings {
     personas: Persona[];
     defaultPersonaId: string;
     customActions: CustomAction[];
+    customPrompts: CustomPrompt[];
+    mcpServers: MCPServerConfig[];
     sessions: ChatSession[];
     activeSessionId: string;
+    
+    // Projects Mode
+    projects: Project[];
+    activeProjectId: string | null;
+
+    // Vault QA & Embeddings
+    isVaultQAMode: boolean;
+    embeddingProvider: 'openai' | 'ollama';
+    embeddingModel: string;
+    autoIndexVault: boolean;
+    indexExclusions: string;
+    qaModeThreshold: number;
+
+    // Skills
+    skillsPath: string;
 }
 
 // Provider-specific model lists (verified Feb 2026 - Text Generation Only)
@@ -151,6 +203,17 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     personas: DEFAULT_PERSONAS,
     defaultPersonaId: 'default',
     customActions: [],
+    customPrompts: [],
+    mcpServers: [],
     sessions: [],
-    activeSessionId: ''
+    activeSessionId: '',
+    projects: [],
+    activeProjectId: null,
+    embeddingProvider: 'openai',
+    embeddingModel: 'text-embedding-3-small',
+    autoIndexVault: false,
+    indexExclusions: 'node_modules, .git, .obsidian',
+    qaModeThreshold: 0.75,
+    isVaultQAMode: false,
+    skillsPath: '/Users/boss/Documents/ai_skills_hub'
 };

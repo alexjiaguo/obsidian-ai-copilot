@@ -5,6 +5,7 @@
     ProviderType,
     Persona,
     CustomAction,
+    MCPServerConfig,
   } from "./Settings";
   import {
     PROVIDER_MODELS,
@@ -23,6 +24,8 @@
 
   let editingPersonaId: string | null = null;
   let editingCustomActionId: string | null = null;
+  let editingProjectId: string | null = null;
+  let editingMcpServerId: string | null = null;
 
   // When provider changes, auto-update baseUrl and reset model
   function onProviderChange() {
@@ -117,7 +120,106 @@
     editingCustomActionId = editingCustomActionId === id ? null : id;
   }
 
+  function addProject() {
+    if (!settings.projects) settings.projects = [];
+    const newProject: any = {
+      id: generateId(),
+      name: "New Project",
+      description: "",
+      includeFolders: "",
+      excludeFolders: "",
+      includeTags: "",
+      systemPrompt: "",
+      defaultModel: "",
+    };
+    settings.projects = [...settings.projects, newProject];
+    editingProjectId = newProject.id;
+    saveSettings();
+  }
+
+  function deleteProject(id: string) {
+    if (!settings.projects) return;
+    settings.projects = settings.projects.filter((p) => p.id !== id);
+    if (editingProjectId === id) editingProjectId = null;
+    if (settings.activeProjectId === id) settings.activeProjectId = null;
+    saveSettings();
+  }
+
+  function selectProject(id: string) {
+    editingProjectId = editingProjectId === id ? null : id;
+  }
+
+  function addMcpServer() {
+    if (!settings.mcpServers) settings.mcpServers = [];
+    const newServer: MCPServerConfig = {
+      id: generateId(),
+      name: "New MCP Server",
+      command: "npx",
+      args: [],
+      env: {},
+      enabled: true,
+    };
+    settings.mcpServers = [...settings.mcpServers, newServer];
+    editingMcpServerId = newServer.id;
+    saveSettings();
+  }
+
+  function deleteMcpServer(id: string) {
+    settings.mcpServers = settings.mcpServers.filter((s) => s.id !== id);
+    if (editingMcpServerId === id) editingMcpServerId = null;
+    saveSettings();
+  }
+
+  function selectMcpServer(id: string) {
+    editingMcpServerId = editingMcpServerId === id ? null : id;
+  }
+
+  function toggleMcpServer(id: string) {
+    const server = settings.mcpServers.find((s) => s.id === id);
+    if (server) {
+      server.enabled = !server.enabled;
+      saveSettings();
+    }
+  }
+
+  // Helpers for arg arrays
+  function getArgsString(args: string[]): string {
+    return args ? args.join(" ") : "";
+  }
+  function setArgsString(server: MCPServerConfig, str: string) {
+    // Simple split by space. For paths with spaces, it might break,
+    // but good enough for typical npx commands.
+    server.args = str.split(" ").filter(Boolean);
+    handleChange();
+  }
+
+  // Helpers for env vars
+  function getEnvString(env: Record<string, string>): string {
+    if (!env) return "";
+    return Object.entries(env)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+  }
+  function setEnvString(server: MCPServerConfig, str: string) {
+    const env: Record<string, string> = {};
+    str
+      .split("\n")
+      .filter(Boolean)
+      .forEach((line) => {
+        const idx = line.indexOf("=");
+        if (idx > 0) {
+          const k = line.substring(0, idx).trim();
+          const v = line.substring(idx + 1).trim();
+          if (k) env[k] = v;
+        }
+      });
+    server.env = env;
+    handleChange();
+  }
+
   $: currentModels = PROVIDER_MODELS[settings.provider as ProviderType] ?? [];
+  $: currentProviderLabel =
+    PROVIDER_LABELS[settings.provider as ProviderType] ?? settings.provider;
 </script>
 
 <div class="settings-view">
@@ -144,9 +246,7 @@
     <div class="setting-item-info">
       <div class="setting-item-name">Model</div>
       <div class="setting-item-description">
-        Choose a model from {PROVIDER_LABELS[
-          settings.provider as ProviderType
-        ] ?? settings.provider}
+        Choose a model from {currentProviderLabel}
       </div>
     </div>
     <div class="setting-item-control">
@@ -239,6 +339,192 @@
         </div>
       {/if}
     </div>
+  </div>
+
+  <!-- ── Vault QA & Embeddings ── -->
+  <div class="setting-section-title" style="margin-top:24px;">
+    Vault QA & Embeddings
+  </div>
+  <div class="setting-description">
+    Configure vector search settings for querying your notes.
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Embedding Provider</div>
+      <div class="setting-item-description">
+        Provider used to generate text embeddings
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <select bind:value={settings.embeddingProvider} on:change={handleChange}>
+        <option value="openai">OpenAI</option>
+        <option value="ollama">Ollama (Local)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Embedding Model</div>
+      <div class="setting-item-description">
+        Model name for embeddings (e.g., text-embedding-3-small,
+        mxbai-embed-large)
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <input
+        type="text"
+        bind:value={settings.embeddingModel}
+        on:change={handleChange}
+        placeholder="text-embedding-3-small"
+      />
+    </div>
+  </div>
+
+  <div class="setting-item" style="align-items: center;">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Auto-Index Vault</div>
+      <div class="setting-item-description">
+        Automatically index notes on startup or change
+      </div>
+    </div>
+    <div class="setting-item-control" style="align-items: flex-end;">
+      <input
+        type="checkbox"
+        bind:checked={settings.autoIndexVault}
+        on:change={handleChange}
+      />
+    </div>
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Index Exclusions</div>
+      <div class="setting-item-description">
+        Comma-separated list of folders or paths to exclude from indexing
+      </div>
+    </div>
+    <div class="setting-item-control">
+      <input
+        type="text"
+        bind:value={settings.indexExclusions}
+        on:change={handleChange}
+        placeholder="node_modules, .git, templates"
+      />
+    </div>
+  </div>
+
+  <!-- ── Projects ── -->
+  <div class="setting-section-title" style="margin-top:24px;">Projects</div>
+  <div class="setting-description">
+    Define scoped contexts. Manage project-level folders, tags, and system
+    prompts.
+  </div>
+
+  <div class="personas-container">
+    {#each settings.projects || [] as project (project.id)}
+      <div
+        class="persona-card {editingProjectId === project.id ? 'active' : ''}"
+      >
+        <div class="persona-header" on:click={() => selectProject(project.id)}>
+          <div class="persona-name">
+            <span class="name-text">{project.name}</span>
+            {#if settings.activeProjectId === project.id}
+              <span class="default-badge">Active</span>
+            {/if}
+          </div>
+          <div class="persona-actions">
+            {#if settings.activeProjectId !== project.id}
+              <button
+                class="icon-btn"
+                on:click|stopPropagation={() => {
+                  settings.activeProjectId = project.id;
+                  saveSettings();
+                }}
+                title="Make Active">⭐</button
+              >
+            {:else}
+              <button
+                class="icon-btn"
+                on:click|stopPropagation={() => {
+                  settings.activeProjectId = null;
+                  saveSettings();
+                }}
+                title="Deactivate">❌</button
+              >
+            {/if}
+            <button
+              class="icon-btn"
+              on:click|stopPropagation={() => deleteProject(project.id)}
+              title="Delete">🗑️</button
+            >
+            <span class="chevron"
+              >{editingProjectId === project.id ? "▼" : "▶"}</span
+            >
+          </div>
+        </div>
+
+        {#if editingProjectId === project.id}
+          <div class="persona-editor">
+            <div class="form-group">
+              <label>Project Name</label>
+              <input
+                type="text"
+                bind:value={project.name}
+                on:change={handleChange}
+              />
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <input
+                type="text"
+                bind:value={project.description}
+                on:change={handleChange}
+              />
+            </div>
+            <div class="form-group">
+              <label>Include Folders (Comma separated paths)</label>
+              <input
+                type="text"
+                bind:value={project.includeFolders}
+                on:change={handleChange}
+                placeholder="e.g. Work/ProjectA, Notes/Meetings"
+              />
+            </div>
+            <div class="form-group">
+              <label>Include Tags (Comma separated)</label>
+              <input
+                type="text"
+                bind:value={project.includeTags}
+                on:change={handleChange}
+                placeholder="e.g. #projectA, #urgent"
+              />
+            </div>
+            <div class="form-group">
+              <label>Override System Prompt</label>
+              <textarea
+                bind:value={project.systemPrompt}
+                on:change={handleChange}
+                rows="4"
+                placeholder="Optional. Leaves blank to use default persona."
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label>Override Model</label>
+              <input
+                type="text"
+                bind:value={project.defaultModel}
+                on:change={handleChange}
+                placeholder="Optional (e.g. gpt-4o)"
+              />
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/each}
+
+    <button class="add-btn" on:click={addProject}>+ Add New Project</button>
   </div>
 
   <!-- ── Personas ── -->
@@ -378,6 +664,96 @@
     <button class="add-btn" on:click={addCustomAction}
       >+ Add Custom Action</button
     >
+  </div>
+
+  <!-- ── MCP Servers ── -->
+  <div class="setting-section-title" style="margin-top:24px;">MCP Servers</div>
+  <div class="setting-description">
+    Connect to local Model Context Protocol (MCP) servers to give the AI access
+    to external data and tools.
+  </div>
+
+  <div class="personas-container">
+    {#each settings.mcpServers || [] as server (server.id)}
+      <div
+        class="persona-card {editingMcpServerId === server.id ? 'active' : ''}"
+      >
+        <div class="persona-header" on:click={() => selectMcpServer(server.id)}>
+          <div class="persona-name">
+            <span class="name-text">{server.name}</span>
+            {#if !server.enabled}
+              <span class="default-badge" style="background: var(--text-muted);"
+                >Disabled</span
+              >
+            {:else}
+              <span class="default-badge" style="background: #22c55e;"
+                >Active</span
+              >
+            {/if}
+          </div>
+          <div class="persona-actions">
+            <button
+              class="icon-btn"
+              on:click|stopPropagation={() => toggleMcpServer(server.id)}
+              title={server.enabled ? "Disable Server" : "Enable Server"}
+            >
+              {server.enabled ? "🔌" : "🔌"}
+            </button>
+            <button
+              class="icon-btn"
+              on:click|stopPropagation={() => deleteMcpServer(server.id)}
+              title="Delete">🗑️</button
+            >
+            <span class="chevron">
+              {editingMcpServerId === server.id ? "▼" : "▶"}
+            </span>
+          </div>
+        </div>
+
+        {#if editingMcpServerId === server.id}
+          <div class="persona-editor">
+            <div class="form-group">
+              <label>Name</label>
+              <input
+                type="text"
+                bind:value={server.name}
+                on:change={handleChange}
+                placeholder="e.g. Postgres Database"
+              />
+            </div>
+            <div class="form-group">
+              <label>Command</label>
+              <input
+                type="text"
+                bind:value={server.command}
+                on:change={handleChange}
+                placeholder="e.g. npx, node, python"
+              />
+            </div>
+            <div class="form-group">
+              <label>Arguments (Space separated)</label>
+              <input
+                type="text"
+                value={getArgsString(server.args)}
+                on:change={(e) => setArgsString(server, e.currentTarget.value)}
+                placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb"
+              />
+            </div>
+            <div class="form-group">
+              <label>Environment Variables (KEY=VALUE, one per line)</label>
+              <textarea
+                value={getEnvString(server.env)}
+                on:change={(e) => setEnvString(server, e.currentTarget.value)}
+                rows="3"
+                placeholder="API_KEY=your_secret_key"
+              ></textarea>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/each}
+
+    <button class="add-btn" on:click={addMcpServer}>+ Add MCP Server</button>
   </div>
 </div>
 

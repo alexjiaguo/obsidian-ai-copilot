@@ -6,8 +6,8 @@ export interface AIResponse {
 }
 
 export interface AIProvider {
-    generateText(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }): Promise<string>;
-    generateResponse(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }, tools?: any[]): Promise<AIResponse>;
+    generateText(prompt: string | any[], options?: { temperature?: number, max_tokens?: number, signal?: AbortSignal }): Promise<string>;
+    generateResponse(prompt: string | any[], options?: { temperature?: number, max_tokens?: number, signal?: AbortSignal }, tools?: any[]): Promise<AIResponse>;
     summarize(text: string): Promise<string>;
     executeAction(text: string, systemPrompt: string): Promise<string>;
     testConnection(): Promise<{ ok: boolean; message: string }>;
@@ -26,7 +26,7 @@ export class OpenAIProvider implements AIProvider {
         return base.replace(/\/$/, '');
     }
 
-    private async callAPI(endpoint: string, payload: any): Promise<any> {
+    private async callAPI(endpoint: string, payload: any, signal?: AbortSignal): Promise<any> {
         if (!this.settings.apiKey && this.settings.provider !== 'ollama') {
             throw new Error('API key is not configured. Please add it in settings.');
         }
@@ -52,7 +52,8 @@ export class OpenAIProvider implements AIProvider {
             response = await fetch(url, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal
             });
         } catch (e: any) {
             throw new Error(`Network error: ${e.message}. Check your Base URL and internet connection.`);
@@ -74,12 +75,12 @@ export class OpenAIProvider implements AIProvider {
         return data;
     }
 
-    async generateText(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }): Promise<string> {
+    async generateText(prompt: string | any[], options?: { temperature?: number, max_tokens?: number, signal?: AbortSignal }): Promise<string> {
         const response = await this.generateResponse(prompt, options);
         return response.content;
     }
 
-    async generateResponse(prompt: string | any[], options?: { temperature?: number, max_tokens?: number }, tools?: any[]): Promise<AIResponse> {
+    async generateResponse(prompt: string | any[], options?: { temperature?: number, max_tokens?: number, signal?: AbortSignal }, tools?: any[]): Promise<AIResponse> {
         let messages: any[];
 
         if (Array.isArray(prompt) && prompt.length > 0 && prompt[0].role === 'system') {
@@ -116,7 +117,7 @@ export class OpenAIProvider implements AIProvider {
             payload.tool_choice = "auto";
         }
 
-        const data = await this.callAPI('chat/completions', payload);
+        const data = await this.callAPI('chat/completions', payload, options?.signal);
         const message = data.choices[0].message;
 
         return {
@@ -125,19 +126,46 @@ export class OpenAIProvider implements AIProvider {
         };
     }
 
-    private async callAnthropic(messages: any[], options?: { temperature?: number, max_tokens?: number }): Promise<AIResponse> {
+    private async callAnthropic(messages: any[], options?: { temperature?: number, max_tokens?: number, signal?: AbortSignal }): Promise<AIResponse> {
         // Extract system message
         const systemMsg = messages.find(m => m.role === 'system');
         const userMessages = messages.filter(m => m.role !== 'system');
 
+        // Convert OpenAI image_url format to Anthropic image format
+        const formattedUserMessages = userMessages.map((msg) => {
+            if (Array.isArray(msg.content)) {
+                return {
+                    ...msg,
+                    content: msg.content.map((part: any) => {
+                        if (part.type === 'image_url' && part.image_url?.url) {
+                            const url = part.image_url.url;
+                            const match = url.match(/^data:(.*?);base64,(.*)$/);
+                            if (match) {
+                                return {
+                                    type: 'image',
+                                    source: {
+                                        type: 'base64',
+                                        media_type: match[1],
+                                        data: match[2]
+                                    }
+                                };
+                            }
+                        }
+                        return part;
+                    })
+                };
+            }
+            return msg;
+        });
+
         const payload: any = {
             model: this.settings.model || 'claude-3-5-sonnet-20241022',
             max_tokens: options?.max_tokens ?? 4096,
-            messages: userMessages,
+            messages: formattedUserMessages,
         };
         if (systemMsg) payload.system = systemMsg.content;
 
-        const data = await this.callAPI('messages', payload);
+        const data = await this.callAPI('messages', payload, options?.signal);
         return {
             content: data.content?.[0]?.text || '',
         };

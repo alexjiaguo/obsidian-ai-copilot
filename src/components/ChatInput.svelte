@@ -6,6 +6,8 @@
   export let value = "";
   export let placeholder = "Ask AI anything... (Type @ to mention)";
   export let disabled = false;
+  export let isLoading = false;
+  export let customPrompts: { name: string; template: string }[] = [];
   export let onSearch: (query: string) => Promise<any[]> = async () => [];
   export let editorHandler: any = null; // For grabbing selection from editor
 
@@ -18,6 +20,7 @@
   let suggestionIndex = 0;
   let mentionQuery = "";
   let mentionStartIndex = -1;
+  let currentTrigger: "@" | "/" | "[[" | null = null;
 
   function resize() {
     if (textarea) {
@@ -32,28 +35,85 @@
     resize();
     dispatch("input", event);
 
-    // Detect @ trigger
     const cursor = target.selectionStart;
     const textBeforeCursor = value.slice(0, cursor);
+
+    // Helper to find last occurrence of a char
     const lastAt = textBeforeCursor.lastIndexOf("@");
+    const lastSlash = textBeforeCursor.lastIndexOf("/");
+    const lastBracket = textBeforeCursor.lastIndexOf("[[");
 
-    // Simple heuristic: if @ is found and no space after it (or we are typing a name)
-    if (lastAt !== -1 && cursor - lastAt <= 20) {
-      // arbitrary limit for search query length
-      const query = textBeforeCursor.slice(lastAt + 1);
+    // We only trigger if there is no space after the trigger character
+    // and if the trigger is the closest to the cursor.
+    const lastSpace = textBeforeCursor.lastIndexOf(" ");
 
-      if (!query.includes(" ")) {
+    // Detect [[ trigger for inline notes (allows spaces)
+    if (
+      lastBracket > Math.max(lastAt, lastSlash) &&
+      cursor - lastBracket <= 60
+    ) {
+      const query = textBeforeCursor.slice(lastBracket + 2);
+      mentionQuery = query;
+      mentionStartIndex = lastBracket;
+      currentTrigger = "[[";
+      showSuggestions = true;
+      suggestions = await onSearch(query);
+      suggestionIndex = 0;
+      return;
+    }
+
+    // Detect / trigger for prompts
+    if (
+      lastSlash > lastSpace &&
+      lastSlash > lastAt &&
+      lastSlash > lastBracket &&
+      cursor - lastSlash <= 20
+    ) {
+      const query = textBeforeCursor.slice(lastSlash + 1).toLowerCase();
+      const matched = customPrompts
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(query) ||
+            p.template.toLowerCase().includes(query),
+        )
+        .map((p) => ({
+          type: "prompt",
+          text: p.name,
+          content: p.template,
+          data: p,
+        }));
+
+      if (matched.length > 0) {
         mentionQuery = query;
-        mentionStartIndex = lastAt;
+        mentionStartIndex = lastSlash;
+        currentTrigger = "/";
         showSuggestions = true;
-        suggestions = await onSearch(query);
+        suggestions = matched;
         suggestionIndex = 0;
         return;
       }
     }
 
+    // Detect @ trigger for context mentions
+    if (
+      lastAt > lastSpace &&
+      lastAt > lastSlash &&
+      lastAt > lastBracket &&
+      cursor - lastAt <= 20
+    ) {
+      const query = textBeforeCursor.slice(lastAt + 1);
+      mentionQuery = query;
+      mentionStartIndex = lastAt;
+      currentTrigger = "@";
+      showSuggestions = true;
+      suggestions = await onSearch(query);
+      suggestionIndex = 0;
+      return;
+    }
+
     // Close if condition fails
     showSuggestions = false;
+    currentTrigger = null;
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -85,14 +145,42 @@
     if (!item) return;
 
     const before = value.slice(0, mentionStartIndex);
-    const after = value.slice(mentionStartIndex + mentionQuery.length + 1); // +1 for @
+    // Determine how many characters to skip for the after part
+    const triggerLength = currentTrigger === "[[" ? 2 : 1;
+    const after = value.slice(
+      mentionStartIndex + mentionQuery.length + triggerLength,
+    );
 
-    // Instead of inserting text, we emit an event to add a pill!
-    // And remove the @query from text
-    value = before + after;
+    if (currentTrigger === "/") {
+      // Inline Prompt replacement
+      const insertedText = item.content;
+      value = before + insertedText + after;
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          const newCursor = before.length + insertedText.length;
+          textarea.setSelectionRange(newCursor, newCursor);
+        }
+      }, 0);
+    } else if (currentTrigger === "[[") {
+      // Inline Note replacement (standard Obsidian wiki link)
+      const insertedText = `[[${item.text}]]`;
+      value = before + insertedText + after;
+      setTimeout(() => {
+        if (textarea) {
+          textarea.focus();
+          const newCursor = before.length + insertedText.length;
+          textarea.setSelectionRange(newCursor, newCursor);
+        }
+      }, 0);
+    } else {
+      // @ Context Pill
+      value = before + after;
+      dispatch("add-context", item);
+    }
 
-    dispatch("add-context", item);
     showSuggestions = false;
+    currentTrigger = null;
     resize();
   }
 
@@ -194,7 +282,9 @@
       {disabled}
       on:input={handleInput}
       on:keydown={handleKeydown}
-      rows="1">{value}</textarea
+      rows="1"
+      tabindex="0"
+      autocomplete="off">{value}</textarea
     >
     <div class="actions">
       <div class="left-actions">
@@ -242,27 +332,49 @@
           >
         </button>
       </div>
-      <button
-        class="send-btn"
-        on:click={() => dispatch("submit")}
-        {disabled}
-        aria-label="Send message"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><line x1="22" y1="2" x2="11" y2="13"></line><polygon
-            points="22 2 15 22 11 13 2 9 22 2"
-          ></polygon></svg
+      {#if isLoading}
+        <button
+          class="send-btn stop-btn"
+          on:click={() => dispatch("stop")}
+          aria-label="Stop generation"
         >
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-square"
+            ><rect width="14" height="14" x="5" y="5" rx="2" /></svg
+          >
+        </button>
+      {:else}
+        <button
+          class="send-btn"
+          on:click={() => dispatch("submit")}
+          {disabled}
+          aria-label="Send message"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            ><line x1="22" y1="2" x2="11" y2="13"></line><polygon
+              points="22 2 15 22 11 13 2 9 22 2"
+            ></polygon></svg
+          >
+        </button>
+      {/if}
     </div>
   </div>
 </div>
@@ -373,6 +485,10 @@
 
   .send-btn:hover {
     background-color: var(--interactive-accent-hover);
+  }
+
+  .stop-btn {
+    background-color: var(--background-modifier-error) !important;
   }
 
   .send-btn:disabled {

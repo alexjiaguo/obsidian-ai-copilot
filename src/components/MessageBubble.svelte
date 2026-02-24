@@ -3,7 +3,7 @@
   import { MarkdownRenderer, Component } from "obsidian";
   import { createEventDispatcher } from "svelte";
 
-  export let role: "user" | "assistant" | "error";
+  export let role: "user" | "assistant" | "error" | "tool";
   export let content: string;
   export let isStreaming = false;
   export let app: any = null; // Obsidian App instance for MarkdownRenderer
@@ -72,26 +72,184 @@
     {/if}
   </div>
 
-  <div class="content-bubble">
-    {#if role === "assistant" && !content}
-      <span class="thinking">AI is thinking{dots}</span>
-    {:else if role === "user"}
-      <div class="user-content">{content}</div>
-    {:else}
-      <div class="markdown-content" bind:this={markdownEl}></div>
-    {/if}
+  <div class="message-body">
+    <div class="content-bubble">
+      {#if role === "assistant" && !content}
+        <span class="thinking">AI is thinking{dots}</span>
+      {:else if role === "user"}
+        <div class="user-content">{content}</div>
+      {:else}
+        <div class="markdown-content" bind:this={markdownEl}></div>
+      {/if}
+    </div>
 
-    {#if role === "assistant" && content}
+    {#if role === "user" || (role === "assistant" && content)}
       <div class="message-actions">
-        <button class="action-btn" on:click={() => dispatch("copy")}
-          >Copy</button
-        >
-        <button class="action-btn" on:click={() => dispatch("insert")}
-          >Insert</button
-        >
-        <button class="action-btn" on:click={() => dispatch("replace")}
-          >Replace Selection</button
-        >
+        {#if role === "user"}
+          <button
+            class="action-btn"
+            on:click={() => dispatch("edit")}
+            title="Edit"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path
+                d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+              /><path d="m15 5 4 4" /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("copy")}
+            title="Copy"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path
+                d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+              /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("delete")}
+            title="Delete"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M3 6h18" /><path
+                d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"
+              /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg
+            >
+          </button>
+        {:else}
+          <button
+            class="action-btn"
+            on:click={() => dispatch("insert")}
+            title="Insert at cursor"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M12 17V3" /><path d="m6 11 6 6 6-6" /><path
+                d="M19 21H5"
+              /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("replace")}
+            title="Replace selection"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path
+                d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"
+              /><polyline points="14 2 14 8 20 8" /><path
+                d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"
+              /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("copy")}
+            title="Copy"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path
+                d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+              /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("regenerate")}
+            title="Regenerate"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path
+                d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+              /><path d="M3 3v5h5" /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
+            on:click={() => dispatch("delete")}
+            title="Delete"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M3 6h18" /><path
+                d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"
+              /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg
+            >
+          </button>
+        {/if}
       </div>
     {/if}
   </div>
@@ -101,7 +259,7 @@
   .message-container {
     display: flex;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     align-items: flex-start;
   }
 
@@ -121,14 +279,23 @@
     flex-shrink: 0;
   }
 
+  .message-body {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+    min-width: 0;
+  }
+
+  .message-container.user .message-body {
+    align-items: flex-end;
+  }
+
   .content-bubble {
     background-color: var(--background-secondary);
     padding: 8px 12px;
     border-radius: 8px;
-    max-width: 85%;
     font-size: var(--font-ui-medium);
     line-height: 1.5;
-    position: relative;
     overflow-wrap: break-word;
     word-break: break-word;
   }
@@ -256,24 +423,31 @@
 
   .message-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 0.2s;
+    gap: 2px;
+    margin-top: 2px;
+    visibility: hidden;
+    height: 22px;
   }
 
-  .content-bubble:hover .message-actions {
-    opacity: 1;
+  .message-container:hover .message-actions {
+    visibility: visible;
   }
 
   .action-btn {
     background: transparent;
-    border: 1px solid var(--background-modifier-border);
+    border: none;
     border-radius: 4px;
-    padding: 2px 6px;
-    font-size: var(--font-ui-smaller);
+    width: 24px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     cursor: pointer;
     color: var(--text-muted);
+    transition:
+      color 0.15s,
+      background-color 0.15s;
   }
 
   .action-btn:hover {

@@ -8,6 +8,11 @@ import { AIChatView, VIEW_TYPE_AI_CHAT } from './src/views/AIChatView';
 import { EditorHandler } from './src/services/EditorHandler';
 import { ContextManager } from './src/services/ContextManager';
 import { ToolManager } from './src/services/ToolManager';
+import { VaultQA } from './src/services/VaultQA';
+import { MemoryService } from './src/services/MemoryService';
+import { RelevantNotes } from './src/services/RelevantNotes';
+import { SkillService } from './src/services/SkillService';
+import { MCPClientService } from './src/services/MCPClientService';
 import { mount, unmount } from 'svelte';
 import SettingsView from './src/settings/SettingsView.svelte';
 
@@ -17,11 +22,16 @@ export default class AICopilotPlugin extends Plugin {
     editorHandler!: EditorHandler;
     contextManager!: ContextManager;
     toolManager!: ToolManager;
+    vaultQA!: VaultQA;
+    memoryService!: MemoryService;
+    relevantNotes!: RelevantNotes;
+    skillService!: SkillService;
+    mcpClientService!: MCPClientService;
 
     async onload() {
-        console.log('🚀 AI Copilot v1.2.0 LOADED');
-        new Notice("🚀 AI Copilot v1.2.0 LOADED");
-        this.addStatusBarItem().setText("AI Copilot v1.2.0");
+        console.log('🚀 AI Copilot v1.3.0 LOADED');
+        new Notice("🚀 AI Copilot v1.3.0 LOADED");
+        this.addStatusBarItem().setText("AI Copilot v1.3.0");
         
         console.log('Docs GPT: Loading plugin...');
         await this.loadSettings();
@@ -29,10 +39,18 @@ export default class AICopilotPlugin extends Plugin {
         // Initialize Services
         this.editorHandler = new EditorHandler(this.app);
         this.contextManager = new ContextManager(this.app);
-        this.toolManager = new ToolManager(this.app);
+        this.vaultQA = new VaultQA(this.app, this.settings);
+        this.memoryService = new MemoryService(this.app);
+        this.relevantNotes = new RelevantNotes(this.app, this.vaultQA);
+        this.skillService = new SkillService(this.app, this.settings.skillsPath);
+        this.mcpClientService = new MCPClientService();
+        this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
+        this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService);
         
         try {
 			this.aiProvider = this.getAIProvider();
+			// Wire AI provider into ToolManager for URL summarization
+			this.toolManager.setAIProvider(this.aiProvider);
 		} catch (e) {
 			console.error('AI Provider Initialization Error:', e);
 		}
@@ -122,10 +140,10 @@ export default class AICopilotPlugin extends Plugin {
 
 						submenu.addItem((subItem: any) => {
 							subItem
-								.setTitle('Translate to Chinese')
-								.setIcon('languages')
+								.setTitle('Change tone')
+								.setIcon('megaphone')
 								.setDisabled(!hasSelection)
-								.onClick(() => this.runQuickAction(editor, selection!, 'Translate this text to Chinese (Simplified). Only output the translation.'));
+								.onClick(() => this.runQuickAction(editor, selection!, 'Rewrite this text in a more professional and polished tone. Keep the same meaning but adjust the style to be clear, confident, and well-written. Only output the rewritten text.'));
 						});
 
 						submenu.addItem((subItem: any) => {
@@ -139,6 +157,46 @@ export default class AICopilotPlugin extends Plugin {
 				});
 			})
 		);
+
+		// Add Commands and Hotkeys
+		this.addCommand({
+			id: 'add-selection-to-chat',
+			name: 'Add selection to chat context',
+			hotkeys: [{ modifiers: ["Mod"], key: "L" }],
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const selection = editor.getSelection();
+				if (!selection) return;
+				const filePath = view.file?.basename || 'unknown';
+				await this.activateView();
+				const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
+				if (leaves.length > 0) {
+					const chatView = leaves[0].view as AIChatView;
+					setTimeout(() => {
+						chatView.addSelectionContext(selection, filePath);
+						new Notice('📋 Selection added to AI Chat');
+					}, 100);
+				}
+			}
+		});
+
+		this.addCommand({
+			id: 'open-chat-quick-command',
+			name: 'Open AI Copilot Chat',
+			hotkeys: [{ modifiers: ["Mod"], key: "K" }],
+			callback: async () => {
+				await this.activateView();
+			}
+		});
+
+		this.addCommand({
+			id: 'index-vault-qa',
+			name: 'Index Vault for QA',
+			callback: async () => {
+				await this.vaultQA.indexVault();
+			}
+		});
+
+		// Tool registration
 
 		// Register the Chat View
 		this.registerView(
@@ -320,8 +378,11 @@ export default class AICopilotPlugin extends Plugin {
 		}
 	}
 
-	onunload() {
+	async onunload() {
 		console.log('Docs GPT: Unloading plugin');
+		if (this.mcpClientService) {
+			await this.mcpClientService.disconnectAll();
+		}
 	}
 
 	async loadSettings() {
@@ -332,6 +393,8 @@ export default class AICopilotPlugin extends Plugin {
 		await this.saveData(this.settings);
 		try {
 			this.aiProvider = this.getAIProvider();
+			this.toolManager.setAIProvider(this.aiProvider);
+			this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
 		} catch (e: any) {
 			new Notice(e.message);
 		}

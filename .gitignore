@@ -7,3 +7,9 @@ test-vault/
 clean_build.sh
 do_build.sh
 nuke_and_deploy.sh
+.npmrc
+build_env/
+esbuild-local
+esbuild.tgz
+node_modules_old3/
+package/

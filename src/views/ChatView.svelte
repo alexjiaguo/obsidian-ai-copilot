@@ -7,6 +7,7 @@
   import ModelSelector from "../components/ModelSelector.svelte";
   import PersonaSelector from "../components/PersonaSelector.svelte";
   import SessionHistory from "../components/SessionHistory.svelte";
+  import ComposerDiff from "../components/ComposerDiff.svelte";
   import { DEFAULT_PERSONAS, PROVIDER_MODELS } from "../settings/Settings";
   import type {
     ProviderType,
@@ -37,6 +38,7 @@
 
   // Current Session State
   let currentSessionId: string = "";
+  let isVaultQAMode: boolean = false;
   let selectedContext: {
     type: "file" | "folder" | "selection" | "image" | "heading";
     text: string;
@@ -53,6 +55,7 @@
     if (plugin.settings) {
       currentModel = plugin.settings.model || "gpt-4o-mini";
       selectedPersonaId = plugin.settings.defaultPersonaId || "default";
+      isVaultQAMode = plugin.settings.isVaultQAMode || false;
 
       // Load or Create Session
       if (plugin.settings.activeSessionId) {
@@ -113,6 +116,7 @@
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
+      projectId: plugin.settings.activeProjectId || null,
     };
 
     plugin.settings.sessions = [...plugin.settings.sessions, newSession];
@@ -157,7 +161,10 @@
   }
 
   // Reactive: session list
-  $: sessionsList = plugin.settings?.sessions || [];
+  $: activeProjectId = plugin.settings?.activeProjectId || null;
+  $: sessionsList = (plugin.settings?.sessions || []).filter(
+    (s: ChatSession) => (s.projectId || null) === activeProjectId,
+  );
 
   // Reactive: models list from provider
   $: currentModels = plugin.settings
@@ -273,6 +280,22 @@
       }
     }
 
+    // Vault QA Mode specific context
+    let qaSources: string[] = [];
+    if (isVaultQAMode && plugin.vaultQA) {
+      const activeProject = plugin.settings.projects?.find(
+        (p: any) => p.id === plugin.settings.activeProjectId,
+      );
+      const results = await plugin.vaultQA.search(query, 5, activeProject);
+      if (results && results.length > 0) {
+        contextText += `\n\n=== RELEVANT VAULT CONTEXT ===\n`;
+        results.forEach((res: any, i: number) => {
+          contextText += `[Source ${i + 1} - ${res.fileId}]:\n${res.text}\n\n`;
+          if (!qaSources.includes(res.fileId)) qaSources.push(res.fileId);
+        });
+      }
+    }
+
     const fullPromptText = `${contextText}\n\nUser Question: ${query}`;
 
     // Include Active File Context if available and not explicitly added
@@ -304,14 +327,54 @@
     try {
       let currentMessages: any[] = [];
 
-      // 0. System Prompt from Persona
+      // 0. System Prompt from Persona or Active Project
       const persona =
         plugin.settings.personas.find((p: any) => p.id === selectedPersonaId) ||
         DEFAULT_PERSONAS[0];
 
+      const activeProject = plugin.settings.projects?.find(
+        (p: any) => p.id === plugin.settings.activeProjectId,
+      );
+      let baseSystemPrompt = persona.prompt;
+      if (activeProject && activeProject.systemPrompt) {
+        baseSystemPrompt = activeProject.systemPrompt;
+      }
+
+      // Inject long-term memories into system prompt
+      let memoryPreamble = "";
+      if (plugin.memoryService) {
+        try {
+          memoryPreamble = await plugin.memoryService.getMemoryPreamble();
+        } catch (e) {
+          console.warn("Could not load memories:", e);
+        }
+      }
+
+      // Inject relevant skills based on the user query
+      let skillContext = "";
+      if (plugin.skillService) {
+        try {
+          skillContext =
+            await plugin.skillService.buildSkillContext(fullPromptText);
+          if (skillContext) {
+            console.log("SkillService: Injected relevant skills into prompt");
+          }
+        } catch (e) {
+          console.warn("Could not load skills:", e);
+        }
+      }
+
+      const actualModel =
+        activeProject && activeProject.defaultModel
+          ? activeProject.defaultModel
+          : currentModel;
+
       // Prepend file context to system prompt if it exists (so it persists across the chat turn)
       const finalSystemPrompt =
-        persona.prompt + (systemBase ? `\n\nContext:\n${systemBase}` : "");
+        baseSystemPrompt +
+        memoryPreamble +
+        skillContext +
+        (systemBase ? `\n\nContext:\n${systemBase}` : "");
 
       currentMessages.push({ role: "system", content: finalSystemPrompt });
 
@@ -339,13 +402,13 @@
 
       // Get Tools
       const tools = plugin.toolManager
-        ? plugin.toolManager.getToolsDefinition()
+        ? await plugin.toolManager.getToolsDefinition()
         : [];
 
       while (steps < maxSteps) {
         const response = await plugin.aiProvider.generateResponse(
           currentMessages,
-          { model: currentModel },
+          { model: actualModel },
           tools,
         );
 
@@ -386,6 +449,22 @@
               result = `Error executing tool: ${e.message}`;
             }
 
+            // Check if result is a Composer Diff
+            let parsedComposerDiff = null;
+            if (
+              tool.function.name === "edit_note" &&
+              result.trim().startsWith("{")
+            ) {
+              try {
+                const parsed = JSON.parse(result);
+                if (parsed._isComposerDiff) {
+                  parsedComposerDiff = parsed;
+                  parsedComposerDiff.status = "pending";
+                  result = `File edit proposed for ${parsed.path}.`;
+                }
+              } catch (e) {}
+            }
+
             // Add Tool Result to Context
             currentMessages.push({
               role: "tool",
@@ -394,10 +473,21 @@
             });
 
             // Show Result in UI
-            messages = [
-              ...messages,
-              { role: "assistant", content: `> ${result}` },
-            ];
+            if (parsedComposerDiff) {
+              messages = [
+                ...messages,
+                {
+                  role: "assistant",
+                  content: "",
+                  composerDiff: parsedComposerDiff,
+                },
+              ];
+            } else {
+              messages = [
+                ...messages,
+                { role: "assistant", content: `> ${result}` },
+              ];
+            }
           }
           steps++;
         } else {
@@ -407,8 +497,16 @@
         }
       }
 
+      // Append Sources if in Vault QA mode
+      if (isVaultQAMode && qaSources.length > 0 && finalContent) {
+        finalContent += `\n\n**Sources:**\n${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
+      }
+
       // Save Final Response
-      saveMessageToHistory("assistant", finalContent);
+      saveMessageToHistory(
+        "assistant",
+        finalContent || "(No response from model)",
+      );
     } catch (error: any) {
       console.error("AI Chat Error:", error);
       saveMessageToHistory("error", "Error: " + error.message);
@@ -444,6 +542,141 @@
     navigator.clipboard.writeText(content);
     new Notice("Copied to clipboard");
   }
+
+  async function toggleVaultQAMode() {
+    isVaultQAMode = !isVaultQAMode;
+    if (plugin.settings) {
+      plugin.settings.isVaultQAMode = isVaultQAMode;
+      plugin.saveSettings();
+    }
+
+    new Notice(isVaultQAMode ? "Vault QA Mode: ON" : "Vault QA Mode: OFF");
+
+    try {
+      if (
+        isVaultQAMode &&
+        plugin.settings?.autoIndexVault &&
+        plugin.vaultQA &&
+        !plugin.vaultQA.isIndexed
+      ) {
+        await plugin.vaultQA.indexVault();
+      }
+    } catch (e: any) {
+      console.error("Error toggling Vault QA:", e);
+      new Notice("Error: " + e.message);
+    }
+  }
+  async function performDiffAction(
+    message: ChatMessage,
+    action: "accept" | "reject" | "revert",
+  ) {
+    if (!message.composerDiff) return;
+    const diff = message.composerDiff;
+
+    if (action === "reject") {
+      diff.status = "rejected";
+      messages = [...messages];
+      plugin.saveSettings();
+      return;
+    }
+
+    try {
+      const file = plugin.app.vault.getAbstractFileByPath(diff.path);
+      if (file && file.extension === "md") {
+        const content = await plugin.app.vault.read(file);
+
+        let newContent = content;
+        if (action === "accept") {
+          if (!content.includes(diff.oldText)) {
+            new Notice("Could not find exact text to replace in file.");
+            return;
+          }
+          newContent = content.replace(diff.oldText, diff.newText);
+        } else if (action === "revert") {
+          if (!content.includes(diff.newText)) {
+            new Notice("Could not find exact text to revert in file.");
+            return;
+          }
+          newContent = content.replace(diff.newText, diff.oldText);
+        }
+
+        await plugin.app.vault.modify(file, newContent);
+
+        diff.status = action === "accept" ? "accepted" : "pending";
+        messages = [...messages];
+        plugin.saveSettings();
+        new Notice(`Edit ${action === "accept" ? "applied" : "reverted"}.`);
+      } else {
+        new Notice("File not found or not a markdown file.");
+      }
+    } catch (e: any) {
+      new Notice("Error applying edit: " + e.message);
+    }
+  }
+
+  function handleDeleteMessage(index: number) {
+    messages = messages.filter((_: any, idx: number) => idx !== index);
+    const session = plugin.settings.sessions.find(
+      (s: any) => s.id === currentSessionId,
+    );
+    if (session) {
+      session.messages = messages;
+      session.updatedAt = Date.now();
+      plugin.settings.sessions = [...plugin.settings.sessions];
+      plugin.settings = { ...plugin.settings };
+      plugin.saveSettings();
+    }
+    new Notice("Message deleted");
+  }
+
+  function handleEditMessage(index: number) {
+    const msg = messages[index];
+    if (msg?.role === "user") {
+      query = msg.content;
+      messages = messages.slice(0, index);
+      const session = plugin.settings.sessions.find(
+        (s: any) => s.id === currentSessionId,
+      );
+      if (session) {
+        session.messages = messages;
+        session.updatedAt = Date.now();
+        plugin.settings.sessions = [...plugin.settings.sessions];
+        plugin.settings = { ...plugin.settings };
+        plugin.saveSettings();
+      }
+    }
+  }
+
+  async function handleRegenerate(index: number) {
+    const assistantMsg = messages[index];
+    if (assistantMsg?.role !== "assistant") return;
+
+    let lastUserQuery = "";
+    for (let j = index - 1; j >= 0; j--) {
+      if (messages[j].role === "user") {
+        lastUserQuery = messages[j].content;
+        break;
+      }
+    }
+    if (!lastUserQuery) return;
+
+    // Remove from this assistant message onward and persist
+    messages = messages.slice(0, index);
+    const session = plugin.settings.sessions.find(
+      (s: any) => s.id === currentSessionId,
+    );
+    if (session) {
+      session.messages = messages;
+      session.updatedAt = Date.now();
+      plugin.settings.sessions = [...plugin.settings.sessions];
+      plugin.settings = { ...plugin.settings };
+      plugin.saveSettings();
+    }
+
+    // Re-send the user's query
+    query = lastUserQuery;
+    await sendMessage();
+  }
 </script>
 
 <div class="ai-copilot-container">
@@ -451,7 +684,7 @@
     <div class="title">
       AI Copilot <span
         style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;"
-        >v1.1</span
+        >v1.3</span
       >
     </div>
     <div class="controls">
@@ -462,9 +695,35 @@
         on:delete={handleSessionDelete}
       />
       <button
+        class="new-chat-btn {isVaultQAMode ? 'active' : ''}"
+        on:click={() => toggleVaultQAMode()}
+        title="Toggle Vault QA Mode"
+        style={isVaultQAMode
+          ? "color: var(--interactive-accent); background: var(--background-modifier-active-hover);"
+          : ""}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="lucide lucide-database"
+        >
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+          <path d="M3 12A9 3 0 0 0 21 12" />
+        </svg>
+      </button>
+      <button
         class="new-chat-btn"
         on:click={createNewSession}
         aria-label="New Chat"
+        title="New Chat"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -516,16 +775,31 @@
       </div>
     {/if}
 
-    {#each messages as message}
-      <MessageBubble
-        role={message.role}
-        content={message.content}
-        isStreaming={isLoading && message === messages[messages.length - 1]}
-        app={plugin.app}
-        on:insert={() => handleInsert(message.content)}
-        on:replace={() => handleReplace(message.content)}
-        on:copy={() => handleCopy(message.content)}
-      />
+    {#each messages as message, i}
+      {#if message.composerDiff}
+        <ComposerDiff
+          path={message.composerDiff.path}
+          oldText={message.composerDiff.oldText}
+          newText={message.composerDiff.newText}
+          status={message.composerDiff.status}
+          on:accept={() => performDiffAction(message, "accept")}
+          on:reject={() => performDiffAction(message, "reject")}
+          on:revert={() => performDiffAction(message, "revert")}
+        />
+      {:else}
+        <MessageBubble
+          role={message.role}
+          content={message.content}
+          isStreaming={isLoading && message === messages[messages.length - 1]}
+          app={plugin.app}
+          on:insert={() => handleInsert(message.content)}
+          on:replace={() => handleReplace(message.content)}
+          on:copy={() => handleCopy(message.content)}
+          on:edit={() => handleEditMessage(i)}
+          on:delete={() => handleDeleteMessage(i)}
+          on:regenerate={() => handleRegenerate(i)}
+        />
+      {/if}
     {/each}
   </div>
 
