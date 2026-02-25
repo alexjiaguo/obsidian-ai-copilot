@@ -62,54 +62,64 @@ export class MCPClientService {
     try {
       console.log(`[MCP] Connecting to server ${config.name}...`);
 
-      // Auto-detect server directory from command path if cwd is not set.
+      // Auto-detect server directory from venv command path
       // e.g. /path/to/project/.venv/bin/python → /path/to/project/
       let serverDir = config.cwd || '';
       if (!serverDir && config.command && path.isAbsolute(config.command)) {
-        const cmdPath = config.command;
-        // Check for venv pattern: .venv/bin/python or venv/bin/python
-        const venvMatch = cmdPath.match(/^(.+?)\/(\.?venv)\/bin\//);
+        const venvMatch = config.command.match(/^(.+?)\/(\.?venv)\/bin\//);
         if (venvMatch) {
           serverDir = venvMatch[1];
-          console.log(`[MCP] Auto-detected server directory from venv path: ${serverDir}`);
-        } else {
-          // Fallback: use the directory containing the command
-          serverDir = path.dirname(config.command);
+          console.log(`[MCP] Auto-detected server dir: ${serverDir}`);
         }
       }
 
-      // Build environment: process.env < .env file < user-configured env vars
-      let envVars: Record<string, string> = { ...(process.env as Record<string, string>) };
-
-      // Auto-load .env from server directory if it exists
+      // Check if a .env file exists in the server directory
+      let hasEnvFile = false;
       if (serverDir) {
-        const dotEnvPath = path.join(serverDir, '.env');
-        const dotEnvVars = parseDotEnv(dotEnvPath);
-        if (Object.keys(dotEnvVars).length > 0) {
-          console.log(`[MCP] Loaded ${Object.keys(dotEnvVars).length} env vars from ${dotEnvPath}`);
-          envVars = { ...envVars, ...dotEnvVars };
+        try {
+          const dotEnvPath = path.join(serverDir, '.env');
+          fs.accessSync(dotEnvPath, fs.constants.R_OK);
+          hasEnvFile = true;
+          console.log(`[MCP] Found .env file at ${dotEnvPath}`);
+        } catch {
+          console.log(`[MCP] No .env file found in ${serverDir}`);
         }
       }
 
-      // User-configured env vars take highest priority
-      if (config.env && Object.keys(config.env).length > 0) {
-        envVars = { ...envVars, ...config.env };
+      let transportOpts: any;
+
+      if (hasEnvFile && serverDir) {
+        // Use shell wrapper to source .env before starting the server.
+        // This is the most reliable approach because it uses the native shell
+        // to load environment variables, bypassing any Electron-specific
+        // issues with fs.readFileSync or process.env inheritance.
+        const args = config.args || [];
+        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(config.command)} ${args.map(a => JSON.stringify(a)).join(' ')}`;
+        
+        console.log(`[MCP] Using shell wrapper for ${config.name}`);
+        transportOpts = {
+          command: '/bin/bash',
+          args: ['-c', shellCmd],
+          env: { ...(process.env as Record<string, string>), ...config.env },
+          stderr: 'pipe' as const,
+          cwd: serverDir
+        };
+      } else {
+        // Standard spawn - no .env file needed
+        transportOpts = {
+          command: config.command,
+          args: config.args || [],
+          env: { ...(process.env as Record<string, string>), ...config.env },
+          stderr: 'pipe' as const
+        };
+        if (serverDir) {
+          transportOpts.cwd = serverDir;
+        }
       }
 
-      const transportOpts: any = {
-        command: config.command,
-        args: config.args || [],
-        env: envVars,
-        stderr: 'pipe' as const
-      };
-      if (serverDir) {
-        transportOpts.cwd = serverDir;
-      }
-      
-      console.log(`[MCP] Spawning: ${config.command} ${(config.args || []).join(' ')}${config.cwd ? ' (cwd: ' + config.cwd + ')' : ''}`);
       const transport = new StdioClientTransport(transportOpts);
 
-      // Capture stderr for debugging — this shows Python tracebacks, missing modules, etc.
+      // Capture stderr for debugging
       if (transport.stderr) {
         transport.stderr.on('data', (chunk: Buffer) => {
           console.warn(`[MCP] ${config.name} stderr:`, chunk.toString().trim());

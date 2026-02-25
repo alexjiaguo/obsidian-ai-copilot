@@ -14942,7 +14942,7 @@ ${c.content}`).join("");
       }
     }
     let qaSources = [];
-    if (get(isVaultQAMode) && plugin().vaultQA) {
+    if (get(isVaultQAMode) && plugin().vaultQA && plugin().vaultQA.isIndexed) {
       const activeProject = plugin().settings.projects?.find((p) => p.id === plugin().settings.activeProjectId);
       const results = await plugin().vaultQA.search(get(query), 5, activeProject);
       if (results && results.length > 0) {
@@ -15012,6 +15012,12 @@ ${get(activeContextFile).content}
 Context:
 ${systemBase}` : "");
       currentMessages.push({ role: "system", content: finalSystemPrompt });
+      const priorMessages = get(messages).slice(0, get(messages).length - 1);
+      for (const msg of priorMessages) {
+        if (msg.role === "user" || msg.role === "assistant") {
+          currentMessages.push({ role: msg.role, content: msg.content });
+        }
+      }
       if (imageContexts.length > 0) {
         const contentParts = [];
         if (fullPromptText.trim()) {
@@ -32169,6 +32175,14 @@ function SettingsView($$anchor, $$props) {
     const server = settings().mcpServers.find((s) => s.id === id);
     if (server) {
       server.enabled = !server.enabled;
+      settings(settings().mcpServers = settings().mcpServers, true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get(currentModels);
+        handleChange;
+      });
       saveSettings()();
     }
   }
