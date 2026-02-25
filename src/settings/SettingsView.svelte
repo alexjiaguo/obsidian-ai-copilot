@@ -162,12 +162,14 @@
     settings.mcpServers = [...settings.mcpServers, newServer];
     editingMcpServerId = newServer.id;
     saveSettings();
+    plugin.reconnectMCPServers();
   }
 
   function deleteMcpServer(id: string) {
     settings.mcpServers = settings.mcpServers.filter((s) => s.id !== id);
     if (editingMcpServerId === id) editingMcpServerId = null;
     saveSettings();
+    plugin.reconnectMCPServers();
   }
 
   function selectMcpServer(id: string) {
@@ -180,6 +182,7 @@
       server.enabled = !server.enabled;
       settings.mcpServers = settings.mcpServers;
       saveSettings();
+      plugin.reconnectMCPServers();
     }
   }
 

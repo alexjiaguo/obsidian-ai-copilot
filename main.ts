@@ -394,9 +394,19 @@ export default class AICopilotPlugin extends Plugin {
 		try {
 			this.aiProvider = this.getAIProvider();
 			this.toolManager.setAIProvider(this.aiProvider);
-			this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
 		} catch (e: any) {
 			new Notice(e.message);
+		}
+	}
+
+	/** Reconnect MCP servers — call this only when MCP config changes, not on every save */
+	async reconnectMCPServers() {
+		if (this.mcpClientService) {
+			try {
+				await this.mcpClientService.connectAll(this.settings.mcpServers || []);
+			} catch (e: any) {
+				console.error("MCP Connect Error", e);
+			}
 		}
 	}
 

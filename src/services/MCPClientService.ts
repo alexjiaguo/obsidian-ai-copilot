@@ -35,12 +35,23 @@ export class MCPClientService {
       const transportOpts: any = {
         command: config.command,
         args: config.args || [],
-        env: { ...(process.env as Record<string, string>), ...config.env }
+        env: { ...(process.env as Record<string, string>), ...config.env },
+        stderr: 'pipe' as const
       };
       if (config.cwd) {
         transportOpts.cwd = config.cwd;
       }
+      console.log(`[MCP] Transport opts for ${config.name}:`, JSON.stringify({ command: transportOpts.command, args: transportOpts.args, cwd: transportOpts.cwd }));
       const transport = new StdioClientTransport(transportOpts);
+
+      // Capture stderr for debugging
+      if (transport.stderr) {
+        let stderrData = '';
+        transport.stderr.on('data', (chunk: Buffer) => {
+          stderrData += chunk.toString();
+          console.warn(`[MCP] ${config.name} stderr:`, chunk.toString().trim());
+        });
+      }
 
       const client = new Client(
         {
