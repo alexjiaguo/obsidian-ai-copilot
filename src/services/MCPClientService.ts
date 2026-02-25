@@ -1,6 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { MCPServerConfig } from "../settings/Settings";
+import * as fs from "fs";
+import * as path from "path";
 
 // Polyfill: MCP SDK uses setTimeout(...).unref() which is a Node.js API.
 // Obsidian runs in Electron's renderer where setTimeout returns a number.
@@ -13,6 +15,33 @@ const _origSetTimeout = globalThis.setTimeout;
   }
   return id;
 };
+
+/**
+ * Parse a .env file into a key-value Record.
+ * Handles: KEY=VALUE, KEY="VALUE", KEY='VALUE', comments (#), empty lines.
+ */
+function parseDotEnv(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx < 1) continue;
+      const key = trimmed.substring(0, eqIdx).trim();
+      let val = trimmed.substring(eqIdx + 1).trim();
+      // Strip surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      result[key] = val;
+    }
+  } catch {
+    // .env file doesn't exist or can't be read — that's fine
+  }
+  return result;
+}
 
 export interface MCPToolInfo {
   serverName: string;
@@ -32,23 +61,41 @@ export class MCPClientService {
     
     try {
       console.log(`[MCP] Connecting to server ${config.name}...`);
+
+      // Build environment: start with process.env, merge .env file (if cwd has one), then user overrides
+      let envVars: Record<string, string> = { ...(process.env as Record<string, string>) };
+
+      // Auto-load .env from cwd directory if it exists
+      if (config.cwd) {
+        const dotEnvPath = path.join(config.cwd, '.env');
+        const dotEnvVars = parseDotEnv(dotEnvPath);
+        if (Object.keys(dotEnvVars).length > 0) {
+          console.log(`[MCP] Loaded ${Object.keys(dotEnvVars).length} vars from ${dotEnvPath}`);
+          envVars = { ...envVars, ...dotEnvVars };
+        }
+      }
+
+      // User-configured env vars take highest priority
+      if (config.env && Object.keys(config.env).length > 0) {
+        envVars = { ...envVars, ...config.env };
+      }
+
       const transportOpts: any = {
         command: config.command,
         args: config.args || [],
-        env: { ...(process.env as Record<string, string>), ...config.env },
+        env: envVars,
         stderr: 'pipe' as const
       };
       if (config.cwd) {
         transportOpts.cwd = config.cwd;
       }
-      console.log(`[MCP] Transport opts for ${config.name}:`, JSON.stringify({ command: transportOpts.command, args: transportOpts.args, cwd: transportOpts.cwd }));
+      
+      console.log(`[MCP] Spawning: ${config.command} ${(config.args || []).join(' ')}${config.cwd ? ' (cwd: ' + config.cwd + ')' : ''}`);
       const transport = new StdioClientTransport(transportOpts);
 
-      // Capture stderr for debugging
+      // Capture stderr for debugging — this shows Python tracebacks, missing modules, etc.
       if (transport.stderr) {
-        let stderrData = '';
         transport.stderr.on('data', (chunk: Buffer) => {
-          stderrData += chunk.toString();
           console.warn(`[MCP] ${config.name} stderr:`, chunk.toString().trim());
         });
       }
@@ -66,9 +113,9 @@ export class MCPClientService {
       await client.connect(transport);
       this.clients.set(config.name, client);
       this.transports.set(config.name, transport);
-      console.log(`[MCP] Connected to server ${config.name}`);
+      console.log(`[MCP] ✓ Connected to server ${config.name}`);
     } catch (error) {
-      console.error(`[MCP] Failed to connect to server ${config.name}:`, error);
+      console.error(`[MCP] ✗ Failed to connect to server ${config.name}:`, error);
     }
   }
 
