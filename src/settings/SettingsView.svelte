@@ -749,6 +749,15 @@
                 placeholder="API_KEY=your_secret_key"
               ></textarea>
             </div>
+            <div class="form-group">
+              <label>Working Directory (optional)</label>
+              <input
+                type="text"
+                bind:value={server.cwd}
+                on:change={handleChange}
+                placeholder="e.g. /Users/you/.mcp/my-server"
+              />
+            </div>
           </div>
         {/if}
       </div>

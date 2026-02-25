@@ -10,6 +10,7 @@ export interface MCPServerConfig {
     command: string; // e.g., "npx" or "/path/to/python"
     args: string[];  // e.g., ["-y", "@modelcontextprotocol/server-postgres", "postgresql://..."]
     env: Record<string, string>; // Custom environment variables
+    cwd?: string; // Working directory for the server process
     enabled: boolean;
 }
 

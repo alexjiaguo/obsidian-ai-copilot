@@ -32,11 +32,15 @@ export class MCPClientService {
     
     try {
       console.log(`[MCP] Connecting to server ${config.name}...`);
-      const transport = new StdioClientTransport({
+      const transportOpts: any = {
         command: config.command,
         args: config.args || [],
         env: { ...(process.env as Record<string, string>), ...config.env }
-      });
+      };
+      if (config.cwd) {
+        transportOpts.cwd = config.cwd;
+      }
+      const transport = new StdioClientTransport(transportOpts);
 
       const client = new Client(
         {
