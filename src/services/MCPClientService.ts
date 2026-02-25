@@ -62,6 +62,12 @@ export class MCPClientService {
     try {
       console.log(`[MCP] Connecting to server ${config.name}...`);
 
+      // Sanitize args: strip trailing/leading commas and whitespace from each arg.
+      // Users sometimes enter args as "arg1, arg2, arg3" which gets stored with trailing commas.
+      const sanitizedArgs = (config.args || [])
+        .map(a => a.replace(/^[,\s]+|[,\s]+$/g, ''))
+        .filter(a => a.length > 0);
+
       // Auto-detect server directory from venv command path
       // e.g. /path/to/project/.venv/bin/python → /path/to/project/
       let serverDir = config.cwd || '';
@@ -93,8 +99,7 @@ export class MCPClientService {
         // This is the most reliable approach because it uses the native shell
         // to load environment variables, bypassing any Electron-specific
         // issues with fs.readFileSync or process.env inheritance.
-        const args = config.args || [];
-        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(config.command)} ${args.map(a => JSON.stringify(a)).join(' ')}`;
+        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(config.command)} ${sanitizedArgs.map(a => JSON.stringify(a)).join(' ')}`;
         
         console.log(`[MCP] Using shell wrapper for ${config.name}`);
         transportOpts = {
@@ -108,7 +113,7 @@ export class MCPClientService {
         // Standard spawn - no .env file needed
         transportOpts = {
           command: config.command,
-          args: config.args || [],
+          args: sanitizedArgs,
           env: { ...(process.env as Record<string, string>), ...config.env },
           stderr: 'pipe' as const
         };
