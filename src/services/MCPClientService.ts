@@ -62,15 +62,31 @@ export class MCPClientService {
     try {
       console.log(`[MCP] Connecting to server ${config.name}...`);
 
-      // Build environment: start with process.env, merge .env file (if cwd has one), then user overrides
+      // Auto-detect server directory from command path if cwd is not set.
+      // e.g. /path/to/project/.venv/bin/python → /path/to/project/
+      let serverDir = config.cwd || '';
+      if (!serverDir && config.command && path.isAbsolute(config.command)) {
+        const cmdPath = config.command;
+        // Check for venv pattern: .venv/bin/python or venv/bin/python
+        const venvMatch = cmdPath.match(/^(.+?)\/(\.?venv)\/bin\//);
+        if (venvMatch) {
+          serverDir = venvMatch[1];
+          console.log(`[MCP] Auto-detected server directory from venv path: ${serverDir}`);
+        } else {
+          // Fallback: use the directory containing the command
+          serverDir = path.dirname(config.command);
+        }
+      }
+
+      // Build environment: process.env < .env file < user-configured env vars
       let envVars: Record<string, string> = { ...(process.env as Record<string, string>) };
 
-      // Auto-load .env from cwd directory if it exists
-      if (config.cwd) {
-        const dotEnvPath = path.join(config.cwd, '.env');
+      // Auto-load .env from server directory if it exists
+      if (serverDir) {
+        const dotEnvPath = path.join(serverDir, '.env');
         const dotEnvVars = parseDotEnv(dotEnvPath);
         if (Object.keys(dotEnvVars).length > 0) {
-          console.log(`[MCP] Loaded ${Object.keys(dotEnvVars).length} vars from ${dotEnvPath}`);
+          console.log(`[MCP] Loaded ${Object.keys(dotEnvVars).length} env vars from ${dotEnvPath}`);
           envVars = { ...envVars, ...dotEnvVars };
         }
       }
@@ -86,8 +102,8 @@ export class MCPClientService {
         env: envVars,
         stderr: 'pipe' as const
       };
-      if (config.cwd) {
-        transportOpts.cwd = config.cwd;
+      if (serverDir) {
+        transportOpts.cwd = serverDir;
       }
       
       console.log(`[MCP] Spawning: ${config.command} ${(config.args || []).join(' ')}${config.cwd ? ' (cwd: ' + config.cwd + ')' : ''}`);
