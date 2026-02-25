@@ -178,6 +178,7 @@
     const server = settings.mcpServers.find((s) => s.id === id);
     if (server) {
       server.enabled = !server.enabled;
+      settings.mcpServers = settings.mcpServers;
       saveSettings();
     }
   }

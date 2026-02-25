@@ -282,7 +282,7 @@
 
     // Vault QA Mode specific context
     let qaSources: string[] = [];
-    if (isVaultQAMode && plugin.vaultQA) {
+    if (isVaultQAMode && plugin.vaultQA && plugin.vaultQA.isIndexed) {
       const activeProject = plugin.settings.projects?.find(
         (p: any) => p.id === plugin.settings.activeProjectId,
       );
@@ -377,6 +377,15 @@
         (systemBase ? `\n\nContext:\n${systemBase}` : "");
 
       currentMessages.push({ role: "system", content: finalSystemPrompt });
+
+      // Inject prior conversation history (all messages except the one we just pushed)
+      // messages already includes the user message we just saved, so take all but the last
+      const priorMessages = messages.slice(0, messages.length - 1);
+      for (const msg of priorMessages) {
+        if (msg.role === "user" || msg.role === "assistant") {
+          currentMessages.push({ role: msg.role, content: msg.content });
+        }
+      }
 
       // Construct Initial Message Payload
       if (imageContexts.length > 0) {
