@@ -43,6 +43,68 @@ function parseDotEnv(filePath: string): Record<string, string> {
   return result;
 }
 
+/**
+ * Build an augmented PATH that includes common macOS binary directories.
+ * Electron apps don't inherit the user's shell PATH, so tools like `node`,
+ * `npx`, `python`, etc. are not found unless we explicitly add their dirs.
+ */
+function getAugmentedEnv(extraEnv: Record<string, string> = {}): Record<string, string> {
+  const home = process.env.HOME || '/Users/' + (process.env.USER || 'user');
+  const additionalPaths = [
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    `${home}/.npm-global/bin`,
+    `${home}/.local/bin`,
+    `${home}/.bun/bin`,
+    `${home}/.cargo/bin`,
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+  ];
+  const currentPath = process.env.PATH || '';
+  const pathSet = new Set(currentPath.split(':'));
+  for (const p of additionalPaths) {
+    pathSet.add(p);
+  }
+  return {
+    ...(process.env as Record<string, string>),
+    ...extraEnv,
+    PATH: Array.from(pathSet).join(':'),
+  };
+}
+
+/**
+ * Resolve a bare command name (e.g. "npx") to its absolute path by probing
+ * common directories. Returns the original command if not found (let the OS try).
+ */
+function resolveCommand(cmd: string): string {
+  // Already absolute — nothing to do
+  if (path.isAbsolute(cmd)) return cmd;
+
+  const home = process.env.HOME || '/Users/' + (process.env.USER || 'user');
+  const searchDirs = [
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+    `${home}/.npm-global/bin`,
+    `${home}/.local/bin`,
+    `${home}/.bun/bin`,
+    '/usr/bin',
+    '/bin',
+  ];
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, cmd);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      // not found here, try next
+    }
+  }
+  return cmd; // fallback to original
+}
+
 export interface MCPToolInfo {
   serverName: string;
   toolName: string;
@@ -94,27 +156,33 @@ export class MCPClientService {
 
       let transportOpts: any;
 
+      // Resolve bare command names (e.g. "npx" → "/usr/local/bin/npx")
+      const resolvedCommand = resolveCommand(config.command);
+      if (resolvedCommand !== config.command) {
+        console.log(`[MCP] Resolved command: ${config.command} → ${resolvedCommand}`);
+      }
+
       if (hasEnvFile && serverDir) {
         // Use shell wrapper to source .env before starting the server.
         // This is the most reliable approach because it uses the native shell
         // to load environment variables, bypassing any Electron-specific
         // issues with fs.readFileSync or process.env inheritance.
-        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(config.command)} ${sanitizedArgs.map(a => JSON.stringify(a)).join(' ')}`;
+        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(resolvedCommand)} ${sanitizedArgs.map(a => JSON.stringify(a)).join(' ')}`;
         
         console.log(`[MCP] Using shell wrapper for ${config.name}`);
         transportOpts = {
           command: '/bin/bash',
           args: ['-c', shellCmd],
-          env: { ...(process.env as Record<string, string>), ...config.env },
+          env: getAugmentedEnv(config.env),
           stderr: 'pipe' as const,
           cwd: serverDir
         };
       } else {
         // Standard spawn - no .env file needed
         transportOpts = {
-          command: config.command,
+          command: resolvedCommand,
           args: sanitizedArgs,
-          env: { ...(process.env as Record<string, string>), ...config.env },
+          env: getAugmentedEnv(config.env),
           stderr: 'pipe' as const
         };
         if (serverDir) {

@@ -7,6 +7,7 @@ import { VaultQA } from './VaultQA';
 import { ContentExtractor } from './ContentExtractor';
 import { MCPClientService } from './MCPClientService';
 import type { AIProvider } from './APIService';
+import { SkillService } from './SkillService';
 
 export interface Tool {
     name: string;
@@ -26,8 +27,9 @@ export class ToolManager {
     private contentExtractor: ContentExtractor;
     private mcpClientService?: MCPClientService;
     private aiProvider: AIProvider | null;
+    private skillService: SkillService | null;
 
-    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider) {
+    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService) {
         this.app = app;
         this.webSearch = new WebSearch();
         this.ytTranscriber = new YouTubeTranscriber();
@@ -37,6 +39,7 @@ export class ToolManager {
         this.contentExtractor = new ContentExtractor();
         this.mcpClientService = mcpClientService;
         this.aiProvider = aiProvider || null;
+        this.skillService = skillService || null;
         this.registerTools();
     }
 
@@ -378,6 +381,71 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
                     return summary;
                 } catch (error: any) {
                     return `Error summarizing URL: ${error.message}`;
+                }
+            }
+        });
+
+        // 14. List Skills
+        this.tools.push({
+            name: 'list_skills',
+            description: 'Lists all available agentic skills with their names and descriptions. Call this first to discover which skills exist before using one.',
+            parameters: {
+                type: 'object',
+                properties: {},
+                required: []
+            },
+            execute: async () => {
+                if (!this.skillService) return 'Error: SkillService is not configured.';
+                try {
+                    return await this.skillService.listSkills();
+                } catch (error: any) {
+                    return `Error listing skills: ${error.message}`;
+                }
+            }
+        });
+
+        // 15. Use Skill
+        this.tools.push({
+            name: 'use_skill',
+            description: 'Loads a specific agentic skill by name and returns its full instructions. Use this to activate specialized expertise for a task. Call list_skills first if you are unsure which skill to use.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    skill_name: { type: 'string', description: 'The name of the skill to load (e.g., "deep-research", "content-creator", "interview-prep")' },
+                    task: { type: 'string', description: 'Brief description of what you want to accomplish with this skill' }
+                },
+                required: ['skill_name']
+            },
+            execute: async ({ skill_name, task }) => {
+                if (!this.skillService) return 'Error: SkillService is not configured.';
+                try {
+                    // 1. Try exact name match
+                    let skill = await this.skillService.findByName(skill_name);
+
+                    // 2. Fallback to fuzzy search
+                    if (!skill) {
+                        const fuzzy = await this.skillService.findRelevant(skill_name, 3);
+                        if (fuzzy.length > 0) {
+                            skill = fuzzy[0];
+                            const suggestions = fuzzy.map(s => `"${s.name}"`).join(', ');
+                            if (fuzzy[0].name.toLowerCase() !== skill_name.toLowerCase()) {
+                                return `Skill "${skill_name}" not found. Did you mean one of these? ${suggestions}\n\nCall use_skill again with the correct name.`;
+                            }
+                        } else {
+                            return `Skill "${skill_name}" not found. Use list_skills to see all available skills.`;
+                        }
+                    }
+
+                    // 3. Load full skill content
+                    const content = this.skillService.getSkillContent(skill);
+                    if (!content) return `Error: Could not read skill file for "${skill.name}".`;
+
+                    // 4. Return structured skill activation block
+                    const truncated = content.substring(0, 8000);
+                    const taskLine = task ? `\n\n**YOUR TASK:** ${task}` : '';
+                    return `=== SKILL ACTIVATED: ${skill.name} ===\n${skill.description}\n\n${truncated}${truncated.length < content.length ? '\n\n[... truncated, full skill is ' + content.length + ' chars]' : ''}${taskLine}\n=== END SKILL ===\n\nFollow the instructions in this skill to complete the task. Use your available tools as directed by the skill.`;
+                } catch (error: any) {
+                    return `Error loading skill: ${error.message}`;
                 }
             }
         });

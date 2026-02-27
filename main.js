@@ -598,11 +598,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
+          this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -619,10 +619,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
+        this.rhs = optimizeExpr(this.rhs, names, constants2);
         return this;
       }
       get names() {
@@ -683,8 +683,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
+      optimizeNames(names, constants2) {
+        this.code = optimizeExpr(this.code, names, constants2);
         return this;
       }
       get names() {
@@ -713,12 +713,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants))
+          if (n.optimizeNames(names, constants2))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -771,12 +771,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a2;
-        this.else = (_a2 = this.else) === null || _a2 === void 0 ? void 0 : _a2.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
+        this.else = (_a2 = this.else) === null || _a2 === void 0 ? void 0 : _a2.optimizeNames(names, constants2);
+        if (!(super.optimizeNames(names, constants2) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants);
+        this.condition = optimizeExpr(this.condition, names, constants2);
         return this;
       }
       get names() {
@@ -799,10 +799,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
+        this.iteration = optimizeExpr(this.iteration, names, constants2);
         return this;
       }
       get names() {
@@ -838,10 +838,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
+      optimizeNames(names, constants2) {
+        if (!super.optimizeNames(names, constants2))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
+        this.iterable = optimizeExpr(this.iterable, names, constants2);
         return this;
       }
       get names() {
@@ -883,11 +883,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants) {
+      optimizeNames(names, constants2) {
         var _a2, _b;
-        super.optimizeNames(names, constants);
-        (_a2 = this.catch) === null || _a2 === void 0 ? void 0 : _a2.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
+        super.optimizeNames(names, constants2);
+        (_a2 = this.catch) === null || _a2 === void 0 ? void 0 : _a2.optimizeNames(names, constants2);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants2);
         return this;
       }
       get names() {
@@ -1188,7 +1188,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants) {
+    function optimizeExpr(expr, names, constants2) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1203,14 +1203,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants[n.str];
+        const c = constants2[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants2[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -3414,8 +3414,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path2) {
-      let input = path2;
+    function removeDotSegments(path3) {
+      let input = path3;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3614,8 +3614,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path2, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
+        const [path3, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path3 && path3 !== "/" ? path3 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -6977,12 +6977,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs2, exportName) {
+    function addFormats(ajv, list, fs3, exportName) {
       var _a2;
       var _b;
       (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs2[f]);
+        ajv.addFormat(f, fs3[f]);
     }
     module2.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -6995,8 +6995,8 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module2) {
     module2.exports = isexe;
     isexe.sync = sync;
-    var fs2 = require("fs");
-    function checkPathExt(path2, options) {
+    var fs3 = require("fs");
+    function checkPathExt(path3, options) {
       var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
@@ -7007,25 +7007,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path2.substr(-p.length).toLowerCase() === p) {
+        if (p && path3.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path2, options) {
+    function checkStat(stat, path3, options) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path2, options);
+      return checkPathExt(path3, options);
     }
-    function isexe(path2, options, cb) {
-      fs2.stat(path2, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path2, options));
+    function isexe(path3, options, cb) {
+      fs3.stat(path3, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path3, options));
       });
     }
-    function sync(path2, options) {
-      return checkStat(fs2.statSync(path2), path2, options);
+    function sync(path3, options) {
+      return checkStat(fs3.statSync(path3), path3, options);
     }
   }
 });
@@ -7035,14 +7035,14 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module2) {
     module2.exports = isexe;
     isexe.sync = sync;
-    var fs2 = require("fs");
-    function isexe(path2, options, cb) {
-      fs2.stat(path2, function(er, stat) {
+    var fs3 = require("fs");
+    function isexe(path3, options, cb) {
+      fs3.stat(path3, function(er, stat) {
         cb(er, er ? false : checkStat(stat, options));
       });
     }
-    function sync(path2, options) {
-      return checkStat(fs2.statSync(path2), options);
+    function sync(path3, options) {
+      return checkStat(fs3.statSync(path3), options);
     }
     function checkStat(stat, options) {
       return stat.isFile() && checkMode(stat, options);
@@ -7066,7 +7066,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module2) {
-    var fs2 = require("fs");
+    var fs3 = require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -7075,7 +7075,7 @@ var require_isexe = __commonJS({
     }
     module2.exports = isexe;
     isexe.sync = sync;
-    function isexe(path2, options, cb) {
+    function isexe(path3, options, cb) {
       if (typeof options === "function") {
         cb = options;
         options = {};
@@ -7085,7 +7085,7 @@ var require_isexe = __commonJS({
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path2, options || {}, function(er, is2) {
+          isexe(path3, options || {}, function(er, is2) {
             if (er) {
               reject(er);
             } else {
@@ -7094,7 +7094,7 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path2, options || {}, function(er, is2) {
+      core(path3, options || {}, function(er, is2) {
         if (er) {
           if (er.code === "EACCES" || options && options.ignoreErrors) {
             er = null;
@@ -7104,9 +7104,9 @@ var require_isexe = __commonJS({
         cb(er, is2);
       });
     }
-    function sync(path2, options) {
+    function sync(path3, options) {
       try {
-        return core.sync(path2, options || {});
+        return core.sync(path3, options || {});
       } catch (er) {
         if (options && options.ignoreErrors || er.code === "EACCES") {
           return false;
@@ -7122,7 +7122,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module2) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path2 = require("path");
+    var path3 = require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -7160,7 +7160,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path2.join(pathPart, cmd);
+        const pCmd = path3.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -7187,7 +7187,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path2.join(pathPart, cmd);
+        const pCmd = path3.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -7235,7 +7235,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module2) {
     "use strict";
-    var path2 = require("path");
+    var path3 = require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -7253,7 +7253,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path2.delimiter : void 0
+          pathExt: withoutPathExt ? path3.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -7262,14 +7262,14 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path2.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path3.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
-    function resolveCommand(parsed) {
+    function resolveCommand2(parsed) {
       return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
     }
-    module2.exports = resolveCommand;
+    module2.exports = resolveCommand2;
   }
 });
 
@@ -7316,8 +7316,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path2, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path2.split("/").pop();
+      const [path3, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path3.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -7330,16 +7330,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module2) {
     "use strict";
-    var fs2 = require("fs");
+    var fs3 = require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs2.openSync(command, "r");
-        fs2.readSync(fd, buffer, 0, size, 0);
-        fs2.closeSync(fd);
+        fd = fs3.openSync(command, "r");
+        fs3.readSync(fd, buffer, 0, size, 0);
+        fs3.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -7352,20 +7352,20 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module2) {
     "use strict";
-    var path2 = require("path");
-    var resolveCommand = require_resolveCommand();
+    var path3 = require("path");
+    var resolveCommand2 = require_resolveCommand();
     var escape2 = require_escape();
     var readShebang = require_readShebang();
     var isWin = process.platform === "win32";
     var isExecutableRegExp = /\.(?:com|exe)$/i;
     var isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
     function detectShebang(parsed) {
-      parsed.file = resolveCommand(parsed);
+      parsed.file = resolveCommand2(parsed);
       const shebang = parsed.file && readShebang(parsed.file);
       if (shebang) {
         parsed.args.unshift(parsed.file);
         parsed.command = shebang;
-        return resolveCommand(parsed);
+        return resolveCommand2(parsed);
       }
       return parsed.file;
     }
@@ -7377,7 +7377,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path2.normalize(parsed.command);
+        parsed.command = path3.normalize(parsed.command);
         parsed.command = escape2.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape2.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -9891,15 +9891,15 @@ function proxy(value) {
       );
     }
   }
-  var path2 = "";
+  var path3 = "";
   let updating = false;
   function update_path(new_path) {
     if (updating) return;
     updating = true;
-    path2 = new_path;
-    tag(version2, `${path2} version`);
+    path3 = new_path;
+    tag(version2, `${path3} version`);
     for (const [prop2, source2] of sources) {
-      tag(source2, get_label(path2, prop2));
+      tag(source2, get_label(path3, prop2));
     }
     updating = false;
   }
@@ -9917,7 +9917,7 @@ function proxy(value) {
             var s2 = state(descriptor.value, stack2);
             sources.set(prop2, s2);
             if (dev_fallback_default && typeof prop2 === "string") {
-              tag(s2, get_label(path2, prop2));
+              tag(s2, get_label(path3, prop2));
             }
             return s2;
           });
@@ -9934,7 +9934,7 @@ function proxy(value) {
             sources.set(prop2, s2);
             increment(version2);
             if (dev_fallback_default) {
-              tag(s2, get_label(path2, prop2));
+              tag(s2, get_label(path3, prop2));
             }
           }
         } else {
@@ -9957,7 +9957,7 @@ function proxy(value) {
             var p = proxy(exists ? target[prop2] : UNINITIALIZED);
             var s2 = state(p, stack2);
             if (dev_fallback_default) {
-              tag(s2, get_label(path2, prop2));
+              tag(s2, get_label(path3, prop2));
             }
             return s2;
           });
@@ -10000,7 +10000,7 @@ function proxy(value) {
               var p = has ? proxy(target[prop2]) : UNINITIALIZED;
               var s2 = state(p, stack2);
               if (dev_fallback_default) {
-                tag(s2, get_label(path2, prop2));
+                tag(s2, get_label(path3, prop2));
               }
               return s2;
             });
@@ -10026,7 +10026,7 @@ function proxy(value) {
               other_s = with_parent(() => state(UNINITIALIZED, stack2));
               sources.set(i + "", other_s);
               if (dev_fallback_default) {
-                tag(other_s, get_label(path2, i));
+                tag(other_s, get_label(path3, i));
               }
             }
           }
@@ -10035,7 +10035,7 @@ function proxy(value) {
           if (!has || get_descriptor(target, prop2)?.writable) {
             s = with_parent(() => state(void 0, stack2));
             if (dev_fallback_default) {
-              tag(s, get_label(path2, prop2));
+              tag(s, get_label(path3, prop2));
             }
             set(s, proxy(value2));
             sources.set(prop2, s);
@@ -10083,10 +10083,10 @@ function proxy(value) {
     }
   );
 }
-function get_label(path2, prop2) {
-  if (typeof prop2 === "symbol") return `${path2}[Symbol(${prop2.description ?? ""})]`;
-  if (regex_is_valid_identifier.test(prop2)) return `${path2}.${prop2}`;
-  return /^\d+$/.test(prop2) ? `${path2}[${prop2}]` : `${path2}['${prop2}']`;
+function get_label(path3, prop2) {
+  if (typeof prop2 === "symbol") return `${path3}[Symbol(${prop2.description ?? ""})]`;
+  if (regex_is_valid_identifier.test(prop2)) return `${path3}.${prop2}`;
+  return /^\d+$/.test(prop2) ? `${path3}[${prop2}]` : `${path3}['${prop2}']`;
 }
 function get_proxied_value(value) {
   try {
@@ -11411,22 +11411,22 @@ function handle_event_propagation(event2) {
     handler_element.ownerDocument
   );
   var event_name = event2.type;
-  var path2 = event2.composedPath?.() || [];
+  var path3 = event2.composedPath?.() || [];
   var current_target = (
     /** @type {null | Element} */
-    path2[0] || event2.target
+    path3[0] || event2.target
   );
   last_propagated_event = event2;
   var path_idx = 0;
   var handled_at = last_propagated_event === event2 && event2[event_symbol];
   if (handled_at) {
-    var at_idx = path2.indexOf(handled_at);
+    var at_idx = path3.indexOf(handled_at);
     if (at_idx !== -1 && (handler_element === document || handler_element === /** @type {any} */
     window)) {
       event2[event_symbol] = handler_element;
       return;
     }
-    var handler_idx = path2.indexOf(handler_element);
+    var handler_idx = path3.indexOf(handler_element);
     if (handler_idx === -1) {
       return;
     }
@@ -11435,7 +11435,7 @@ function handle_event_propagation(event2) {
     }
   }
   current_target = /** @type {Element} */
-  path2[path_idx] || event2.target;
+  path3[path_idx] || event2.target;
   if (current_target === handler_element) return;
   define_property(event2, "currentTarget", {
     configurable: true,
@@ -14617,7 +14617,7 @@ function ComposerDiff($$anchor, $$props) {
   append_styles($$anchor, $$css8);
   const oldLines = mutable_source();
   const newLines = mutable_source();
-  let path2 = prop($$props, "path", 8);
+  let path3 = prop($$props, "path", 8);
   let oldText = prop($$props, "oldText", 8);
   let newText = prop($$props, "newText", 8);
   let status = prop($$props, "status", 8, "pending");
@@ -14729,7 +14729,7 @@ function ComposerDiff($$anchor, $$props) {
   reset(div);
   template_effect(() => {
     set_class(div_1, 1, `diff-header ${status() ?? ""}`, "svelte-jucvk3");
-    set_text(text_1, path2());
+    set_text(text_1, path3());
   });
   append($$anchor, div);
   pop();
@@ -15565,15 +15565,15 @@ var ContextManager = class {
     this.app = app;
   }
   // Read file content from the vault
-  async getFileContent(path2) {
-    const file2 = this.app.vault.getAbstractFileByPath(path2);
+  async getFileContent(path3) {
+    const file2 = this.app.vault.getAbstractFileByPath(path3);
     if (file2 instanceof import_obsidian5.TFile) {
       return await this.app.vault.read(file2);
     } else if (file2 instanceof import_obsidian5.TFolder) {
-      return `Folder: ${path2}
+      return `Folder: ${path3}
 Contains: ${file2.children.map((c) => c.name).join(", ")}`;
     }
-    return `Error: File not found at ${path2}`;
+    return `Error: File not found at ${path3}`;
   }
   // Get active file content
   async getActiveFileContent() {
@@ -17321,8 +17321,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path2, errorMaps, issueData } = params;
-  const fullPath = [...path2, ...issueData.path || []];
+  const { data, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -17437,11 +17437,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path2, key2) {
+  constructor(parent, value, path3, key2) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path2;
+    this._path = path3;
     this._key = key2;
   }
   get path() {
@@ -21085,10 +21085,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path2) {
-  if (!path2)
+function getElementAtPath(obj, path3) {
+  if (!path3)
     return obj;
-  return path2.reduce((acc, key2) => acc?.[key2], obj);
+  return path3.reduce((acc, key2) => acc?.[key2], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -21471,11 +21471,11 @@ function aborted2(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path2, issues) {
+function prefixIssues(path3, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path2);
+    iss.path.unshift(path3);
     return iss;
   });
 }
@@ -31162,6 +31162,67 @@ function isElectron() {
 }
 
 // src/services/MCPClientService.ts
+var fs = __toESM(require("fs"));
+var path = __toESM(require("path"));
+var _origSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = function patchedSetTimeout(...args) {
+  const id = _origSetTimeout.apply(globalThis, args);
+  if (typeof id === "number") {
+    return { [Symbol.toPrimitive]: () => id, unref: () => {
+    }, ref: () => {
+    }, refresh: () => {
+    }, hasRef: () => false, ...{}, id };
+  }
+  return id;
+};
+function getAugmentedEnv(extraEnv = {}) {
+  const home = process.env.HOME || "/Users/" + (process.env.USER || "user");
+  const additionalPaths = [
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    `${home}/.npm-global/bin`,
+    `${home}/.local/bin`,
+    `${home}/.bun/bin`,
+    `${home}/.cargo/bin`,
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin"
+  ];
+  const currentPath = process.env.PATH || "";
+  const pathSet = new Set(currentPath.split(":"));
+  for (const p of additionalPaths) {
+    pathSet.add(p);
+  }
+  return {
+    ...process.env,
+    ...extraEnv,
+    PATH: Array.from(pathSet).join(":")
+  };
+}
+function resolveCommand(cmd) {
+  if (path.isAbsolute(cmd)) return cmd;
+  const home = process.env.HOME || "/Users/" + (process.env.USER || "user");
+  const searchDirs = [
+    "/usr/local/bin",
+    "/opt/homebrew/bin",
+    `${home}/.npm-global/bin`,
+    `${home}/.local/bin`,
+    `${home}/.bun/bin`,
+    "/usr/bin",
+    "/bin"
+  ];
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, cmd);
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+    }
+  }
+  return cmd;
+}
 var MCPClientService = class {
   clients = /* @__PURE__ */ new Map();
   transports = /* @__PURE__ */ new Map();
@@ -31171,30 +31232,73 @@ var MCPClientService = class {
     if (!config2.enabled) return;
     try {
       console.log(`[MCP] Connecting to server ${config2.name}...`);
-      const transport = new StdioClientTransport({
-        command: config2.command,
-        args: config2.args || [],
-        env: { ...process.env, ...config2.env }
-      });
+      const sanitizedArgs = (config2.args || []).map((a) => a.replace(/^[,\s]+|[,\s]+$/g, "")).filter((a) => a.length > 0);
+      let serverDir = config2.cwd || "";
+      if (!serverDir && config2.command && path.isAbsolute(config2.command)) {
+        const venvMatch = config2.command.match(/^(.+?)\/(\.?venv)\/bin\//);
+        if (venvMatch) {
+          serverDir = venvMatch[1];
+          console.log(`[MCP] Auto-detected server dir: ${serverDir}`);
+        }
+      }
+      let hasEnvFile = false;
+      if (serverDir) {
+        try {
+          const dotEnvPath = path.join(serverDir, ".env");
+          fs.accessSync(dotEnvPath, fs.constants.R_OK);
+          hasEnvFile = true;
+          console.log(`[MCP] Found .env file at ${dotEnvPath}`);
+        } catch {
+          console.log(`[MCP] No .env file found in ${serverDir}`);
+        }
+      }
+      let transportOpts;
+      const resolvedCommand = resolveCommand(config2.command);
+      if (resolvedCommand !== config2.command) {
+        console.log(`[MCP] Resolved command: ${config2.command} \u2192 ${resolvedCommand}`);
+      }
+      if (hasEnvFile && serverDir) {
+        const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(resolvedCommand)} ${sanitizedArgs.map((a) => JSON.stringify(a)).join(" ")}`;
+        console.log(`[MCP] Using shell wrapper for ${config2.name}`);
+        transportOpts = {
+          command: "/bin/bash",
+          args: ["-c", shellCmd],
+          env: getAugmentedEnv(config2.env),
+          stderr: "pipe",
+          cwd: serverDir
+        };
+      } else {
+        transportOpts = {
+          command: resolvedCommand,
+          args: sanitizedArgs,
+          env: getAugmentedEnv(config2.env),
+          stderr: "pipe"
+        };
+        if (serverDir) {
+          transportOpts.cwd = serverDir;
+        }
+      }
+      const transport = new StdioClientTransport(transportOpts);
+      if (transport.stderr) {
+        transport.stderr.on("data", (chunk) => {
+          console.warn(`[MCP] ${config2.name} stderr:`, chunk.toString().trim());
+        });
+      }
       const client = new Client(
         {
           name: "obsidian-ai-copilot",
           version: "1.0.0"
         },
         {
-          capabilities: {
-            prompts: {},
-            resources: {},
-            tools: {}
-          }
+          capabilities: {}
         }
       );
       await client.connect(transport);
       this.clients.set(config2.name, client);
       this.transports.set(config2.name, transport);
-      console.log(`[MCP] Connected to server ${config2.name}`);
+      console.log(`[MCP] \u2713 Connected to server ${config2.name}`);
     } catch (error2) {
-      console.error(`[MCP] Failed to connect to server ${config2.name}:`, error2);
+      console.error(`[MCP] \u2717 Failed to connect to server ${config2.name}:`, error2);
     }
   }
   async connectAll(configs) {
@@ -31293,9 +31397,9 @@ var ToolManager = class {
         },
         required: ["path"]
       },
-      execute: async ({ path: path2, content }) => {
+      execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path2);
+          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
           const finalPath = normalizedPath.endsWith(".md") ? normalizedPath : `${normalizedPath}.md`;
           const existing = this.app.vault.getAbstractFileByPath(finalPath);
           if (existing) {
@@ -31320,9 +31424,9 @@ var ToolManager = class {
         },
         required: ["path", "content"]
       },
-      execute: async ({ path: path2, content }) => {
+      execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path2);
+          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (!file2 || !(file2 instanceof import_obsidian14.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
@@ -31345,9 +31449,9 @@ ${content}`);
         },
         required: ["path"]
       },
-      execute: async ({ path: path2 }) => {
+      execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path2);
+          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (!file2 || !(file2 instanceof import_obsidian14.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
@@ -31369,9 +31473,9 @@ ${content}`);
         },
         required: ["path"]
       },
-      execute: async ({ path: path2 }) => {
+      execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = path2 === "/" ? "/" : (0, import_obsidian14.normalizePath)(path2);
+          const normalizedPath = path3 === "/" ? "/" : (0, import_obsidian14.normalizePath)(path3);
           const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (!folder && normalizedPath === "/") {
             return this.listFiles(this.app.vault.getRoot());
@@ -31433,10 +31537,10 @@ ${content}`);
         },
         required: ["path", "old_text", "new_text"]
       },
-      execute: async ({ path: path2, old_text, new_text }) => {
+      execute: async ({ path: path3, old_text, new_text }) => {
         return JSON.stringify({
           _isComposerDiff: true,
-          path: path2,
+          path: path3,
           oldText: old_text,
           newText: new_text
         });
@@ -31452,9 +31556,9 @@ ${content}`);
         },
         required: ["path"]
       },
-      execute: async ({ path: path2 }) => {
+      execute: async ({ path: path3 }) => {
         try {
-          return await this.pdfService.extractText(path2);
+          return await this.pdfService.extractText(path3);
         } catch (error2) {
           return `Error reading PDF: ${error2.message}`;
         }
@@ -31638,8 +31742,8 @@ ${summary}`;
     return parts.length > 0 ? `Context:
 ${parts.join("\n")}` : "";
   }
-  async ensureFolders(path2) {
-    const parentPath = path2.substring(0, path2.lastIndexOf("/"));
+  async ensureFolders(path3) {
+    const parentPath = path3.substring(0, path3.lastIndexOf("/"));
     if (parentPath && parentPath !== "") {
       const folder = this.app.vault.getAbstractFileByPath(parentPath);
       if (!folder) {
@@ -31754,8 +31858,8 @@ var RelevantNotes = class {
 
 // src/services/SkillService.ts
 var import_obsidian16 = require("obsidian");
-var fs = __toESM(require("fs"));
-var path = __toESM(require("path"));
+var fs2 = __toESM(require("fs"));
+var path2 = __toESM(require("path"));
 var SkillService = class {
   app;
   skillsPath;
@@ -31773,19 +31877,19 @@ var SkillService = class {
     if (this.loaded) return;
     this.index = [];
     try {
-      const entries = fs.readdirSync(this.skillsPath, { withFileTypes: true });
+      const entries = fs2.readdirSync(this.skillsPath, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-        const skillFile = path.join(this.skillsPath, entry.name, "SKILL.md");
-        if (!fs.existsSync(skillFile)) continue;
+        const skillFile = path2.join(this.skillsPath, entry.name, "SKILL.md");
+        if (!fs2.existsSync(skillFile)) continue;
         try {
-          const content = fs.readFileSync(skillFile, "utf-8");
+          const content = fs2.readFileSync(skillFile, "utf-8");
           const parsed = this.parseFrontmatter(content);
           if (parsed.name && parsed.description) {
             this.index.push({
               name: parsed.name,
               description: parsed.description,
-              folderPath: path.join(this.skillsPath, entry.name),
+              folderPath: path2.join(this.skillsPath, entry.name),
               skillFilePath: skillFile
             });
           }
@@ -31823,7 +31927,7 @@ var SkillService = class {
    */
   getSkillContent(skill) {
     try {
-      return fs.readFileSync(skill.skillFilePath, "utf-8");
+      return fs2.readFileSync(skill.skillFilePath, "utf-8");
     } catch (e) {
       return "";
     }
@@ -31895,7 +31999,7 @@ var root_172 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="
 var root_162 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
 var root_19 = from_html(`<span class="default-badge svelte-1av9wh" style="background: var(--text-muted);">Disabled</span>`);
 var root_20 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
-var root_21 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (Space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment Variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div></div>`);
+var root_21 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (Space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment Variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working Directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
 var root_182 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
 var root10 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Vault QA & Embeddings</div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
         mxbai-embed-large)</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="text-embedding-3-small" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh" style="align-items: center;"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Index Vault</div> <div class="setting-item-description svelte-1av9wh">Automatically index notes on startup or change</div></div> <div class="setting-item-control svelte-1av9wh" style="align-items: flex-end;"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Index Exclusions</div> <div class="setting-item-description svelte-1av9wh">Comma-separated list of folders or paths to exclude from indexing</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="node_modules, .git, templates" class="svelte-1av9wh"/></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Projects</div> <div class="setting-description svelte-1av9wh">Define scoped contexts. Manage project-level folders, tags, and system
@@ -32155,6 +32259,7 @@ function SettingsView($$anchor, $$props) {
     });
     set(editingMcpServerId, newServer.id);
     saveSettings()();
+    plugin().reconnectMCPServers();
   }
   function deleteMcpServer(id) {
     settings(settings().mcpServers = settings().mcpServers.filter((s) => s.id !== id), true), invalidate_inner_signals(() => {
@@ -32167,6 +32272,7 @@ function SettingsView($$anchor, $$props) {
     });
     if (get(editingMcpServerId) === id) set(editingMcpServerId, null);
     saveSettings()();
+    plugin().reconnectMCPServers();
   }
   function selectMcpServer(id) {
     set(editingMcpServerId, get(editingMcpServerId) === id ? null : id);
@@ -32184,6 +32290,7 @@ function SettingsView($$anchor, $$props) {
         handleChange;
       });
       saveSettings()();
+      plugin().reconnectMCPServers();
     }
   }
   function getArgsString(args) {
@@ -32742,6 +32849,10 @@ function SettingsView($$anchor, $$props) {
           var textarea_3 = sibling(child(div_61), 2);
           remove_textarea_child(textarea_3);
           reset(div_61);
+          var div_62 = sibling(div_61, 2);
+          var input_17 = sibling(child(div_62), 2);
+          remove_input_defaults(input_17);
+          reset(div_62);
           reset(div_57);
           template_effect(
             ($0, $1) => {
@@ -32759,6 +32870,8 @@ function SettingsView($$anchor, $$props) {
           event("change", input_15, handleChange);
           event("change", input_16, (e) => setArgsString(get(server), e.currentTarget.value));
           event("change", textarea_3, (e) => setEnvString(get(server), e.currentTarget.value));
+          bind_value(input_17, () => get(server).cwd, ($$value) => (get(server).cwd = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_17, handleChange);
           append($$anchor3, div_57);
         };
         if_block(node_17, ($$render) => {
@@ -33150,9 +33263,18 @@ ${result}`, cursor);
     try {
       this.aiProvider = this.getAIProvider();
       this.toolManager.setAIProvider(this.aiProvider);
-      this.mcpClientService.connectAll(this.settings.mcpServers || []).catch((e) => console.error("MCP Connect Error", e));
     } catch (e) {
       new import_obsidian18.Notice(e.message);
+    }
+  }
+  /** Reconnect MCP servers — call this only when MCP config changes, not on every save */
+  async reconnectMCPServers() {
+    if (this.mcpClientService) {
+      try {
+        await this.mcpClientService.connectAll(this.settings.mcpServers || []);
+      } catch (e) {
+        console.error("MCP Connect Error", e);
+      }
     }
   }
   getAIProvider() {

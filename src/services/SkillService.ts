@@ -62,6 +62,24 @@ export class SkillService {
     }
 
     /**
+     * Find a skill by exact name (case-insensitive).
+     * Falls back to matching against the folder name.
+     */
+    async findByName(name: string): Promise<SkillEntry | null> {
+        await this.loadIndex();
+        const lower = name.toLowerCase().trim();
+        // Try exact name match first
+        const exact = this.index.find(s => s.name.toLowerCase() === lower);
+        if (exact) return exact;
+        // Try folder name match (e.g., "deep-research" matches the folder)
+        const byFolder = this.index.find(s => {
+            const folderName = s.folderPath.split('/').pop()?.toLowerCase() || '';
+            return folderName === lower || folderName === lower.replace(/\s+/g, '-');
+        });
+        return byFolder || null;
+    }
+
+    /**
      * Find skills relevant to a user query by keyword matching against skill names and descriptions.
      */
     async findRelevant(query: string, maxResults = 3): Promise<SkillEntry[]> {
