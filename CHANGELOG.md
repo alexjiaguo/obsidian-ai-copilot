@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2026-02-28
+
+### 🤖 Agentic Skills
+- **Agentic Meta-Tools**: Added `list_skills` and `use_skill` capabilities allowing the AI to autonomously discover and activate personal AI skills from your local skills hub (`/Users/boss/Documents/ai_skills_hub`). 
+- **Dynamic Context**: The model can now search for and load specific skill instruction blocks on-demand during a conversation instead of requiring manual pre-selection.
+
 ## [1.1.1] - 2026-02-19
 
 ### 🚀 Major Improvements
