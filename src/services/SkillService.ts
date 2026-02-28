@@ -1,6 +1,7 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { AICopilotSettings, SkillConfig } from '../settings/Settings';
 
 interface SkillEntry {
     name: string;
@@ -25,8 +26,8 @@ export class SkillService {
      * Each skill must have a SKILL.md with YAML frontmatter containing `name` and `description`.
      */
     async loadIndex(): Promise<void> {
-        if (this.loaded) return;
         this.index = [];
+        this.loaded = false;
 
         try {
             const entries = fs.readdirSync(this.skillsPath, { withFileTypes: true });
@@ -62,11 +63,18 @@ export class SkillService {
     }
 
     /**
+     * Expose the loaded index for UI display (e.g., Settings).
+     */
+    getIndex(): SkillEntry[] {
+        return this.index;
+    }
+
+    /**
      * Find a skill by exact name (case-insensitive).
      * Falls back to matching against the folder name.
      */
     async findByName(name: string): Promise<SkillEntry | null> {
-        await this.loadIndex();
+        if (!this.loaded) await this.loadIndex();
         const lower = name.toLowerCase().trim();
         // Try exact name match first
         const exact = this.index.find(s => s.name.toLowerCase() === lower);
@@ -81,16 +89,22 @@ export class SkillService {
 
     /**
      * Find skills relevant to a user query by keyword matching against skill names and descriptions.
+     * Optionally filters by an enabledSet — only skills in this set will be considered.
      */
-    async findRelevant(query: string, maxResults = 3): Promise<SkillEntry[]> {
-        await this.loadIndex();
+    async findRelevant(query: string, maxResults = 3, enabledSet?: Set<string>): Promise<SkillEntry[]> {
+        if (!this.loaded) await this.loadIndex();
         if (this.index.length === 0) return [];
 
         const lowerQuery = query.toLowerCase();
         const words = lowerQuery.split(/\s+/).filter(w => w.length > 2);
 
+        // Filter to enabled skills if set is provided
+        const candidates = enabledSet
+            ? this.index.filter(s => enabledSet.has(s.folderPath))
+            : this.index;
+
         // Score each skill by word overlap with name + description
-        const scored = this.index.map(skill => {
+        const scored = candidates.map(skill => {
             const text = `${skill.name} ${skill.description}`.toLowerCase();
             let score = 0;
             for (const word of words) {
@@ -123,22 +137,74 @@ export class SkillService {
 
     /**
      * Build a context block for matched skills to inject into the system prompt.
+     * Respects enabled/disabled and mandatory settings from skillConfigs.
+     *
+     * - Mandatory + Enabled skills: always injected with a priority header.
+     * - Enabled (non-mandatory) skills: injected only if keyword-relevant.
+     * - Disabled skills: skipped entirely.
      */
-    async buildSkillContext(query: string): Promise<string> {
-        const matched = await this.findRelevant(query, 2);
-        if (matched.length === 0) return '';
+    async buildSkillContext(query: string, settings?: AICopilotSettings): Promise<string> {
+        if (!this.loaded) await this.loadIndex();
 
-        let context = '\n\n=== RELEVANT SKILLS ===\n';
-        context += 'The following skills may be useful for answering this query:\n\n';
-        
-        for (const skill of matched) {
-            const content = this.getSkillContent(skill);
-            // Limit skill content to avoid overwhelming the prompt
-            const truncated = content.substring(0, 3000);
-            context += `--- Skill: ${skill.name} ---\n${truncated}\n\n`;
+        const configs = settings?.skillConfigs || [];
+
+        // Build lookup maps
+        const configByPath = new Map<string, SkillConfig>();
+        for (const cfg of configs) {
+            configByPath.set(cfg.folderPath, cfg);
         }
 
-        context += '=== END SKILLS ===\n';
+        // Determine enabled/disabled/mandatory sets
+        const enabledSet = new Set<string>();
+        const mandatorySkills: SkillEntry[] = [];
+
+        for (const skill of this.index) {
+            const cfg = configByPath.get(skill.folderPath);
+            // If no config exists for this skill, treat it as enabled (but not mandatory)
+            const isEnabled = cfg ? cfg.enabled : true;
+            const isMandatory = cfg ? (cfg.enabled && cfg.mandatory) : false;
+
+            if (isEnabled) {
+                enabledSet.add(skill.folderPath);
+            }
+            if (isMandatory) {
+                mandatorySkills.push(skill);
+            }
+        }
+
+        let context = '';
+
+        // 1. Mandatory skills — always injected
+        if (mandatorySkills.length > 0) {
+            context += '\n\n=== MANDATORY SKILLS (Always Consult First) ===\n';
+            context += 'You MUST consult the following skills first before generating your response. If a mandatory skill is not suitable for this task, you may ignore it and proceed normally.\n\n';
+            for (const skill of mandatorySkills) {
+                const content = this.getSkillContent(skill);
+                const truncated = content.substring(0, 3000);
+                context += `--- Skill: ${skill.name} ---\n${truncated}\n\n`;
+            }
+            context += '=== END MANDATORY SKILLS ===\n';
+        }
+
+        // 2. Relevant skills — keyword-matched from enabled (non-mandatory) pool
+        const mandatoryPaths = new Set(mandatorySkills.map(s => s.folderPath));
+        const relevantPool = new Set([...enabledSet].filter(p => !mandatoryPaths.has(p)));
+
+        const matched = await this.findRelevant(query, 2, relevantPool.size > 0 ? relevantPool : undefined);
+        // Filter out any that were already injected as mandatory
+        const additionalMatches = matched.filter(s => !mandatoryPaths.has(s.folderPath));
+
+        if (additionalMatches.length > 0) {
+            context += '\n\n=== RELEVANT SKILLS ===\n';
+            context += 'The following skills may be useful for answering this query:\n\n';
+            for (const skill of additionalMatches) {
+                const content = this.getSkillContent(skill);
+                const truncated = content.substring(0, 3000);
+                context += `--- Skill: ${skill.name} ---\n${truncated}\n\n`;
+            }
+            context += '=== END SKILLS ===\n';
+        }
+
         return context;
     }
 
@@ -146,7 +212,7 @@ export class SkillService {
      * List all available skills (for UI or tool use).
      */
     async listSkills(): Promise<string> {
-        await this.loadIndex();
+        if (!this.loaded) await this.loadIndex();
         if (this.index.length === 0) return 'No skills found.';
         return this.index.map((s, i) => `${i + 1}. **${s.name}**: ${s.description}`).join('\n');
     }
@@ -170,3 +236,4 @@ export class SkillService {
         return result;
     }
 }
+

@@ -6,6 +6,7 @@
     Persona,
     CustomAction,
     MCPServerConfig,
+    SkillConfig,
   } from "./Settings";
   import {
     PROVIDER_MODELS,
@@ -224,6 +225,104 @@
   $: currentModels = PROVIDER_MODELS[settings.provider as ProviderType] ?? [];
   $: currentProviderLabel =
     PROVIDER_LABELS[settings.provider as ProviderType] ?? settings.provider;
+
+  // ── Skill Management ──
+  let discoveredSkills: {
+    name: string;
+    description: string;
+    folderPath: string;
+  }[] = [];
+  let skillsLoading = false;
+  let skillsExpanded = false;
+  let skillSearchQuery = "";
+
+  $: filteredSkills = skillSearchQuery
+    ? discoveredSkills.filter(
+        (s) =>
+          s.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
+          s.description.toLowerCase().includes(skillSearchQuery.toLowerCase()),
+      )
+    : discoveredSkills;
+
+  onMount(async () => {
+    try {
+      await refreshSkills();
+    } catch (e) {
+      console.error("SettingsView onMount error:", e);
+    }
+  });
+
+  async function refreshSkills() {
+    if (!plugin?.skillService) return;
+    skillsLoading = true;
+    try {
+      await plugin.skillService.loadIndex();
+      discoveredSkills = plugin.skillService.getIndex().map((s: any) => ({
+        name: s.name,
+        description: s.description,
+        folderPath: s.folderPath,
+      }));
+      // Sync: ensure every discovered skill has a config entry
+      if (!settings.skillConfigs) settings.skillConfigs = [];
+      for (const skill of discoveredSkills) {
+        const existing = settings.skillConfigs.find(
+          (c: SkillConfig) => c.folderPath === skill.folderPath,
+        );
+        if (!existing) {
+          settings.skillConfigs = [
+            ...settings.skillConfigs,
+            {
+              name: skill.name,
+              folderPath: skill.folderPath,
+              enabled: true,
+              mandatory: false,
+            },
+          ];
+        }
+      }
+      // Remove configs for skills that no longer exist on disk
+      const discoveredPaths = new Set(
+        discoveredSkills.map((s) => s.folderPath),
+      );
+      settings.skillConfigs = settings.skillConfigs.filter((c: SkillConfig) =>
+        discoveredPaths.has(c.folderPath),
+      );
+      await saveSettings();
+    } catch (e) {
+      console.error("Failed to load skills:", e);
+    } finally {
+      skillsLoading = false;
+    }
+  }
+
+  function getSkillConfig(folderPath: string): SkillConfig | undefined {
+    return settings.skillConfigs?.find(
+      (c: SkillConfig) => c.folderPath === folderPath,
+    );
+  }
+
+  function toggleSkillEnabled(folderPath: string) {
+    const cfg = settings.skillConfigs?.find(
+      (c: SkillConfig) => c.folderPath === folderPath,
+    );
+    if (cfg) {
+      cfg.enabled = !cfg.enabled;
+      if (!cfg.enabled) cfg.mandatory = false; // disable mandatory when skill disabled
+      settings.skillConfigs = [...settings.skillConfigs];
+      saveSettings();
+    }
+  }
+
+  function toggleSkillMandatory(folderPath: string) {
+    const cfg = settings.skillConfigs?.find(
+      (c: SkillConfig) => c.folderPath === folderPath,
+    );
+    if (cfg && cfg.enabled) {
+      cfg.mandatory = !cfg.mandatory;
+      settings.skillConfigs = [...settings.skillConfigs];
+      saveSettings();
+    }
+  }
 </script>
 
 <div class="settings-view">
@@ -767,6 +866,136 @@
     {/each}
 
     <button class="add-btn" on:click={addMcpServer}>+ Add MCP Server</button>
+  </div>
+
+  <!-- ── Skills Management ── -->
+  <div class="setting-section-title" style="margin-top:24px;">Skills</div>
+  <div class="setting-description">
+    Manage AI skills discovered from your skills folder. Enable or disable
+    individual skills, and mark skills as mandatory to ensure they are always
+    consulted first.
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Skills Path</div>
+      <div class="setting-item-description">
+        Absolute path to the folder containing skill subfolders (each with a
+        SKILL.md)
+      </div>
+    </div>
+    <div
+      class="setting-item-control"
+      style="display:flex; gap:6px; align-items:flex-start;"
+    >
+      <input
+        type="text"
+        bind:value={settings.skillsPath}
+        on:change={handleChange}
+        placeholder="/path/to/skills_hub"
+        style="flex:1;"
+      />
+      <button
+        class="test-btn"
+        on:click={refreshSkills}
+        disabled={skillsLoading}
+        style="white-space:nowrap;"
+      >
+        {skillsLoading ? "Scanning…" : "🔄 Refresh"}
+      </button>
+    </div>
+  </div>
+
+  <!-- Collapsible skill list -->
+  <div class="personas-container">
+    <button
+      class="add-btn"
+      style="width:100%; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"
+      on:click={() => (skillsExpanded = !skillsExpanded)}
+    >
+      <span
+        >{skillsExpanded ? "▼" : "▶"} Skills ({discoveredSkills.length})</span
+      >
+      <span style="font-size:0.8em; color:var(--text-muted);">
+        {settings.skillConfigs?.filter((c) => c.enabled).length ?? 0} enabled ·
+        {settings.skillConfigs?.filter((c) => c.mandatory).length ?? 0} mandatory
+      </span>
+    </button>
+
+    {#if skillsExpanded}
+      {#if discoveredSkills.length > 5}
+        <input
+          type="text"
+          bind:value={skillSearchQuery}
+          placeholder="🔍 Search skills..."
+          style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;"
+        />
+      {/if}
+
+      {#if filteredSkills.length === 0}
+        <div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;">
+          {skillsLoading
+            ? "Loading skills..."
+            : skillSearchQuery
+              ? "No skills match your search."
+              : "No skills found. Check your skills path and click Refresh."}
+        </div>
+      {/if}
+
+      {#each filteredSkills as skill (skill.folderPath)}
+        {@const cfg = getSkillConfig(skill.folderPath)}
+        <div class="persona-card">
+          <div class="persona-header">
+            <div class="persona-name" style="flex:1;">
+              <span class="name-text">{skill.name}</span>
+              {#if cfg?.enabled && cfg?.mandatory}
+                <span class="default-badge" style="background:#f59e0b;"
+                  >Mandatory</span
+                >
+              {/if}
+              {#if cfg?.enabled}
+                <span class="default-badge" style="background:#22c55e;"
+                  >Enabled</span
+                >
+              {:else}
+                <span
+                  class="default-badge"
+                  style="background:var(--text-muted);">Disabled</span
+                >
+              {/if}
+            </div>
+            <div class="persona-actions">
+              <label
+                class="skill-toggle"
+                title={cfg?.enabled ? "Disable skill" : "Enable skill"}
+              >
+                <input
+                  type="checkbox"
+                  checked={cfg?.enabled}
+                  on:change={() => toggleSkillEnabled(skill.folderPath)}
+                />
+              </label>
+              {#if cfg?.enabled}
+                <button
+                  class="icon-btn"
+                  on:click|stopPropagation={() =>
+                    toggleSkillMandatory(skill.folderPath)}
+                  title={cfg?.mandatory ? "Remove mandatory" : "Make mandatory"}
+                  style={cfg?.mandatory ? "opacity:1;" : ""}
+                >
+                  {cfg?.mandatory ? "⭐" : "☆"}
+                </button>
+              {/if}
+            </div>
+          </div>
+          <div
+            style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"
+          >
+            {skill.description}
+          </div>
+        </div>
+      {/each}
+    {/if}
   </div>
 </div>
 

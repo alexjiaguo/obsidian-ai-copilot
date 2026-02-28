@@ -108,6 +108,14 @@ export default class AICopilotPlugin extends Plugin {
 
 						submenu.addItem((subItem: any) => {
 							subItem
+								.setTitle('Reformat')
+								.setIcon('text')
+								.setDisabled(!hasSelection)
+								.onClick(() => this.runQuickAction(editor, selection!, 'Reformat and restructure the following text to improve readability. Use proper paragraphs, headings (if appropriate), bullet points, and logical flow. Preserve all the original information but make it well-organized and easy to scan. Only output the reformatted text, nothing else.'));
+						});
+
+						submenu.addItem((subItem: any) => {
+							subItem
 								.setTitle('Summarize')
 								.setIcon('align-left')
 								.setDisabled(!hasSelection)
@@ -437,7 +445,8 @@ class AICopilotSettingTab extends PluginSettingTab {
 			target: containerEl,
 			props: {
 				settings: this.plugin.settings,
-				saveSettings: async () => await this.plugin.saveSettings()
+				saveSettings: async () => await this.plugin.saveSettings(),
+				plugin: this.plugin
 			}
 		});
 	}

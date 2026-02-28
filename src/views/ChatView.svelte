@@ -322,6 +322,10 @@
     }
 
     query = "";
+
+    // Auto-scroll to bottom immediately so the user sees their message
+    await tick();
+    scrollToBottom();
     isLoading = true;
 
     try {
@@ -354,8 +358,10 @@
       let skillContext = "";
       if (plugin.skillService) {
         try {
-          skillContext =
-            await plugin.skillService.buildSkillContext(fullPromptText);
+          skillContext = await plugin.skillService.buildSkillContext(
+            fullPromptText,
+            plugin.settings,
+          );
           if (skillContext) {
             console.log("SkillService: Injected relevant skills into prompt");
           }
@@ -773,12 +779,6 @@
               query = "Summarize this note";
               sendMessage();
             }}>Summarize this note</button
-          >
-          <button
-            on:click={() => {
-              query = "Fix grammar";
-              sendMessage();
-            }}>Fix grammar</button
           >
         </div>
       </div>

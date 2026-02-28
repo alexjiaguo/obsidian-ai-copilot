@@ -20,6 +20,13 @@ export interface CustomAction {
     promptTemplate: string;
 }
 
+export interface SkillConfig {
+    name: string;        // matches discovered skill name
+    folderPath: string;  // matches discovered skill folderPath
+    enabled: boolean;
+    mandatory: boolean;  // if true, always inject this skill's content before generating
+}
+
 export interface Project {
     id: string;
     name: string;
@@ -90,6 +97,7 @@ export interface AICopilotSettings {
 
     // Skills
     skillsPath: string;
+    skillConfigs: SkillConfig[];
 }
 
 // Provider-specific model lists (verified Feb 2026 - Text Generation Only)
@@ -216,5 +224,6 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     indexExclusions: 'node_modules, .git, .obsidian',
     qaModeThreshold: 0.75,
     isVaultQAMode: false,
-    skillsPath: '/Users/boss/Documents/ai_skills_hub'
+    skillsPath: '/Users/boss/Documents/ai_skills_hub',
+    skillConfigs: []
 };
