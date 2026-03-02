@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, tick } from "svelte";
-  import { onMount } from "svelte";
+  import { createEventDispatcher, afterUpdate, onMount } from "svelte";
 
   export let selectedModel = "gpt-4o-mini";
   export let models: string[] = ["gpt-4o-mini", "gpt-4o"];
@@ -13,25 +12,17 @@
     const val = (e.target as HTMLSelectElement).value;
     selectedModel = val;
     dispatch("change", val);
-    updateWidth();
   }
 
   function updateWidth() {
     if (!measureSpan || !selectEl) return;
     measureSpan.textContent = selectedModel;
-    // Add padding: 10px left + 28px right (for chevron) + 2px border
     const textWidth = measureSpan.offsetWidth;
     selectEl.style.width = `${textWidth + 40}px`;
   }
 
-  // React to external changes in selectedModel
-  $: if (selectedModel && measureSpan && selectEl) {
-    tick().then(updateWidth);
-  }
-
-  onMount(() => {
-    updateWidth();
-  });
+  onMount(updateWidth);
+  afterUpdate(updateWidth);
 </script>
 
 <div class="model-selector">
