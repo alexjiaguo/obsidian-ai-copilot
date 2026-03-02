@@ -31,6 +31,38 @@
     ];
   }
 
+  export function addFileContext(filePath: string, fileName: string) {
+    // Deduplicate
+    if (
+      selectedContext.some((c) => c.path === filePath && c.type !== "selection")
+    )
+      return;
+    selectedContext = [
+      ...selectedContext,
+      {
+        type: "file",
+        text: fileName,
+        path: filePath,
+      },
+    ];
+  }
+
+  export function addFolderContext(folderPath: string, folderName: string) {
+    // Deduplicate
+    if (
+      selectedContext.some((c) => c.path === folderPath && c.type === "folder")
+    )
+      return;
+    selectedContext = [
+      ...selectedContext,
+      {
+        type: "folder",
+        text: `📁 ${folderName}`,
+        path: folderPath,
+      },
+    ];
+  }
+
   let query = "";
   let messages: ChatMessage[] = [];
   let isLoading = false;
@@ -253,6 +285,15 @@
           heading: item.heading,
         },
       ];
+    } else if (item.type === "folder") {
+      selectedContext = [
+        ...selectedContext,
+        {
+          type: "folder",
+          text: `📁 ${item.name || item.path}`,
+          path: item.path,
+        },
+      ];
     }
   }
 
@@ -370,6 +411,24 @@
         }
       }
 
+      // Load persona soul + memory
+      let soulPreamble = "";
+      if (plugin.personaSoulService) {
+        try {
+          soulPreamble =
+            await plugin.personaSoulService.buildSoulPreamble(
+              selectedPersonaId,
+            );
+        } catch (e) {
+          console.warn("Could not load persona soul:", e);
+        }
+      }
+
+      // Set active persona on toolManager for persona-specific memory tools
+      if (plugin.toolManager) {
+        plugin.toolManager.setActivePersonaId(selectedPersonaId);
+      }
+
       const actualModel =
         activeProject && activeProject.defaultModel
           ? activeProject.defaultModel
@@ -378,6 +437,7 @@
       // Prepend file context to system prompt if it exists (so it persists across the chat turn)
       const finalSystemPrompt =
         baseSystemPrompt +
+        soulPreamble +
         memoryPreamble +
         skillContext +
         (systemBase ? `\n\nContext:\n${systemBase}` : "");

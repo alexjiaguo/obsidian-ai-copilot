@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Editor, MarkdownView, Notice, WorkspaceLeaf } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Editor, MarkdownView, Notice, WorkspaceLeaf, TFile, TFolder } from 'obsidian';
 import type { MarkdownFileInfo } from 'obsidian';
 import type { AICopilotSettings } from './src/settings/Settings';
 import { DEFAULT_SETTINGS } from './src/settings/Settings';
@@ -13,6 +13,7 @@ import { MemoryService } from './src/services/MemoryService';
 import { RelevantNotes } from './src/services/RelevantNotes';
 import { SkillService } from './src/services/SkillService';
 import { MCPClientService } from './src/services/MCPClientService';
+import { PersonaSoulService } from './src/services/PersonaSoulService';
 import { mount, unmount } from 'svelte';
 import SettingsView from './src/settings/SettingsView.svelte';
 
@@ -27,6 +28,7 @@ export default class AICopilotPlugin extends Plugin {
     relevantNotes!: RelevantNotes;
     skillService!: SkillService;
     mcpClientService!: MCPClientService;
+    personaSoulService!: PersonaSoulService;
 
     async onload() {
         console.log('🚀 AI Copilot v1.3.0 LOADED');
@@ -45,7 +47,8 @@ export default class AICopilotPlugin extends Plugin {
         this.skillService = new SkillService(this.app, this.settings.skillsPath);
         this.mcpClientService = new MCPClientService();
         this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
-        this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService, undefined, this.skillService);
+        this.personaSoulService = new PersonaSoulService(this.app);
+        this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService, undefined, this.skillService, this.personaSoulService);
         
         try {
 			this.aiProvider = this.getAIProvider();
@@ -162,6 +165,36 @@ export default class AICopilotPlugin extends Plugin {
 								.onClick(() => this.runQuickAction(editor, selection!, 'Explain this text as if you are talking to a 5 year old. Use simple words and short sentences. Only output the explanation.'));
 						});
 					}
+				});
+			})
+		);
+
+		// Register File Explorer Right-Click Menu (files and folders)
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu, fileOrFolder) => {
+				const isFolder = fileOrFolder instanceof TFolder;
+				const label = isFolder ? 'Send folder to AI Copilot' : 'Send to AI Copilot';
+
+				menu.addItem((item) => {
+					item
+						.setTitle(label)
+						.setIcon('bot')
+						.onClick(async () => {
+							await this.activateView();
+							const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
+							if (leaves.length > 0) {
+								const chatView = leaves[0].view as AIChatView;
+								setTimeout(() => {
+									if (isFolder) {
+										chatView.addFolderContext(fileOrFolder.path, fileOrFolder.name);
+										new Notice(`📁 Folder "${fileOrFolder.name}" added to AI Chat`);
+									} else if (fileOrFolder instanceof TFile) {
+										chatView.addFileContext(fileOrFolder.path, fileOrFolder.basename);
+										new Notice(`📄 "${fileOrFolder.basename}" added to AI Chat`);
+									}
+								}, 100);
+							}
+						});
 				});
 			})
 		);

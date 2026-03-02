@@ -9,8 +9,9 @@ export interface ContextItem {
 }
 
 export interface SearchResult {
-    type: 'file' | 'heading';
+    type: 'file' | 'heading' | 'folder';
     file: TFile;
+    folder?: TFolder;  // For folder type results
     heading?: any; // HeadingCache
     matchScore: number;
 }
@@ -28,9 +29,46 @@ export class ContextManager {
         if (file instanceof TFile) {
             return await this.app.vault.read(file);
         } else if (file instanceof TFolder) {
-             return `Folder: ${path}\nContains: ${file.children.map(c => c.name).join(', ')}`;
+            return this.getFolderContent(file);
         }
         return `Error: File not found at ${path}`;
+    }
+
+    // Get a rich summary of a folder's contents
+    private getFolderContent(folder: TFolder): string {
+        const lines: string[] = [`Folder: ${folder.path}`];
+        const files: TFile[] = [];
+        const subfolders: TFolder[] = [];
+
+        for (const child of folder.children) {
+            if (child instanceof TFile) {
+                files.push(child);
+            } else if (child instanceof TFolder) {
+                subfolders.push(child);
+            }
+        }
+
+        if (subfolders.length > 0) {
+            lines.push(`\nSubfolders (${subfolders.length}):`);
+            for (const sf of subfolders) {
+                const childCount = sf.children?.length ?? 0;
+                lines.push(`  📁 ${sf.name}/ (${childCount} items)`);
+            }
+        }
+
+        if (files.length > 0) {
+            lines.push(`\nFiles (${files.length}):`);
+            for (const f of files) {
+                const sizeKB = (f.stat.size / 1024).toFixed(1);
+                lines.push(`  📄 ${f.name} (${sizeKB} KB)`);
+            }
+        }
+
+        if (files.length === 0 && subfolders.length === 0) {
+            lines.push('(empty folder)');
+        }
+
+        return lines.join('\n');
     }
 
     // Get active file content
@@ -74,16 +112,27 @@ export class ContextManager {
         return contextParts.join('\n');
     }
 
-    // Search for files (simple fuzzy search) to support @ mentions
+    // Search for files and folders to support @ mentions
     searchFiles(query: string): SearchResult[] {
         console.log('ContextManager: searchFiles called with', query);
         const files = this.app.vault.getFiles();
+        const allFolders = this.getAllFolders();
         if (!query) {
-            return files.slice(0, 20).map(f => ({ type: 'file', file: f, matchScore: 0 }));
+            // Show a mix of recent files and top-level folders
+            const fileResults = files.slice(0, 15).map(f => ({ type: 'file' as const, file: f, matchScore: 0 }));
+            const folderResults = allFolders.slice(0, 5).map(f => ({ type: 'folder' as const, file: null as any, folder: f, matchScore: 0 }));
+            return [...folderResults, ...fileResults];
         }
         
         const lowerQuery = query.toLowerCase();
         const results: SearchResult[] = [];
+
+        // Match folders
+        for (const folder of allFolders) {
+            if (folder.path.toLowerCase().includes(lowerQuery) || folder.name.toLowerCase().includes(lowerQuery)) {
+                results.push({ type: 'folder', file: null as any, folder: folder, matchScore: 12 });
+            }
+        }
 
         for (const file of files) {
             // Match Filename
@@ -104,5 +153,25 @@ export class ContextManager {
 
         // Sort by score then name
         return results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
+    }
+
+    // Get all folders in the vault (excluding hidden folders)
+    private getAllFolders(): TFolder[] {
+        const folders: TFolder[] = [];
+        const rootFolder = this.app.vault.getRoot();
+        this.collectFolders(rootFolder, folders);
+        return folders;
+    }
+
+    private collectFolders(folder: TFolder, results: TFolder[]): void {
+        for (const child of folder.children) {
+            if (child instanceof TFolder) {
+                // Skip hidden folders (starting with .)
+                if (!child.name.startsWith('.')) {
+                    results.push(child);
+                    this.collectFolders(child, results);
+                }
+            }
+        }
     }
 }

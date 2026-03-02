@@ -48,6 +48,20 @@ export class AIChatView extends ItemView {
         }
     }
 
+    // Public method to inject file context from file explorer right-click
+    addFileContext(filePath: string, fileName: string) {
+        if (this.svelteExports && typeof this.svelteExports.addFileContext === 'function') {
+            this.svelteExports.addFileContext(filePath, fileName);
+        }
+    }
+
+    // Public method to inject folder context from file explorer right-click
+    addFolderContext(folderPath: string, folderName: string) {
+        if (this.svelteExports && typeof this.svelteExports.addFolderContext === 'function') {
+            this.svelteExports.addFolderContext(folderPath, folderName);
+        }
+    }
+
     async onClose() {
         if (this.component) {
             unmount(this.component);

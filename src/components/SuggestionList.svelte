@@ -16,6 +16,12 @@
         heading: item.heading.heading,
         path: item.file.path,
       });
+    } else if (item.type === "folder") {
+      dispatch("select", {
+        type: "folder",
+        path: item.folder.path,
+        name: item.folder.name,
+      });
     } else {
       dispatch("select", item);
     }
@@ -58,6 +64,22 @@
                 y2="21"
               ></line></svg
             >
+          {:else if item.type === "folder"}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-folder"
+              ><path
+                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+              ></path></svg
+            >
           {:else}
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -93,13 +115,21 @@
               <span class="file-ref">{item.file.basename}</span>
               <span class="separator">/</span>
               <span class="heading-name">{item.heading.heading}</span>
+            {:else if item.type === "folder"}
+              <span class="file-name">📁 {item.folder.name}/</span>
             {:else if item.file}
               <span class="file-name">{item.file.basename}</span>
             {:else}
               <span class="file-name">{item.basename}</span>
             {/if}
           </div>
-          <div class="sub-text">{item.file ? item.file.path : item.path}</div>
+          <div class="sub-text">
+            {item.type === "folder"
+              ? item.folder.path
+              : item.file
+                ? item.file.path
+                : item.path}
+          </div>
         </div>
 
         {#if i === selectedIndex}

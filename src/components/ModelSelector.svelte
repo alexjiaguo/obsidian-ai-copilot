@@ -1,20 +1,47 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, tick } from "svelte";
+  import { onMount } from "svelte";
 
   export let selectedModel = "gpt-4o-mini";
   export let models: string[] = ["gpt-4o-mini", "gpt-4o"];
 
   const dispatch = createEventDispatcher();
+  let selectEl: HTMLSelectElement;
+  let measureSpan: HTMLSpanElement;
 
   function handleChange(e: Event) {
     const val = (e.target as HTMLSelectElement).value;
     selectedModel = val;
     dispatch("change", val);
+    updateWidth();
   }
+
+  function updateWidth() {
+    if (!measureSpan || !selectEl) return;
+    measureSpan.textContent = selectedModel;
+    // Add padding: 10px left + 28px right (for chevron) + 2px border
+    const textWidth = measureSpan.offsetWidth;
+    selectEl.style.width = `${textWidth + 40}px`;
+  }
+
+  // React to external changes in selectedModel
+  $: if (selectedModel && measureSpan && selectEl) {
+    tick().then(updateWidth);
+  }
+
+  onMount(() => {
+    updateWidth();
+  });
 </script>
 
 <div class="model-selector">
-  <select value={selectedModel} on:change={handleChange} title={selectedModel}>
+  <span class="measure-span" bind:this={measureSpan}>{selectedModel}</span>
+  <select
+    bind:this={selectEl}
+    value={selectedModel}
+    on:change={handleChange}
+    title={selectedModel}
+  >
     {#each models as model}
       <option value={model} selected={model === selectedModel}>{model}</option>
     {/each}
@@ -40,6 +67,16 @@
     align-items: center;
   }
 
+  .measure-span {
+    position: absolute;
+    visibility: hidden;
+    height: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: var(--font-ui-smaller);
+    font-family: inherit;
+  }
+
   select {
     appearance: none;
     -webkit-appearance: none;
@@ -54,9 +91,9 @@
     transition:
       color 0.2s,
       background-color 0.2s,
-      border-color 0.2s;
+      border-color 0.2s,
+      width 0.15s ease;
     white-space: nowrap;
-    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     outline: none;

@@ -8,6 +8,7 @@ import { ContentExtractor } from './ContentExtractor';
 import { MCPClientService } from './MCPClientService';
 import type { AIProvider } from './APIService';
 import { SkillService } from './SkillService';
+import { PersonaSoulService } from './PersonaSoulService';
 
 export interface Tool {
     name: string;
@@ -28,8 +29,10 @@ export class ToolManager {
     private mcpClientService?: MCPClientService;
     private aiProvider: AIProvider | null;
     private skillService: SkillService | null;
+    private personaSoulService: PersonaSoulService | null;
+    private activePersonaId: string = 'default';
 
-    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService) {
+    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService, personaSoulService?: PersonaSoulService) {
         this.app = app;
         this.webSearch = new WebSearch();
         this.ytTranscriber = new YouTubeTranscriber();
@@ -40,6 +43,7 @@ export class ToolManager {
         this.mcpClientService = mcpClientService;
         this.aiProvider = aiProvider || null;
         this.skillService = skillService || null;
+        this.personaSoulService = personaSoulService || null;
         this.registerTools();
     }
 
@@ -48,6 +52,13 @@ export class ToolManager {
      */
     setAIProvider(provider: AIProvider) {
         this.aiProvider = provider;
+    }
+
+    /**
+     * Set the active persona ID so persona-specific tools know which persona to target.
+     */
+    setActivePersonaId(personaId: string) {
+        this.activePersonaId = personaId;
     }
 
     private registerTools() {
@@ -446,6 +457,49 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
                     return `=== SKILL ACTIVATED: ${skill.name} ===\n${skill.description}\n\n${truncated}${truncated.length < content.length ? '\n\n[... truncated, full skill is ' + content.length + ' chars]' : ''}${taskLine}\n=== END SKILL ===\n\nFollow the instructions in this skill to complete the task. Use your available tools as directed by the skill.`;
                 } catch (error: any) {
                     return `Error loading skill: ${error.message}`;
+                }
+            }
+        });
+
+        // 16. Save Persona Memory
+        this.tools.push({
+            name: 'save_persona_memory',
+            description: 'Saves a fact, mistake, or preference to this persona\'s persistent memory. Use this when the user tells you something important about themselves (fact), when you make an error and learn from it (mistake), or when the user expresses a recurring preference (preference).',
+            parameters: {
+                type: 'object',
+                properties: {
+                    content: { type: 'string', description: 'The memory content to save' },
+                    category: { type: 'string', enum: ['fact', 'mistake', 'preference'], description: 'Category: fact (about the user), mistake (lesson learned), or preference (how user wants things done)' }
+                },
+                required: ['content', 'category']
+            },
+            execute: async ({ content, category }) => {
+                if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                try {
+                    return await this.personaSoulService.addMemory(this.activePersonaId, content, category);
+                } catch (error: any) {
+                    return `Error saving persona memory: ${error.message}`;
+                }
+            }
+        });
+
+        // 17. Save Mistake (shorthand)
+        this.tools.push({
+            name: 'save_mistake',
+            description: 'Shorthand to record a mistake you made and the correct approach. Call this when the user corrects you.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    description: { type: 'string', description: 'What went wrong and the correct approach' }
+                },
+                required: ['description']
+            },
+            execute: async ({ description }) => {
+                if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                try {
+                    return await this.personaSoulService.addMemory(this.activePersonaId, description, 'mistake');
+                } catch (error: any) {
+                    return `Error saving mistake: ${error.message}`;
                 }
             }
         });
