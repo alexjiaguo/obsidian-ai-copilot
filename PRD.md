@@ -46,6 +46,7 @@ Obsidian users often have vast amounts of information but struggle to:
 ### 5.4 Context Mentions & AI Tools
 - **Context Mentions**: Users can directly reference (`@`) files, folders, or specific headings to inject their content into the AI's prompt.
 - **AI Actions/Tools**: The AI is equipped with tools to interact with the vault autonomously (e.g., reading files, appending to notes, listing directories, and creating new notes).
+- **Agentic Skills**: The AI can dynamically discover and activate extensive multi-step skills written as markdown files (via `list_skills` and `use_skill` capabilities) to handle complex workflows.
 
 ### 5.5 Settings & Configuration
 - **API Management**: Support for OpenAI, Anthropic, Groq, Google Gemini, and custom endpoints (Ollama).

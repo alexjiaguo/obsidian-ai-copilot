@@ -20,6 +20,7 @@ The Obsidian AI Copilot is a TypeScript-based plugin that integrates with Obsidi
 ### 2.4 Context & Tools Management
 - **ContextManager (`services/ContextManager.ts`)**: Resolves user contexts (files, folders, headings, active selection) into AI prompt data. Manages fuzzy searching for `@` mentions.
 - **ToolManager (`services/ToolManager.ts`)**: Registers and handles execution of AI tools (`create_note`, `append_to_note`, `read_note`, `list_folder`). Provides tools definitions in JSON Schema for the LLM.
+- **SkillService (`services/SkillService.ts`)**: Handles the indexing and retrieval of external agentic skills. Facilitates autonomous skill discovery and activation via the `list_skills` and `use_skill` meta-tools.
 
 ### 2.5 Editor Integration (`EditorHandler.ts`)
 - Interacts with the Obsidian `Editor` object.
@@ -73,7 +74,7 @@ obsidian-ai-copilot/
 ├── manifest.json          # Obsidian plugin manifest
 ├── src/
 │   ├── settings/          # Settings UI and logic
-│   ├── services/          # APIService, ContextManager, ToolManager, Vector Index
+│   ├── services/          # APIService, ContextManager, ToolManager, SkillService, Vector Index
 │   ├── editor/            # Editor commands and handlers
 │   ├── views/             # Sidebar Chat UI (Svelte components)
 │   └── utils/             # Helper functions
