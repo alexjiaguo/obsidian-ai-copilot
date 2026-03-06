@@ -1,8 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher, afterUpdate, onMount } from "svelte";
 
-  export let selectedModel = "gpt-4o-mini";
-  export let models: string[] = ["gpt-4o-mini", "gpt-4o"];
+  export let selectedModel = "gpt-5-mini";
+  export let models: string[] = ["gpt-5-mini", "gpt-5.4"];
 
   const dispatch = createEventDispatcher();
   let selectEl: HTMLSelectElement;

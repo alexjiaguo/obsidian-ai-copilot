@@ -80,12 +80,12 @@
     file?: any;
     content?: string; // for uploaded local files
   }[] = [];
-  let currentModel = "gpt-4o-mini";
+  let currentModel = "gpt-5-mini";
   let selectedPersonaId = "default";
 
   onMount(async () => {
     if (plugin.settings) {
-      currentModel = plugin.settings.model || "gpt-4o-mini";
+      currentModel = plugin.settings.model || "gpt-5-mini";
       selectedPersonaId = plugin.settings.defaultPersonaId || "default";
       isVaultQAMode = plugin.settings.isVaultQAMode || false;
 
@@ -534,8 +534,14 @@
                 const parsed = JSON.parse(result);
                 if (parsed._isComposerDiff) {
                   parsedComposerDiff = parsed;
-                  parsedComposerDiff.status = "pending";
-                  result = `File edit proposed for ${parsed.path}.`;
+                  // Keep status from tool if auto-applied, otherwise set to pending
+                  if (!parsedComposerDiff.status) {
+                    parsedComposerDiff.status = "pending";
+                  }
+                  result =
+                    parsed.status === "accepted"
+                      ? `File edit auto-applied to ${parsed.path}.`
+                      : `File edit proposed for ${parsed.path}.`;
                 }
               } catch (e) {}
             }

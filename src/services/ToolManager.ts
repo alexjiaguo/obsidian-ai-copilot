@@ -9,6 +9,7 @@ import { MCPClientService } from './MCPClientService';
 import type { AIProvider } from './APIService';
 import { SkillService } from './SkillService';
 import { PersonaSoulService } from './PersonaSoulService';
+import type { AICopilotSettings } from '../settings/Settings';
 
 export interface Tool {
     name: string;
@@ -31,8 +32,9 @@ export class ToolManager {
     private skillService: SkillService | null;
     private personaSoulService: PersonaSoulService | null;
     private activePersonaId: string = 'default';
+    private settings: AICopilotSettings | null;
 
-    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService, personaSoulService?: PersonaSoulService) {
+    constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService, personaSoulService?: PersonaSoulService, settings?: AICopilotSettings) {
         this.app = app;
         this.webSearch = new WebSearch();
         this.ytTranscriber = new YouTubeTranscriber();
@@ -44,6 +46,7 @@ export class ToolManager {
         this.aiProvider = aiProvider || null;
         this.skillService = skillService || null;
         this.personaSoulService = personaSoulService || null;
+        this.settings = settings || null;
         this.registerTools();
     }
 
@@ -225,7 +228,7 @@ export class ToolManager {
         // 7. Edit Note (Composer)
         this.tools.push({
             name: 'edit_note',
-            description: 'Proposes an edit to a markdown note. Replaces exactly old_text with new_text. Will show a diff to the user for approval.',
+            description: 'Edits a markdown note. Replaces exactly old_text with new_text. When auto-apply is enabled, changes are applied directly. Otherwise, shows a diff to the user for approval.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -236,13 +239,43 @@ export class ToolManager {
                 required: ['path', 'old_text', 'new_text']
             },
             execute: async ({ path, old_text, new_text }) => {
-                // Return a JSON string that ChatView can parse and render ComposerDiff
-                return JSON.stringify({
-                    _isComposerDiff: true,
-                    path,
-                    oldText: old_text,
-                    newText: new_text
-                });
+                const autoApply = this.settings?.autoApplyEdits ?? false;
+
+                if (autoApply) {
+                    // Auto-apply: directly modify the file
+                    try {
+                        const normalizedPath = normalizePath(path);
+                        const file = this.app.vault.getAbstractFileByPath(normalizedPath);
+                        if (!file || !(file instanceof TFile)) {
+                            return `Error: File not found at ${normalizedPath}`;
+                        }
+                        const content = await this.app.vault.read(file);
+                        if (!content.includes(old_text)) {
+                            return `Error: Could not find exact text to replace in ${normalizedPath}`;
+                        }
+                        const newContent = content.replace(old_text, new_text);
+                        await this.app.vault.modify(file, newContent);
+
+                        // Return ComposerDiff with accepted status so ChatView shows the diff with revert option
+                        return JSON.stringify({
+                            _isComposerDiff: true,
+                            path,
+                            oldText: old_text,
+                            newText: new_text,
+                            status: 'accepted'
+                        });
+                    } catch (error: any) {
+                        return `Error auto-applying edit: ${error.message}`;
+                    }
+                } else {
+                    // Manual approval: return a pending ComposerDiff for ChatView to render
+                    return JSON.stringify({
+                        _isComposerDiff: true,
+                        path,
+                        oldText: old_text,
+                        newText: new_text
+                    });
+                }
             }
         });
 

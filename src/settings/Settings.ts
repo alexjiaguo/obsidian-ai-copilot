@@ -98,35 +98,29 @@ export interface AICopilotSettings {
     // Skills
     skillsPath: string;
     skillConfigs: SkillConfig[];
+
+    // Composer
+    autoApplyEdits: boolean;
 }
 
-// Provider-specific model lists (verified Feb 2026 - Text Generation Only)
+// Provider-specific model lists (verified Mar 2026 - Text Generation Only)
 export const PROVIDER_MODELS: Record<ProviderType, string[]> = {
     openai: [
-        'gpt-5.3-spark',
-        'gpt-5.2-pro',
-        'gpt-5.2',
+        'gpt-5.4',
+        'gpt-5.4-pro',
         'gpt-5-mini',
         'gpt-5-nano',
-        'o4-mini-deep-research',
-        'o3-deep-research',
+        'gpt-5',
         'o4-mini',
         'o3',
-        'o3-mini',
-        'gpt-oss-120b',
-        'gpt-oss-20b',
         'gpt-4.1',
         'gpt-4.1-mini',
-        'gpt-4o',
-        'gpt-4o-mini',
+        'gpt-4.1-nano',
     ],
     anthropic: [
-        'claude-4-6-opus-20260210',
-        'claude-4-6-sonnet-20260218',
-        'claude-3-7-sonnet-20250219',
-        'claude-3-5-sonnet-latest',
-        'claude-3-5-haiku-20241022',
-        'claude-3-opus-latest',
+        'claude-opus-4-6',
+        'claude-sonnet-4-6',
+        'claude-haiku-4-5-20251001',
     ],
     ollama: [
         'llama4',
@@ -134,27 +128,22 @@ export const PROVIDER_MODELS: Record<ProviderType, string[]> = {
         'gemma3',
         'deepseek-r1',
         'phi4-reasoning',
-        'llama3.3',
+        'glm4',
         'mistral-small-3.2',
-        'deepseek-v3',
     ],
     groq: [
-        'meta-llama/llama-4-maverick-17b-128e-instruct',
-        'meta-llama/llama-4-scout-17b-16e-instruct',
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
         'qwen/qwen3-32b',
-        'qwen/qwen2.5-coder-32b',
         'llama-3.3-70b-versatile',
-        'deepseek-r1-distill-qwen-32b',
+        'llama-3.1-8b-instant',
+        'moonshotai/kimi-k2-instruct-0905',
     ],
     gemini: [
-        'gemini-3-pro',
-        'gemini-3-flash',
-        'gemini-3-flash-lite',
-        'gemini-2.5-pro-latest',
-        'gemini-2.5-flash-latest',
-        'gemini-2.5-flash-lite',
-        'gemma-3-27b',
-        'gemma-3-4b',
+        'gemini-3.1-pro-preview',
+        'gemini-3-flash-preview',
+        'gemini-3.1-flash-lite-preview',
+        'gemini-3-pro-preview',
     ],
 };
 
@@ -206,7 +195,7 @@ export const DEFAULT_PERSONAS: Persona[] = [
 export const DEFAULT_SETTINGS: AICopilotSettings = {
     apiKey: '',
     provider: 'openai',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5-mini',
     systemPrompt: DEFAULT_PERSONAS[0].prompt,
     baseUrl: PROVIDER_DEFAULT_URLS.openai,
     personas: DEFAULT_PERSONAS,
@@ -225,5 +214,6 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     qaModeThreshold: 0.75,
     isVaultQAMode: false,
     skillsPath: '/Users/boss/Documents/ai_skills_hub',
-    skillConfigs: []
+    skillConfigs: [],
+    autoApplyEdits: true
 };

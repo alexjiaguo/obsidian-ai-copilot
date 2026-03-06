@@ -122,7 +122,7 @@ var init_APIService = __esm({
           return this.callAnthropic(messages, options);
         }
         const payload = {
-          model: this.settings.model || "gpt-4o-mini",
+          model: this.settings.model || "gpt-5-mini",
           messages,
           temperature: options?.temperature ?? 0.7,
           max_tokens: options?.max_tokens ?? 4096
@@ -7493,35 +7493,26 @@ __export(main_exports, {
   default: () => AICopilotPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/settings/Settings.ts
 var PROVIDER_MODELS = {
   openai: [
-    "gpt-5.3-spark",
-    "gpt-5.2-pro",
-    "gpt-5.2",
+    "gpt-5.4",
+    "gpt-5.4-pro",
     "gpt-5-mini",
     "gpt-5-nano",
-    "o4-mini-deep-research",
-    "o3-deep-research",
+    "gpt-5",
     "o4-mini",
     "o3",
-    "o3-mini",
-    "gpt-oss-120b",
-    "gpt-oss-20b",
     "gpt-4.1",
     "gpt-4.1-mini",
-    "gpt-4o",
-    "gpt-4o-mini"
+    "gpt-4.1-nano"
   ],
   anthropic: [
-    "claude-4-6-opus-20260210",
-    "claude-4-6-sonnet-20260218",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-20241022",
-    "claude-3-opus-latest"
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001"
   ],
   ollama: [
     "llama4",
@@ -7529,27 +7520,22 @@ var PROVIDER_MODELS = {
     "gemma3",
     "deepseek-r1",
     "phi4-reasoning",
-    "llama3.3",
-    "mistral-small-3.2",
-    "deepseek-v3"
+    "glm4",
+    "mistral-small-3.2"
   ],
   groq: [
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
     "qwen/qwen3-32b",
-    "qwen/qwen2.5-coder-32b",
     "llama-3.3-70b-versatile",
-    "deepseek-r1-distill-qwen-32b"
+    "llama-3.1-8b-instant",
+    "moonshotai/kimi-k2-instruct-0905"
   ],
   gemini: [
-    "gemini-3-pro",
-    "gemini-3-flash",
-    "gemini-3-flash-lite",
-    "gemini-2.5-pro-latest",
-    "gemini-2.5-flash-latest",
-    "gemini-2.5-flash-lite",
-    "gemma-3-27b",
-    "gemma-3-4b"
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3-pro-preview"
   ]
 };
 var PROVIDER_DEFAULT_URLS = {
@@ -7572,31 +7558,31 @@ var DEFAULT_PERSONAS = [
     id: "default",
     name: "Default Assistant",
     description: "Standard helpful AI assistant",
-    prompt: "You are a helpful AI assistant in Obsidian. Help the user write and think better."
+    prompt: "You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented. When the user asks you to do something, DO it \u2014 don't just explain how.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
   },
   {
     id: "code-expert",
     name: "Code Expert",
     description: "Specialized in programming and software architecture",
-    prompt: "You are an expert software engineer and architect. Provide concise, high-quality code solutions and explanations. Prefer modern best practices and TypeScript."
+    prompt: "You are an expert software engineer and architect embedded in Obsidian. Provide concise, high-quality code solutions using modern best practices (TypeScript preferred). Be direct about code issues.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
   },
   {
     id: "creative-writer",
     name: "Creative Writer",
     description: "Helps with brainstorming and drafting",
-    prompt: "You are a creative writer. Help the user brainstorm ideas, draft content, and improve their writing style. Be imaginative and engaging."
+    prompt: "You are a creative writer embedded in Obsidian. Help brainstorm ideas, draft content, refine prose, and develop narrative. Be imaginative and engaging. Match the user's writing style when editing their work.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
   },
   {
     id: "academic",
     name: "Academic Researcher",
     description: "Formal and citation-focused",
-    prompt: "You are an academic research assistant. Provide formal, well-structured responses. Cite sources where possible and maintain a neutral, objective tone."
+    prompt: "You are an academic research assistant embedded in Obsidian. Provide formal, well-structured, evidence-based responses. Cite sources where possible. Use precise language and clear structure.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
   }
 ];
 var DEFAULT_SETTINGS = {
   apiKey: "",
   provider: "openai",
-  model: "gpt-4o-mini",
+  model: "gpt-5-mini",
   systemPrompt: DEFAULT_PERSONAS[0].prompt,
   baseUrl: PROVIDER_DEFAULT_URLS.openai,
   personas: DEFAULT_PERSONAS,
@@ -7614,7 +7600,9 @@ var DEFAULT_SETTINGS = {
   indexExclusions: "node_modules, .git, .obsidian",
   qaModeThreshold: 0.75,
   isVaultQAMode: false,
-  skillsPath: "/Users/boss/Documents/ai_skills_hub"
+  skillsPath: "/Users/boss/Documents/ai_skills_hub",
+  skillConfigs: [],
+  autoApplyEdits: true
 };
 
 // main.ts
@@ -12837,6 +12825,14 @@ function set_value(element2, value) {
   }
   element2.value = value ?? "";
 }
+function set_checked(element2, checked) {
+  var attributes = get_attributes(element2);
+  if (attributes.checked === (attributes.checked = // treat null and undefined the same for the initial value
+  checked ?? void 0)) {
+    return;
+  }
+  element2.checked = checked;
+}
 function set_selected(element2, selected) {
   if (selected) {
     if (!element2.hasAttribute("selected")) {
@@ -13695,11 +13691,13 @@ var import_obsidian2 = require("obsidian");
 
 // src/components/SuggestionList.svelte
 var root_2 = from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hash"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>`);
-var root_3 = from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`);
-var root_4 = from_html(`<span class="file-ref svelte-q6j178"> </span> <span class="separator svelte-q6j178">/</span> <span class="heading-name"> </span>`, 1);
-var root_5 = from_html(`<span class="file-name"> </span>`);
+var root_3 = from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`);
+var root_4 = from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`);
+var root_5 = from_html(`<span class="file-ref svelte-q6j178"> </span> <span class="separator svelte-q6j178">/</span> <span class="heading-name"> </span>`, 1);
 var root_6 = from_html(`<span class="file-name"> </span>`);
-var root_7 = from_html(`<div class="enter-hint svelte-q6j178">\u21B5</div>`);
+var root_7 = from_html(`<span class="file-name"> </span>`);
+var root_8 = from_html(`<span class="file-name"> </span>`);
+var root_9 = from_html(`<div class="enter-hint svelte-q6j178">\u21B5</div>`);
 var root_1 = from_html(`<button tabindex="-1"><div class="icon-wrapper svelte-q6j178"><!></div> <div class="content-wrapper svelte-q6j178"><div class="main-text svelte-q6j178"><!></div> <div class="sub-text svelte-q6j178"> </div></div> <!></button>`);
 var root = from_html(`<div class="suggestion-popover svelte-q6j178"><div class="suggestion-header svelte-q6j178">Suggested Context</div> <div class="suggestion-scroll svelte-q6j178"></div></div>`);
 var $$css = {
@@ -13722,6 +13720,12 @@ function SuggestionList($$anchor, $$props) {
         heading: item.heading.heading,
         path: item.file.path
       });
+    } else if (item.type === "folder") {
+      dispatch("select", {
+        type: "folder",
+        path: item.folder.path,
+        name: item.folder.name
+      });
     } else {
       dispatch("select", item);
     }
@@ -13739,12 +13743,17 @@ function SuggestionList($$anchor, $$props) {
         var svg = root_2();
         append($$anchor3, svg);
       };
-      var alternate = ($$anchor3) => {
+      var consequent_1 = ($$anchor3) => {
         var svg_1 = root_3();
         append($$anchor3, svg_1);
       };
+      var alternate = ($$anchor3) => {
+        var svg_2 = root_4();
+        append($$anchor3, svg_2);
+      };
       if_block(node, ($$render) => {
         if (get(item), untrack(() => get(item).type === "heading")) $$render(consequent);
+        else if (get(item), untrack(() => get(item).type === "folder")) $$render(consequent_1, 1);
         else $$render(alternate, false);
       });
     }
@@ -13753,8 +13762,8 @@ function SuggestionList($$anchor, $$props) {
     var div_4 = child(div_3);
     var node_1 = child(div_4);
     {
-      var consequent_1 = ($$anchor3) => {
-        var fragment = root_4();
+      var consequent_2 = ($$anchor3) => {
+        var fragment = root_5();
         var span = first_child(fragment);
         var text2 = child(span, true);
         reset(span);
@@ -13767,45 +13776,53 @@ function SuggestionList($$anchor, $$props) {
         });
         append($$anchor3, fragment);
       };
-      var consequent_2 = ($$anchor3) => {
-        var span_2 = root_5();
-        var text_2 = child(span_2, true);
+      var consequent_3 = ($$anchor3) => {
+        var span_2 = root_6();
+        var text_2 = child(span_2);
         reset(span_2);
-        template_effect(() => set_text(text_2, (get(item), untrack(() => get(item).file.basename))));
+        template_effect(() => set_text(text_2, `\u{1F4C1} ${(get(item), untrack(() => get(item).folder.name)) ?? ""}/`));
         append($$anchor3, span_2);
       };
-      var alternate_1 = ($$anchor3) => {
-        var span_3 = root_6();
+      var consequent_4 = ($$anchor3) => {
+        var span_3 = root_7();
         var text_3 = child(span_3, true);
         reset(span_3);
-        template_effect(() => set_text(text_3, (get(item), untrack(() => get(item).basename))));
+        template_effect(() => set_text(text_3, (get(item), untrack(() => get(item).file.basename))));
         append($$anchor3, span_3);
       };
+      var alternate_1 = ($$anchor3) => {
+        var span_4 = root_8();
+        var text_4 = child(span_4, true);
+        reset(span_4);
+        template_effect(() => set_text(text_4, (get(item), untrack(() => get(item).basename))));
+        append($$anchor3, span_4);
+      };
       if_block(node_1, ($$render) => {
-        if (get(item), untrack(() => get(item).type === "heading")) $$render(consequent_1);
-        else if (get(item), untrack(() => get(item).file)) $$render(consequent_2, 1);
+        if (get(item), untrack(() => get(item).type === "heading")) $$render(consequent_2);
+        else if (get(item), untrack(() => get(item).type === "folder")) $$render(consequent_3, 1);
+        else if (get(item), untrack(() => get(item).file)) $$render(consequent_4, 2);
         else $$render(alternate_1, false);
       });
     }
     reset(div_4);
     var div_5 = sibling(div_4, 2);
-    var text_4 = child(div_5, true);
+    var text_5 = child(div_5, true);
     reset(div_5);
     reset(div_3);
     var node_2 = sibling(div_3, 2);
     {
-      var consequent_3 = ($$anchor3) => {
-        var div_6 = root_7();
+      var consequent_5 = ($$anchor3) => {
+        var div_6 = root_9();
         append($$anchor3, div_6);
       };
       if_block(node_2, ($$render) => {
-        if (i === selectedIndex()) $$render(consequent_3);
+        if (i === selectedIndex()) $$render(consequent_5);
       });
     }
     reset(button);
     template_effect(() => {
       classes = set_class(button, 1, "suggestion-item svelte-q6j178", null, classes, { selected: i === selectedIndex() });
-      set_text(text_4, (get(item), untrack(() => get(item).file ? get(item).file.path : get(item).path)));
+      set_text(text_5, (get(item), untrack(() => get(item).type === "folder" ? get(item).folder.path : get(item).file ? get(item).file.path : get(item).path)));
     });
     event("click", button, stopPropagation(() => select(get(item))));
     event("mouseenter", button, () => selectedIndex(i));
@@ -14105,8 +14122,8 @@ var root_33 = from_html(`<span>\u26A0\uFE0F</span>`);
 var root_42 = from_html(`<span class="thinking svelte-izxfet"> </span>`);
 var root_52 = from_html(`<div class="user-content svelte-izxfet"> </div>`);
 var root_62 = from_html(`<div class="markdown-content svelte-izxfet"></div>`);
-var root_8 = from_html(`<button class="action-btn svelte-izxfet" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button> <button class="action-btn svelte-izxfet" title="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button> <button class="action-btn svelte-izxfet" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`, 1);
-var root_9 = from_html(`<button class="action-btn svelte-izxfet" title="Insert at cursor"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V3"></path><path d="m6 11 6 6 6-6"></path><path d="M19 21H5"></path></svg></button> <button class="action-btn svelte-izxfet" title="Replace selection"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"></path></svg></button> <button class="action-btn svelte-izxfet" title="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button> <button class="action-btn svelte-izxfet" title="Regenerate"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button> <button class="action-btn svelte-izxfet" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`, 1);
+var root_82 = from_html(`<button class="action-btn svelte-izxfet" title="Edit"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path></svg></button> <button class="action-btn svelte-izxfet" title="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button> <button class="action-btn svelte-izxfet" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`, 1);
+var root_92 = from_html(`<button class="action-btn svelte-izxfet" title="Insert at cursor"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V3"></path><path d="m6 11 6 6 6-6"></path><path d="M19 21H5"></path></svg></button> <button class="action-btn svelte-izxfet" title="Replace selection"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"></path></svg></button> <button class="action-btn svelte-izxfet" title="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button> <button class="action-btn svelte-izxfet" title="Regenerate"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button> <button class="action-btn svelte-izxfet" title="Delete"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>`, 1);
 var root_72 = from_html(`<div class="message-actions svelte-izxfet"><!></div>`);
 var root3 = from_html(`<div><div class="avatar svelte-izxfet"><!></div> <div class="message-body svelte-izxfet"><div class="content-bubble svelte-izxfet"><!></div> <!></div></div>`);
 var $$css3 = {
@@ -14233,7 +14250,7 @@ function MessageBubble($$anchor, $$props) {
       var node_3 = child(div_6);
       {
         var consequent_4 = ($$anchor3) => {
-          var fragment = root_8();
+          var fragment = root_82();
           var button = first_child(fragment);
           var button_1 = sibling(button, 2);
           var button_2 = sibling(button_1, 2);
@@ -14243,7 +14260,7 @@ function MessageBubble($$anchor, $$props) {
           append($$anchor3, fragment);
         };
         var alternate_2 = ($$anchor3) => {
-          var fragment_1 = root_9();
+          var fragment_1 = root_92();
           var button_3 = first_child(fragment_1);
           var button_4 = sibling(button_3, 2);
           var button_5 = sibling(button_4, 2);
@@ -14342,33 +14359,47 @@ function ContextPill($$anchor, $$props) {
 
 // src/components/ModelSelector.svelte
 var root_13 = from_html(`<option class="svelte-1rt0kwk"> </option>`);
-var root5 = from_html(`<div class="model-selector svelte-1rt0kwk"><select class="svelte-1rt0kwk"></select> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron svelte-1rt0kwk"><polyline points="6 9 12 15 18 9"></polyline></svg></div>`);
+var root5 = from_html(`<div class="model-selector svelte-1rt0kwk"><span class="measure-span svelte-1rt0kwk"> </span> <select class="svelte-1rt0kwk"></select> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron svelte-1rt0kwk"><polyline points="6 9 12 15 18 9"></polyline></svg></div>`);
 var $$css5 = {
   hash: "svelte-1rt0kwk",
-  code: ".model-selector.svelte-1rt0kwk {position:relative;display:inline-flex;align-items:center;}select.svelte-1rt0kwk {appearance:none;-webkit-appearance:none;background:var(--background-modifier-hover);border:1px solid var(--background-modifier-border);padding:4px 28px 4px 10px;border-radius:6px;cursor:pointer;color:var(--text-muted);font-size:var(--font-ui-smaller);font-family:inherit;transition:color 0.2s,\n      background-color 0.2s,\n      border-color 0.2s;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;outline:none;}select.svelte-1rt0kwk:hover {color:var(--text-normal);background-color:var(--background-secondary);border-color:var(--interactive-accent);}select.svelte-1rt0kwk:focus {color:var(--text-normal);border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Style the dropdown options to match Obsidian theme */select.svelte-1rt0kwk option:where(.svelte-1rt0kwk) {background:var(--background-primary);color:var(--text-normal);font-size:var(--font-ui-smaller);}.chevron.svelte-1rt0kwk {position:absolute;right:8px;pointer-events:none;color:var(--text-muted);flex-shrink:0;}"
+  code: ".model-selector.svelte-1rt0kwk {position:relative;display:inline-flex;align-items:center;}.measure-span.svelte-1rt0kwk {position:absolute;visibility:hidden;height:0;overflow:hidden;white-space:nowrap;font-size:var(--font-ui-smaller);font-family:inherit;}select.svelte-1rt0kwk {appearance:none;-webkit-appearance:none;background:var(--background-modifier-hover);border:1px solid var(--background-modifier-border);padding:4px 28px 4px 10px;border-radius:6px;cursor:pointer;color:var(--text-muted);font-size:var(--font-ui-smaller);font-family:inherit;transition:color 0.2s,\n      background-color 0.2s,\n      border-color 0.2s,\n      width 0.15s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;}select.svelte-1rt0kwk:hover {color:var(--text-normal);background-color:var(--background-secondary);border-color:var(--interactive-accent);}select.svelte-1rt0kwk:focus {color:var(--text-normal);border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Style the dropdown options to match Obsidian theme */select.svelte-1rt0kwk option:where(.svelte-1rt0kwk) {background:var(--background-primary);color:var(--text-normal);font-size:var(--font-ui-smaller);}.chevron.svelte-1rt0kwk {position:absolute;right:8px;pointer-events:none;color:var(--text-muted);flex-shrink:0;}"
 };
 function ModelSelector($$anchor, $$props) {
   push($$props, false);
   append_styles($$anchor, $$css5);
-  let selectedModel = prop($$props, "selectedModel", 12, "gpt-4o-mini");
-  let models = prop($$props, "models", 24, () => ["gpt-4o-mini", "gpt-4o"]);
+  let selectedModel = prop($$props, "selectedModel", 12, "gpt-5-mini");
+  let models = prop($$props, "models", 24, () => ["gpt-5-mini", "gpt-5.4"]);
   const dispatch = createEventDispatcher();
+  let selectEl = mutable_source();
+  let measureSpan = mutable_source();
   function handleChange(e) {
     const val = e.target.value;
     selectedModel(val);
     dispatch("change", val);
   }
+  function updateWidth() {
+    if (!get(measureSpan) || !get(selectEl)) return;
+    mutate(measureSpan, get(measureSpan).textContent = selectedModel());
+    const textWidth = get(measureSpan).offsetWidth;
+    mutate(selectEl, get(selectEl).style.width = `${textWidth + 40}px`);
+  }
+  onMount(updateWidth);
+  afterUpdate(updateWidth);
   init();
   var div = root5();
-  var select = child(div);
+  var span = child(div);
+  var text2 = child(span, true);
+  reset(span);
+  bind_this(span, ($$value) => set(measureSpan, $$value), () => get(measureSpan));
+  var select = sibling(span, 2);
   each(select, 5, models, index, ($$anchor2, model) => {
     var option = root_13();
-    var text2 = child(option, true);
+    var text_1 = child(option, true);
     reset(option);
     var option_value = {};
     template_effect(() => {
       set_selected(option, get(model) === selectedModel());
-      set_text(text2, get(model));
+      set_text(text_1, get(model));
       if (option_value !== (option_value = get(model))) {
         option.value = (option.__value = get(model)) ?? "";
       }
@@ -14376,11 +14407,13 @@ function ModelSelector($$anchor, $$props) {
     append($$anchor2, option);
   });
   reset(select);
+  bind_this(select, ($$value) => set(selectEl, $$value), () => get(selectEl));
   var select_value;
   init_select(select);
   next(2);
   reset(div);
   template_effect(() => {
+    set_text(text2, selectedModel());
     set_attribute2(select, "title", selectedModel());
     if (select_value !== (select_value = selectedModel())) {
       select.value = (select.__value = selectedModel()) ?? "", select_option(select, selectedModel());
@@ -14736,7 +14769,7 @@ function ComposerDiff($$anchor, $$props) {
 }
 
 // src/views/ChatView.svelte
-var root_17 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button> <button class="svelte-1mg2b0j">Fix grammar</button></div></div>`);
+var root_17 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button></div></div>`);
 var root_54 = from_html(`<div class="active-file-indicator svelte-1mg2b0j"><span class="indicator-icon">\u{1F4C4}</span> <span class="indicator-text"> </span></div>`);
 var root_64 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
 var root9 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="title svelte-1mg2b0j">AI Copilot <span style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;">v1.3</span></div> <div class="controls svelte-1mg2b0j"><!> <button title="Toggle Vault QA Mode"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg></button> <button class="new-chat-btn svelte-1mg2b0j" aria-label="New Chat" title="New Chat"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-circle"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg></button> <!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!> <!></div></div>`);
@@ -14763,6 +14796,20 @@ function ChatView($$anchor, $$props) {
       }
     ]);
   }
+  function addFileContext(filePath, fileName) {
+    if (get(selectedContext).some((c) => c.path === filePath && c.type !== "selection")) return;
+    set(selectedContext, [
+      ...get(selectedContext),
+      { type: "file", text: fileName, path: filePath }
+    ]);
+  }
+  function addFolderContext(folderPath, folderName) {
+    if (get(selectedContext).some((c) => c.path === folderPath && c.type === "folder")) return;
+    set(selectedContext, [
+      ...get(selectedContext),
+      { type: "folder", text: `\u{1F4C1} ${folderName}`, path: folderPath }
+    ]);
+  }
   let query = mutable_source("");
   let messages = mutable_source([]);
   let isLoading = mutable_source(false);
@@ -14770,11 +14817,11 @@ function ChatView($$anchor, $$props) {
   let currentSessionId = mutable_source("");
   let isVaultQAMode = mutable_source(false);
   let selectedContext = mutable_source([]);
-  let currentModel = mutable_source("gpt-4o-mini");
+  let currentModel = mutable_source("gpt-5-mini");
   let selectedPersonaId = mutable_source("default");
   onMount(async () => {
     if (plugin().settings) {
-      set(currentModel, plugin().settings.model || "gpt-4o-mini");
+      set(currentModel, plugin().settings.model || "gpt-5-mini");
       set(selectedPersonaId, plugin().settings.defaultPersonaId || "default");
       set(isVaultQAMode, plugin().settings.isVaultQAMode || false);
       if (plugin().settings.activeSessionId) {
@@ -14921,6 +14968,15 @@ function ChatView($$anchor, $$props) {
           heading: item.heading
         }
       ]);
+    } else if (item.type === "folder") {
+      set(selectedContext, [
+        ...get(selectedContext),
+        {
+          type: "folder",
+          text: `\u{1F4C1} ${item.name || item.path}`,
+          path: item.path
+        }
+      ]);
     }
   }
   async function sendMessage() {
@@ -14978,6 +15034,8 @@ ${get(activeContextFile).content}
       updateSessionTitle(get(query));
     }
     set(query, "");
+    await tick();
+    scrollToBottom();
     set(isLoading, true);
     try {
       let currentMessages = [];
@@ -14998,7 +15056,7 @@ ${get(activeContextFile).content}
       let skillContext = "";
       if (plugin().skillService) {
         try {
-          skillContext = await plugin().skillService.buildSkillContext(fullPromptText);
+          skillContext = await plugin().skillService.buildSkillContext(fullPromptText, plugin().settings);
           if (skillContext) {
             console.log("SkillService: Injected relevant skills into prompt");
           }
@@ -15006,8 +15064,19 @@ ${get(activeContextFile).content}
           console.warn("Could not load skills:", e);
         }
       }
+      let soulPreamble = "";
+      if (plugin().personaSoulService) {
+        try {
+          soulPreamble = await plugin().personaSoulService.buildSoulPreamble(get(selectedPersonaId));
+        } catch (e) {
+          console.warn("Could not load persona soul:", e);
+        }
+      }
+      if (plugin().toolManager) {
+        plugin().toolManager.setActivePersonaId(get(selectedPersonaId));
+      }
       const actualModel = activeProject && activeProject.defaultModel ? activeProject.defaultModel : get(currentModel);
-      const finalSystemPrompt = baseSystemPrompt + memoryPreamble + skillContext + (systemBase ? `
+      const finalSystemPrompt = baseSystemPrompt + soulPreamble + memoryPreamble + skillContext + (systemBase ? `
 
 Context:
 ${systemBase}` : "");
@@ -15067,8 +15136,10 @@ ${systemBase}` : "");
                 const parsed = JSON.parse(result);
                 if (parsed._isComposerDiff) {
                   parsedComposerDiff = parsed;
-                  parsedComposerDiff.status = "pending";
-                  result = `File edit proposed for ${parsed.path}.`;
+                  if (!parsedComposerDiff.status) {
+                    parsedComposerDiff.status = "pending";
+                  }
+                  result = parsed.status === "accepted" ? `File edit auto-applied to ${parsed.path}.` : `File edit proposed for ${parsed.path}.`;
                 }
               } catch (e) {
               }
@@ -15248,7 +15319,7 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     }
   );
   legacy_pre_effect_reset();
-  var $$exports = { addSelectionContext };
+  var $$exports = { addSelectionContext, addFileContext, addFolderContext };
   init();
   var div = root9();
   var div_1 = child(div);
@@ -15307,15 +15378,10 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       var div_4 = root_17();
       var div_5 = sibling(child(div_4), 4);
       var button_2 = child(div_5);
-      var button_3 = sibling(button_2, 2);
       reset(div_5);
       reset(div_4);
       event("click", button_2, () => {
         set(query, "Summarize this note");
-        sendMessage();
-      });
-      event("click", button_3, () => {
-        set(query, "Fix grammar");
         sendMessage();
       });
       append($$anchor2, div_4);
@@ -15451,6 +15517,8 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
   event("click", button_1, createNewSession);
   append($$anchor, div);
   bind_prop($$props, "addSelectionContext", addSelectionContext);
+  bind_prop($$props, "addFileContext", addFileContext);
+  bind_prop($$props, "addFolderContext", addFolderContext);
   return pop($$exports);
 }
 
@@ -15489,6 +15557,18 @@ var AIChatView = class extends import_obsidian3.ItemView {
   addSelectionContext(text2, filePath) {
     if (this.svelteExports && typeof this.svelteExports.addSelectionContext === "function") {
       this.svelteExports.addSelectionContext(text2, filePath);
+    }
+  }
+  // Public method to inject file context from file explorer right-click
+  addFileContext(filePath, fileName) {
+    if (this.svelteExports && typeof this.svelteExports.addFileContext === "function") {
+      this.svelteExports.addFileContext(filePath, fileName);
+    }
+  }
+  // Public method to inject folder context from file explorer right-click
+  addFolderContext(folderPath, folderName) {
+    if (this.svelteExports && typeof this.svelteExports.addFolderContext === "function") {
+      this.svelteExports.addFolderContext(folderPath, folderName);
     }
   }
   async onClose() {
@@ -15570,10 +15650,42 @@ var ContextManager = class {
     if (file2 instanceof import_obsidian5.TFile) {
       return await this.app.vault.read(file2);
     } else if (file2 instanceof import_obsidian5.TFolder) {
-      return `Folder: ${path3}
-Contains: ${file2.children.map((c) => c.name).join(", ")}`;
+      return this.getFolderContent(file2);
     }
     return `Error: File not found at ${path3}`;
+  }
+  // Get a rich summary of a folder's contents
+  getFolderContent(folder) {
+    const lines = [`Folder: ${folder.path}`];
+    const files = [];
+    const subfolders = [];
+    for (const child2 of folder.children) {
+      if (child2 instanceof import_obsidian5.TFile) {
+        files.push(child2);
+      } else if (child2 instanceof import_obsidian5.TFolder) {
+        subfolders.push(child2);
+      }
+    }
+    if (subfolders.length > 0) {
+      lines.push(`
+Subfolders (${subfolders.length}):`);
+      for (const sf of subfolders) {
+        const childCount = sf.children?.length ?? 0;
+        lines.push(`  \u{1F4C1} ${sf.name}/ (${childCount} items)`);
+      }
+    }
+    if (files.length > 0) {
+      lines.push(`
+Files (${files.length}):`);
+      for (const f of files) {
+        const sizeKB = (f.stat.size / 1024).toFixed(1);
+        lines.push(`  \u{1F4C4} ${f.name} (${sizeKB} KB)`);
+      }
+    }
+    if (files.length === 0 && subfolders.length === 0) {
+      lines.push("(empty folder)");
+    }
+    return lines.join("\n");
   }
   // Get active file content
   async getActiveFileContent() {
@@ -15629,15 +15741,23 @@ ${content}
     }));
     return contextParts.join("\n");
   }
-  // Search for files (simple fuzzy search) to support @ mentions
+  // Search for files and folders to support @ mentions
   searchFiles(query) {
     console.log("ContextManager: searchFiles called with", query);
     const files = this.app.vault.getFiles();
+    const allFolders = this.getAllFolders();
     if (!query) {
-      return files.slice(0, 20).map((f) => ({ type: "file", file: f, matchScore: 0 }));
+      const fileResults = files.slice(0, 15).map((f) => ({ type: "file", file: f, matchScore: 0 }));
+      const folderResults = allFolders.slice(0, 5).map((f) => ({ type: "folder", file: null, folder: f, matchScore: 0 }));
+      return [...folderResults, ...fileResults];
     }
     const lowerQuery = query.toLowerCase();
     const results = [];
+    for (const folder of allFolders) {
+      if (folder.path.toLowerCase().includes(lowerQuery) || folder.name.toLowerCase().includes(lowerQuery)) {
+        results.push({ type: "folder", file: null, folder, matchScore: 12 });
+      }
+    }
     for (const file2 of files) {
       if (file2.path.toLowerCase().includes(lowerQuery) || file2.basename.toLowerCase().includes(lowerQuery)) {
         results.push({ type: "file", file: file2, matchScore: 10 });
@@ -15653,10 +15773,27 @@ ${content}
     }
     return results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
   }
+  // Get all folders in the vault (excluding hidden folders)
+  getAllFolders() {
+    const folders = [];
+    const rootFolder = this.app.vault.getRoot();
+    this.collectFolders(rootFolder, folders);
+    return folders;
+  }
+  collectFolders(folder, results) {
+    for (const child2 of folder.children) {
+      if (child2 instanceof import_obsidian5.TFolder) {
+        if (!child2.name.startsWith(".")) {
+          results.push(child2);
+          this.collectFolders(child2, results);
+        }
+      }
+    }
+  }
 };
 
 // src/services/ToolManager.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 
 // src/services/WebSearch.ts
 var import_obsidian6 = require("obsidian");
@@ -31355,6 +31492,423 @@ var MCPClientService = class {
   }
 };
 
+// src/services/SkillService.ts
+var import_obsidian14 = require("obsidian");
+var fs2 = __toESM(require("fs"));
+var path2 = __toESM(require("path"));
+var SkillService = class {
+  app;
+  skillsPath;
+  index = [];
+  loaded = false;
+  constructor(app, skillsPath) {
+    this.app = app;
+    this.skillsPath = skillsPath;
+  }
+  /**
+   * Scan the skills folder and build an in-memory index of all skills.
+   * Each skill must have a SKILL.md with YAML frontmatter containing `name` and `description`.
+   */
+  async loadIndex() {
+    this.index = [];
+    this.loaded = false;
+    try {
+      const entries = fs2.readdirSync(this.skillsPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+        const skillFile = path2.join(this.skillsPath, entry.name, "SKILL.md");
+        if (!fs2.existsSync(skillFile)) continue;
+        try {
+          const content = fs2.readFileSync(skillFile, "utf-8");
+          const parsed = this.parseFrontmatter(content);
+          if (parsed.name && parsed.description) {
+            this.index.push({
+              name: parsed.name,
+              description: parsed.description,
+              folderPath: path2.join(this.skillsPath, entry.name),
+              skillFilePath: skillFile
+            });
+          }
+        } catch (e) {
+        }
+      }
+      this.loaded = true;
+      console.log(`SkillService: Indexed ${this.index.length} skills from ${this.skillsPath}`);
+    } catch (e) {
+      console.error("SkillService: Failed to scan skills folder:", e);
+    }
+  }
+  /**
+   * Expose the loaded index for UI display (e.g., Settings).
+   */
+  getIndex() {
+    return this.index;
+  }
+  /**
+   * Find a skill by exact name (case-insensitive).
+   * Falls back to matching against the folder name.
+   */
+  async findByName(name) {
+    if (!this.loaded) await this.loadIndex();
+    const lower = name.toLowerCase().trim();
+    const exact = this.index.find((s) => s.name.toLowerCase() === lower);
+    if (exact) return exact;
+    const byFolder = this.index.find((s) => {
+      const folderName = s.folderPath.split("/").pop()?.toLowerCase() || "";
+      return folderName === lower || folderName === lower.replace(/\s+/g, "-");
+    });
+    return byFolder || null;
+  }
+  /**
+   * Find skills relevant to a user query by keyword matching against skill names and descriptions.
+   * Optionally filters by an enabledSet — only skills in this set will be considered.
+   */
+  async findRelevant(query, maxResults = 3, enabledSet) {
+    if (!this.loaded) await this.loadIndex();
+    if (this.index.length === 0) return [];
+    const lowerQuery = query.toLowerCase();
+    const words = lowerQuery.split(/\s+/).filter((w) => w.length > 2);
+    const candidates = enabledSet ? this.index.filter((s) => enabledSet.has(s.folderPath)) : this.index;
+    const scored = candidates.map((skill) => {
+      const text2 = `${skill.name} ${skill.description}`.toLowerCase();
+      let score = 0;
+      for (const word of words) {
+        if (text2.includes(word)) score++;
+        if (skill.name.toLowerCase().includes(word)) score += 2;
+      }
+      return { skill, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.filter((s) => s.score > 0).slice(0, maxResults).map((s) => s.skill);
+  }
+  /**
+   * Load the full content of a SKILL.md file.
+   */
+  getSkillContent(skill) {
+    try {
+      return fs2.readFileSync(skill.skillFilePath, "utf-8");
+    } catch (e) {
+      return "";
+    }
+  }
+  /**
+   * Build a context block for matched skills to inject into the system prompt.
+   * Respects enabled/disabled and mandatory settings from skillConfigs.
+   *
+   * - Mandatory + Enabled skills: always injected with a priority header.
+   * - Enabled (non-mandatory) skills: injected only if keyword-relevant.
+   * - Disabled skills: skipped entirely.
+   */
+  async buildSkillContext(query, settings) {
+    if (!this.loaded) await this.loadIndex();
+    const configs = settings?.skillConfigs || [];
+    const configByPath = /* @__PURE__ */ new Map();
+    for (const cfg of configs) {
+      configByPath.set(cfg.folderPath, cfg);
+    }
+    const enabledSet = /* @__PURE__ */ new Set();
+    const mandatorySkills = [];
+    for (const skill of this.index) {
+      const cfg = configByPath.get(skill.folderPath);
+      const isEnabled = cfg ? cfg.enabled : true;
+      const isMandatory = cfg ? cfg.enabled && cfg.mandatory : false;
+      if (isEnabled) {
+        enabledSet.add(skill.folderPath);
+      }
+      if (isMandatory) {
+        mandatorySkills.push(skill);
+      }
+    }
+    let context = "";
+    if (mandatorySkills.length > 0) {
+      context += "\n\n=== MANDATORY SKILLS (Always Consult First) ===\n";
+      context += "You MUST consult the following skills first before generating your response. If a mandatory skill is not suitable for this task, you may ignore it and proceed normally.\n\n";
+      for (const skill of mandatorySkills) {
+        const content = this.getSkillContent(skill);
+        const truncated = content.substring(0, 3e3);
+        context += `--- Skill: ${skill.name} ---
+${truncated}
+
+`;
+      }
+      context += "=== END MANDATORY SKILLS ===\n";
+    }
+    const mandatoryPaths = new Set(mandatorySkills.map((s) => s.folderPath));
+    const relevantPool = new Set([...enabledSet].filter((p) => !mandatoryPaths.has(p)));
+    const matched = await this.findRelevant(query, 2, relevantPool.size > 0 ? relevantPool : void 0);
+    const additionalMatches = matched.filter((s) => !mandatoryPaths.has(s.folderPath));
+    if (additionalMatches.length > 0) {
+      context += "\n\n=== RELEVANT SKILLS ===\n";
+      context += "The following skills may be useful for answering this query:\n\n";
+      for (const skill of additionalMatches) {
+        const content = this.getSkillContent(skill);
+        const truncated = content.substring(0, 3e3);
+        context += `--- Skill: ${skill.name} ---
+${truncated}
+
+`;
+      }
+      context += "=== END SKILLS ===\n";
+    }
+    return context;
+  }
+  /**
+   * List all available skills (for UI or tool use).
+   */
+  async listSkills() {
+    if (!this.loaded) await this.loadIndex();
+    if (this.index.length === 0) return "No skills found.";
+    return this.index.map((s, i) => `${i + 1}. **${s.name}**: ${s.description}`).join("\n");
+  }
+  /**
+   * Simple YAML frontmatter parser (no dependencies).
+   */
+  parseFrontmatter(content) {
+    const result = {};
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) return result;
+    const lines = fmMatch[1].split("\n");
+    for (const line of lines) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx === -1) continue;
+      const key2 = line.substring(0, colonIdx).trim();
+      const value = line.substring(colonIdx + 1).trim();
+      result[key2] = value;
+    }
+    return result;
+  }
+};
+
+// src/services/PersonaSoulService.ts
+var import_obsidian15 = require("obsidian");
+var SOUL_DIR = ".ai-copilot/personas";
+var PersonaSoulService = class {
+  app;
+  constructor(app) {
+    this.app = app;
+  }
+  // ── Path helpers ──────────────────────────────────────────
+  personaDir(personaId) {
+    return (0, import_obsidian15.normalizePath)(`${SOUL_DIR}/${personaId}`);
+  }
+  soulPath(personaId) {
+    return (0, import_obsidian15.normalizePath)(`${this.personaDir(personaId)}/soul.md`);
+  }
+  memoryPath(personaId) {
+    return (0, import_obsidian15.normalizePath)(`${this.personaDir(personaId)}/memory.md`);
+  }
+  // ── Folder creation ──────────────────────────────────────
+  async ensureDir(dirPath) {
+    const parts = dirPath.split("/");
+    let current = "";
+    for (const part of parts) {
+      current = current ? `${current}/${part}` : part;
+      const normalized = (0, import_obsidian15.normalizePath)(current);
+      const existing = this.app.vault.getAbstractFileByPath(normalized);
+      if (!existing) {
+        await this.app.vault.createFolder(normalized);
+      }
+    }
+  }
+  // ── Soul (personality / behavioral instructions) ─────────
+  async loadSoul(personaId) {
+    const path3 = this.soulPath(personaId);
+    const file2 = this.app.vault.getAbstractFileByPath(path3);
+    if (file2 && file2 instanceof import_obsidian15.TFile) {
+      return await this.app.vault.read(file2);
+    }
+    return "";
+  }
+  async saveSoul(personaId, content) {
+    const path3 = this.soulPath(personaId);
+    await this.ensureDir(this.personaDir(personaId));
+    const file2 = this.app.vault.getAbstractFileByPath(path3);
+    if (file2 && file2 instanceof import_obsidian15.TFile) {
+      await this.app.vault.modify(file2, content);
+    } else {
+      await this.app.vault.create(path3, content);
+    }
+  }
+  /**
+   * Initialise default soul.md for a persona if it doesn't exist yet.
+   */
+  async ensureDefaultSoul(personaId, personaName) {
+    const path3 = this.soulPath(personaId);
+    const existing = this.app.vault.getAbstractFileByPath(path3);
+    if (existing) return;
+    const defaultSoul = this.getDefaultSoulContent(personaId, personaName);
+    await this.ensureDir(this.personaDir(personaId));
+    await this.app.vault.create(path3, defaultSoul);
+  }
+  // ── Memory (facts, mistakes, preferences) ────────────────
+  async loadMemory(personaId) {
+    const path3 = this.memoryPath(personaId);
+    const file2 = this.app.vault.getAbstractFileByPath(path3);
+    if (file2 && file2 instanceof import_obsidian15.TFile) {
+      return await this.app.vault.read(file2);
+    }
+    return "";
+  }
+  /**
+   * Append a memory entry under the appropriate category heading.
+   * Creates the file and category headings if they don't exist.
+   */
+  async addMemory(personaId, content, category) {
+    const path3 = this.memoryPath(personaId);
+    await this.ensureDir(this.personaDir(personaId));
+    let existing = "";
+    const file2 = this.app.vault.getAbstractFileByPath(path3);
+    if (file2 && file2 instanceof import_obsidian15.TFile) {
+      existing = await this.app.vault.read(file2);
+    }
+    if (existing.toLowerCase().includes(content.toLowerCase().trim())) {
+      return "This memory already exists.";
+    }
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const entry = category === "mistake" ? `- [${timestamp}] ${content.trim()}` : `- ${content.trim()}`;
+    if (!existing) {
+      existing = `# Memory
+
+## Facts
+
+## Mistakes
+
+## Preferences
+`;
+    }
+    const sectionHeading = `## ${category.charAt(0).toUpperCase() + category.slice(1)}`;
+    const headingMap = {
+      fact: "## Facts",
+      mistake: "## Mistakes",
+      preference: "## Preferences"
+    };
+    const heading = headingMap[category];
+    if (existing.includes(heading)) {
+      const headingIndex = existing.indexOf(heading);
+      const afterHeading = headingIndex + heading.length;
+      const updated = existing.slice(0, afterHeading) + "\n" + entry + existing.slice(afterHeading);
+      if (file2 && file2 instanceof import_obsidian15.TFile) {
+        await this.app.vault.modify(file2, updated);
+      } else {
+        await this.app.vault.create(path3, updated);
+      }
+    } else {
+      const updated = existing + `
+${heading}
+${entry}
+`;
+      if (file2 && file2 instanceof import_obsidian15.TFile) {
+        await this.app.vault.modify(file2, updated);
+      } else {
+        await this.app.vault.create(path3, updated);
+      }
+    }
+    return `Memory saved (${category}): "${content.trim().substring(0, 50)}..."`;
+  }
+  // ── Build preamble for system prompt injection ───────────
+  /**
+   * Combine soul.md + memory.md into a single block for the system prompt.
+   */
+  async buildSoulPreamble(personaId) {
+    const soul = await this.loadSoul(personaId);
+    const memory = await this.loadMemory(personaId);
+    let preamble = "";
+    if (soul) {
+      preamble += `
+
+=== PERSONA SOUL ===
+${soul}
+=== END SOUL ===
+`;
+    }
+    if (memory) {
+      preamble += `
+
+=== PERSONA MEMORY ===
+${memory}
+=== END MEMORY ===
+`;
+    }
+    return preamble;
+  }
+  // ── Default soul content per persona ─────────────────────
+  getDefaultSoulContent(personaId, personaName) {
+    const toolInstructions = `
+## Your Tools
+
+You have access to powerful tools inside Obsidian. Always use the right tool for the job:
+
+### Reading & Navigating
+- \`read_note\` \u2014 Read the content of any note in the vault
+- \`list_folder\` \u2014 List files and folders in a directory
+- \`read_pdf\` \u2014 Extract text from PDF files
+- \`search_vault_by_date\` \u2014 Find notes by date range (e.g. "last week")
+
+### Writing & Editing
+- **To edit an existing file**: FIRST use \`read_note\` to get the current content, THEN use \`edit_note\` with exact \`old_text\` and \`new_text\`. When the user provides a file via @mention, its content is already in context \u2014 go straight to \`edit_note\`.
+- \`create_note\` \u2014 Create a new file
+- \`append_to_note\` \u2014 Append content to an existing note
+
+### Web & Media
+- \`web_search\` \u2014 Search the web for current information
+- \`get_youtube_transcript\` \u2014 Get transcript from a YouTube video
+- \`summarize_url\` \u2014 Summarize any URL (article, video, podcast)
+- \`save_summary_as_note\` \u2014 Save a URL summary as a vault note with metadata
+
+### Skills
+- \`list_skills\` \u2014 Discover available agentic skills
+- \`use_skill\` \u2014 Activate a skill for specialized expertise
+- Before answering domain-specific questions, consider if a skill exists that could help. Check with \`list_skills\` first.
+
+### MCP (External Integrations)
+- Tools prefixed with \`mcp__\` are external integrations (calendars, databases, etc.)
+- When the user's request involves external services, check if an MCP tool is available
+
+### Memory
+- \`save_memory\` \u2014 Save a general user preference to long-term memory
+- \`save_persona_memory\` \u2014 Save a fact, mistake, or preference specific to this persona
+- \`list_memories\` \u2014 List all saved memories
+
+## Memory Protocol
+
+You have persistent memory across conversations. Use it wisely:
+
+1. **Facts**: When the user tells you something important about themselves, their preferences, or their workflow, use \`save_persona_memory\` with category "fact".
+2. **Mistakes**: When you make a mistake and the user corrects you, use \`save_persona_memory\` with category "mistake" to remember the lesson. Always describe what went wrong and the correct approach.
+3. **Preferences**: When the user expresses a recurring preference about how they want things done, use \`save_persona_memory\` with category "preference".
+
+Do NOT ask for permission before saving memories \u2014 just do it when appropriate.
+`;
+    const personas = {
+      "default": `# Soul \u2014 Default Assistant
+
+You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented.
+
+When the user asks you to do something, DO it \u2014 don't just explain how to do it.
+${toolInstructions}`,
+      "code-expert": `# Soul \u2014 Code Expert
+
+You are an expert software engineer and architect embedded in Obsidian. You provide concise, high-quality code solutions using modern best practices. You prefer TypeScript and think in systems.
+
+When reviewing code, be direct about issues. When writing code, include comments only where logic is non-obvious.
+${toolInstructions}`,
+      "creative-writer": `# Soul \u2014 Creative Writer
+
+You are a creative writer embedded in Obsidian. You help brainstorm ideas, draft content, refine prose, and develop narrative. You are imaginative, engaging, and have a keen eye for voice and flow.
+
+Match the user's writing style when editing their work. Offer bold suggestions but respect their creative vision.
+${toolInstructions}`,
+      "academic": `# Soul \u2014 Academic Researcher
+
+You are an academic research assistant embedded in Obsidian. You provide formal, well-structured, and evidence-based responses. You maintain academic rigor and cite sources where possible.
+
+Structure your responses with clear sections. Use precise language and avoid informal phrasing.
+${toolInstructions}`
+    };
+    return personas[personaId] || personas["default"].replace("Default Assistant", personaName);
+  }
+};
+
 // src/services/ToolManager.ts
 var ToolManager = class {
   app;
@@ -31367,7 +31921,11 @@ var ToolManager = class {
   contentExtractor;
   mcpClientService;
   aiProvider;
-  constructor(app, memoryService, vaultQA, mcpClientService, aiProvider) {
+  skillService;
+  personaSoulService;
+  activePersonaId = "default";
+  settings;
+  constructor(app, memoryService, vaultQA, mcpClientService, aiProvider, skillService, personaSoulService, settings) {
     this.app = app;
     this.webSearch = new WebSearch();
     this.ytTranscriber = new YouTubeTranscriber();
@@ -31377,6 +31935,9 @@ var ToolManager = class {
     this.contentExtractor = new ContentExtractor();
     this.mcpClientService = mcpClientService;
     this.aiProvider = aiProvider || null;
+    this.skillService = skillService || null;
+    this.personaSoulService = personaSoulService || null;
+    this.settings = settings || null;
     this.registerTools();
   }
   /**
@@ -31384,6 +31945,12 @@ var ToolManager = class {
    */
   setAIProvider(provider) {
     this.aiProvider = provider;
+  }
+  /**
+   * Set the active persona ID so persona-specific tools know which persona to target.
+   */
+  setActivePersonaId(personaId) {
+    this.activePersonaId = personaId;
   }
   registerTools() {
     this.tools.push({
@@ -31399,7 +31966,7 @@ var ToolManager = class {
       },
       execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
           const finalPath = normalizedPath.endsWith(".md") ? normalizedPath : `${normalizedPath}.md`;
           const existing = this.app.vault.getAbstractFileByPath(finalPath);
           if (existing) {
@@ -31426,9 +31993,9 @@ var ToolManager = class {
       },
       execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
-          if (!file2 || !(file2 instanceof import_obsidian14.TFile)) {
+          if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
           }
           await this.app.vault.append(file2, `
@@ -31451,9 +32018,9 @@ ${content}`);
       },
       execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = (0, import_obsidian14.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
-          if (!file2 || !(file2 instanceof import_obsidian14.TFile)) {
+          if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
           }
           const content = await this.app.vault.read(file2);
@@ -31475,12 +32042,12 @@ ${content}`);
       },
       execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = path3 === "/" ? "/" : (0, import_obsidian14.normalizePath)(path3);
+          const normalizedPath = path3 === "/" ? "/" : (0, import_obsidian16.normalizePath)(path3);
           const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (!folder && normalizedPath === "/") {
             return this.listFiles(this.app.vault.getRoot());
           }
-          if (!folder || !(folder instanceof import_obsidian14.TFolder)) {
+          if (!folder || !(folder instanceof import_obsidian16.TFolder)) {
             return `Error: Folder not found at ${normalizedPath}`;
           }
           return this.listFiles(folder);
@@ -31527,7 +32094,7 @@ ${content}`);
     });
     this.tools.push({
       name: "edit_note",
-      description: "Proposes an edit to a markdown note. Replaces exactly old_text with new_text. Will show a diff to the user for approval.",
+      description: "Edits a markdown note. Replaces exactly old_text with new_text. When auto-apply is enabled, changes are applied directly. Otherwise, shows a diff to the user for approval.",
       parameters: {
         type: "object",
         properties: {
@@ -31538,12 +32105,38 @@ ${content}`);
         required: ["path", "old_text", "new_text"]
       },
       execute: async ({ path: path3, old_text, new_text }) => {
-        return JSON.stringify({
-          _isComposerDiff: true,
-          path: path3,
-          oldText: old_text,
-          newText: new_text
-        });
+        const autoApply = this.settings?.autoApplyEdits ?? false;
+        if (autoApply) {
+          try {
+            const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
+            const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
+            if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
+              return `Error: File not found at ${normalizedPath}`;
+            }
+            const content = await this.app.vault.read(file2);
+            if (!content.includes(old_text)) {
+              return `Error: Could not find exact text to replace in ${normalizedPath}`;
+            }
+            const newContent = content.replace(old_text, new_text);
+            await this.app.vault.modify(file2, newContent);
+            return JSON.stringify({
+              _isComposerDiff: true,
+              path: path3,
+              oldText: old_text,
+              newText: new_text,
+              status: "accepted"
+            });
+          } catch (error2) {
+            return `Error auto-applying edit: ${error2.message}`;
+          }
+        } else {
+          return JSON.stringify({
+            _isComposerDiff: true,
+            path: path3,
+            oldText: old_text,
+            newText: new_text
+          });
+        }
       }
     });
     this.tools.push({
@@ -31686,6 +32279,109 @@ ${extracted.content.substring(0, 3e3)}
       }
     });
     this.tools.push({
+      name: "list_skills",
+      description: "Lists all available agentic skills with their names and descriptions. Call this first to discover which skills exist before using one.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      },
+      execute: async () => {
+        if (!this.skillService) return "Error: SkillService is not configured.";
+        try {
+          return await this.skillService.listSkills();
+        } catch (error2) {
+          return `Error listing skills: ${error2.message}`;
+        }
+      }
+    });
+    this.tools.push({
+      name: "use_skill",
+      description: "Loads a specific agentic skill by name and returns its full instructions. Use this to activate specialized expertise for a task. Call list_skills first if you are unsure which skill to use.",
+      parameters: {
+        type: "object",
+        properties: {
+          skill_name: { type: "string", description: 'The name of the skill to load (e.g., "deep-research", "content-creator", "interview-prep")' },
+          task: { type: "string", description: "Brief description of what you want to accomplish with this skill" }
+        },
+        required: ["skill_name"]
+      },
+      execute: async ({ skill_name, task }) => {
+        if (!this.skillService) return "Error: SkillService is not configured.";
+        try {
+          let skill = await this.skillService.findByName(skill_name);
+          if (!skill) {
+            const fuzzy = await this.skillService.findRelevant(skill_name, 3);
+            if (fuzzy.length > 0) {
+              skill = fuzzy[0];
+              const suggestions = fuzzy.map((s) => `"${s.name}"`).join(", ");
+              if (fuzzy[0].name.toLowerCase() !== skill_name.toLowerCase()) {
+                return `Skill "${skill_name}" not found. Did you mean one of these? ${suggestions}
+
+Call use_skill again with the correct name.`;
+              }
+            } else {
+              return `Skill "${skill_name}" not found. Use list_skills to see all available skills.`;
+            }
+          }
+          const content = this.skillService.getSkillContent(skill);
+          if (!content) return `Error: Could not read skill file for "${skill.name}".`;
+          const truncated = content.substring(0, 8e3);
+          const taskLine = task ? `
+
+**YOUR TASK:** ${task}` : "";
+          return `=== SKILL ACTIVATED: ${skill.name} ===
+${skill.description}
+
+${truncated}${truncated.length < content.length ? "\n\n[... truncated, full skill is " + content.length + " chars]" : ""}${taskLine}
+=== END SKILL ===
+
+Follow the instructions in this skill to complete the task. Use your available tools as directed by the skill.`;
+        } catch (error2) {
+          return `Error loading skill: ${error2.message}`;
+        }
+      }
+    });
+    this.tools.push({
+      name: "save_persona_memory",
+      description: "Saves a fact, mistake, or preference to this persona's persistent memory. Use this when the user tells you something important about themselves (fact), when you make an error and learn from it (mistake), or when the user expresses a recurring preference (preference).",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "The memory content to save" },
+          category: { type: "string", enum: ["fact", "mistake", "preference"], description: "Category: fact (about the user), mistake (lesson learned), or preference (how user wants things done)" }
+        },
+        required: ["content", "category"]
+      },
+      execute: async ({ content, category }) => {
+        if (!this.personaSoulService) return "Error: PersonaSoulService is not configured.";
+        try {
+          return await this.personaSoulService.addMemory(this.activePersonaId, content, category);
+        } catch (error2) {
+          return `Error saving persona memory: ${error2.message}`;
+        }
+      }
+    });
+    this.tools.push({
+      name: "save_mistake",
+      description: "Shorthand to record a mistake you made and the correct approach. Call this when the user corrects you.",
+      parameters: {
+        type: "object",
+        properties: {
+          description: { type: "string", description: "What went wrong and the correct approach" }
+        },
+        required: ["description"]
+      },
+      execute: async ({ description }) => {
+        if (!this.personaSoulService) return "Error: PersonaSoulService is not configured.";
+        try {
+          return await this.personaSoulService.addMemory(this.activePersonaId, description, "mistake");
+        } catch (error2) {
+          return `Error saving mistake: ${error2.message}`;
+        }
+      }
+    });
+    this.tools.push({
       name: "save_summary_as_note",
       description: "Saves a URL summary as an Obsidian note with proper YAML frontmatter metadata (source, type, date, tags).",
       parameters: {
@@ -31716,8 +32412,8 @@ ${extracted.content.substring(0, 3e3)}
 
 ${summary}`;
           const sanitizedTitle = title.replace(/[\\/:*?"<>|]/g, "-").substring(0, 100);
-          const folderPath = folder ? (0, import_obsidian14.normalizePath)(folder) : "";
-          const filePath = folderPath ? (0, import_obsidian14.normalizePath)(`${folderPath}/${sanitizedTitle}.md`) : (0, import_obsidian14.normalizePath)(`${sanitizedTitle}.md`);
+          const folderPath = folder ? (0, import_obsidian16.normalizePath)(folder) : "";
+          const filePath = folderPath ? (0, import_obsidian16.normalizePath)(`${folderPath}/${sanitizedTitle}.md`) : (0, import_obsidian16.normalizePath)(`${sanitizedTitle}.md`);
           await this.ensureFolders(filePath);
           const existing = this.app.vault.getAbstractFileByPath(filePath);
           if (existing) {
@@ -31753,7 +32449,7 @@ ${parts.join("\n")}` : "";
   }
   listFiles(folder) {
     const files = folder.children.map((child2) => {
-      const type = child2 instanceof import_obsidian14.TFolder ? "Folder" : "File";
+      const type = child2 instanceof import_obsidian16.TFolder ? "Folder" : "File";
       return `- [${type}] ${child2.name}`;
     }).join("\n");
     return files || "Empty folder";
@@ -31817,7 +32513,7 @@ ${parts.join("\n")}` : "";
 };
 
 // src/services/RelevantNotes.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 var RelevantNotes = class {
   app;
   vaultQA;
@@ -31834,7 +32530,7 @@ var RelevantNotes = class {
     if (!this.vaultQA.isIndexed) return [];
     try {
       const file2 = this.app.vault.getAbstractFileByPath(filePath);
-      if (!file2 || !(file2 instanceof import_obsidian15.TFile)) return [];
+      if (!file2 || !(file2 instanceof import_obsidian17.TFile)) return [];
       const content = await this.app.vault.cachedRead(file2);
       if (!content || content.trim().length < 20) return [];
       const snippet2 = content.substring(0, 500);
@@ -31856,140 +32552,18 @@ var RelevantNotes = class {
   }
 };
 
-// src/services/SkillService.ts
-var import_obsidian16 = require("obsidian");
-var fs2 = __toESM(require("fs"));
-var path2 = __toESM(require("path"));
-var SkillService = class {
-  app;
-  skillsPath;
-  index = [];
-  loaded = false;
-  constructor(app, skillsPath) {
-    this.app = app;
-    this.skillsPath = skillsPath;
-  }
-  /**
-   * Scan the skills folder and build an in-memory index of all skills.
-   * Each skill must have a SKILL.md with YAML frontmatter containing `name` and `description`.
-   */
-  async loadIndex() {
-    if (this.loaded) return;
-    this.index = [];
-    try {
-      const entries = fs2.readdirSync(this.skillsPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-        const skillFile = path2.join(this.skillsPath, entry.name, "SKILL.md");
-        if (!fs2.existsSync(skillFile)) continue;
-        try {
-          const content = fs2.readFileSync(skillFile, "utf-8");
-          const parsed = this.parseFrontmatter(content);
-          if (parsed.name && parsed.description) {
-            this.index.push({
-              name: parsed.name,
-              description: parsed.description,
-              folderPath: path2.join(this.skillsPath, entry.name),
-              skillFilePath: skillFile
-            });
-          }
-        } catch (e) {
-        }
-      }
-      this.loaded = true;
-      console.log(`SkillService: Indexed ${this.index.length} skills from ${this.skillsPath}`);
-    } catch (e) {
-      console.error("SkillService: Failed to scan skills folder:", e);
-    }
-  }
-  /**
-   * Find skills relevant to a user query by keyword matching against skill names and descriptions.
-   */
-  async findRelevant(query, maxResults = 3) {
-    await this.loadIndex();
-    if (this.index.length === 0) return [];
-    const lowerQuery = query.toLowerCase();
-    const words = lowerQuery.split(/\s+/).filter((w) => w.length > 2);
-    const scored = this.index.map((skill) => {
-      const text2 = `${skill.name} ${skill.description}`.toLowerCase();
-      let score = 0;
-      for (const word of words) {
-        if (text2.includes(word)) score++;
-        if (skill.name.toLowerCase().includes(word)) score += 2;
-      }
-      return { skill, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    return scored.filter((s) => s.score > 0).slice(0, maxResults).map((s) => s.skill);
-  }
-  /**
-   * Load the full content of a SKILL.md file.
-   */
-  getSkillContent(skill) {
-    try {
-      return fs2.readFileSync(skill.skillFilePath, "utf-8");
-    } catch (e) {
-      return "";
-    }
-  }
-  /**
-   * Build a context block for matched skills to inject into the system prompt.
-   */
-  async buildSkillContext(query) {
-    const matched = await this.findRelevant(query, 2);
-    if (matched.length === 0) return "";
-    let context = "\n\n=== RELEVANT SKILLS ===\n";
-    context += "The following skills may be useful for answering this query:\n\n";
-    for (const skill of matched) {
-      const content = this.getSkillContent(skill);
-      const truncated = content.substring(0, 3e3);
-      context += `--- Skill: ${skill.name} ---
-${truncated}
-
-`;
-    }
-    context += "=== END SKILLS ===\n";
-    return context;
-  }
-  /**
-   * List all available skills (for UI or tool use).
-   */
-  async listSkills() {
-    await this.loadIndex();
-    if (this.index.length === 0) return "No skills found.";
-    return this.index.map((s, i) => `${i + 1}. **${s.name}**: ${s.description}`).join("\n");
-  }
-  /**
-   * Simple YAML frontmatter parser (no dependencies).
-   */
-  parseFrontmatter(content) {
-    const result = {};
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!fmMatch) return result;
-    const lines = fmMatch[1].split("\n");
-    for (const line of lines) {
-      const colonIdx = line.indexOf(":");
-      if (colonIdx === -1) continue;
-      const key2 = line.substring(0, colonIdx).trim();
-      const value = line.substring(colonIdx + 1).trim();
-      result[key2] = value;
-    }
-    return result;
-  }
-};
-
 // src/settings/SettingsView.svelte
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 var root_18 = from_html(`<option> </option>`);
 var root_27 = from_html(`<option> </option>`);
 var root_37 = from_html(`<option> </option>`);
 var root_44 = from_html(`<input type="text" placeholder="or type custom model name" style="margin-top: 6px; width: 100%;" class="svelte-1av9wh"/>`);
 var root_55 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">API Key</div> <div class="setting-item-description svelte-1av9wh">Your secret API key</div></div> <div class="setting-item-control svelte-1av9wh"><input type="password" placeholder="sk-..." class="svelte-1av9wh"/></div></div>`);
 var root_65 = from_html(`<div> </div>`);
-var root_82 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
-var root_92 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
+var root_83 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
+var root_93 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
 var root_10 = from_html(`<button class="icon-btn svelte-1av9wh" title="Deactivate">\u274C</button>`);
-var root_11 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Folders (Comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Tags (Comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override System Prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override Model</label> <input type="text" placeholder="Optional (e.g. gpt-4o)" class="svelte-1av9wh"/></div></div>`);
+var root_11 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Folders (Comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Tags (Comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override System Prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override Model</label> <input type="text" placeholder="Optional (e.g. gpt-5-mini)" class="svelte-1av9wh"/></div></div>`);
 var root_74 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
 var root_132 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
 var root_142 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
@@ -32001,11 +32575,23 @@ var root_19 = from_html(`<span class="default-badge svelte-1av9wh" style="backgr
 var root_20 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
 var root_21 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (Space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment Variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working Directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
 var root_182 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root10 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Vault QA & Embeddings</div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
+var root_232 = from_html(`<input type="text" placeholder="\u{1F50D} Search skills..." style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;" class="svelte-1av9wh"/>`);
+var root_242 = from_html(`<div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;"> </div>`);
+var root_262 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#f59e0b;">Mandatory</span>`);
+var root_272 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#22c55e;">Enabled</span>`);
+var root_28 = from_html(`<span class="default-badge svelte-1av9wh" style="background:var(--text-muted);">Disabled</span>`);
+var root_29 = from_html(`<button class="icon-btn svelte-1av9wh"> </button>`);
+var root_252 = from_html(`<div class="persona-card svelte-1av9wh"><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh" style="flex:1;"><span class="name-text"> </span> <!> <!></div> <div class="persona-actions svelte-1av9wh"><label class="skill-toggle"><input type="checkbox" class="svelte-1av9wh"/></label> <!></div></div> <div style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"> </div></div>`);
+var root_222 = from_html(`<!> <!> <!>`, 1);
+var root10 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh" style="align-items: center;"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Apply Edits</div> <div class="setting-item-description svelte-1av9wh">When enabled, AI edits to notes are applied directly without requiring
+        manual approval. You can still revert changes.</div></div> <div class="setting-item-control svelte-1av9wh" style="align-items: flex-end;"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Vault QA & Embeddings</div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
         mxbai-embed-large)</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="text-embedding-3-small" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh" style="align-items: center;"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Index Vault</div> <div class="setting-item-description svelte-1av9wh">Automatically index notes on startup or change</div></div> <div class="setting-item-control svelte-1av9wh" style="align-items: flex-end;"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Index Exclusions</div> <div class="setting-item-description svelte-1av9wh">Comma-separated list of folders or paths to exclude from indexing</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="node_modules, .git, templates" class="svelte-1av9wh"/></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Projects</div> <div class="setting-description svelte-1av9wh">Define scoped contexts. Manage project-level folders, tags, and system
     prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Project</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Personas</div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Persona</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Custom Actions</div> <div class="setting-description svelte-1av9wh">Create custom commands that operate on your selected text. Use <code></code> in your prompt to refer to the highlighted text. They will appear in the Obsidian
     Command Palette. Let the prompt guide the behavior.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add Custom Action</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">MCP Servers</div> <div class="setting-description svelte-1av9wh">Connect to local Model Context Protocol (MCP) servers to give the AI access
-    to external data and tools.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add MCP Server</button></div></div>`);
+    to external data and tools.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add MCP Server</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Skills</div> <div class="setting-description svelte-1av9wh">Manage AI skills discovered from your skills folder. Enable or disable
+    individual skills, and mark skills as mandatory to ensure they are always
+    consulted first.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Skills Path</div> <div class="setting-item-description svelte-1av9wh">Absolute path to the folder containing skill subfolders (each with a
+        SKILL.md)</div></div> <div class="setting-item-control svelte-1av9wh" style="display:flex; gap:6px; align-items:flex-start;"><input type="text" placeholder="/path/to/skills_hub" style="flex:1;" class="svelte-1av9wh"/> <button class="test-btn svelte-1av9wh" style="white-space:nowrap;"> </button></div></div> <div class="personas-container svelte-1av9wh"><button class="add-btn svelte-1av9wh" style="width:100%; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span> </span> <span style="font-size:0.8em; color:var(--text-muted);"> </span></button> <!></div></div>`);
 var $$css10 = {
   hash: "svelte-1av9wh",
   code: '.settings-view.svelte-1av9wh {padding-top:10px;}.setting-section-title.svelte-1av9wh {font-size:1.1em;font-weight:700;color:var(--text-normal);margin-bottom:4px;padding-bottom:6px;border-bottom:2px solid var(--interactive-accent);}.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:12px;font-size:0.9em;}.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:14px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:var(--font-ui-medium);font-weight:600;color:var(--text-normal);}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:var(--font-ui-small);line-height:1.5;margin-top:4px;}.setting-item-control.svelte-1av9wh {flex-shrink:0;min-width:220px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:100%;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:6px 10px;font-size:var(--font-ui-small);}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Test connection */.test-control.svelte-1av9wh {align-items:flex-start;}.test-btn.svelte-1av9wh {padding:6px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:var(--font-ui-small);transition:background-color 0.2s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.6;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:8px;padding:6px 10px;border-radius:4px;font-size:var(--font-ui-small);background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* Personas */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:10px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;display:flex;align-items:center;gap:10px;}.default-badge.svelte-1av9wh {font-size:0.7em;background:var(--interactive-accent);color:var(--text-on-accent);padding:2px 6px;border-radius:4px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:8px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.6;font-size:1.1em;padding:2px;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.persona-editor.svelte-1av9wh {padding:15px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:12px;}.form-group.svelte-1av9wh {display:flex;flex-direction:column;gap:4px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.85em;color:var(--text-muted);}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {width:100%;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:8px;box-sizing:border-box;}textarea.svelte-1av9wh {font-family:var(--font-monospace);font-size:var(--font-ui-smaller);resize:vertical;line-height:1.5;}textarea.svelte-1av9wh:focus,\n  input.svelte-1av9wh:focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.add-btn.svelte-1av9wh {margin-top:10px;padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;align-self:flex-start;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}'
@@ -32015,6 +32601,7 @@ function SettingsView($$anchor, $$props) {
   append_styles($$anchor, $$css10);
   const currentModels = mutable_source();
   const currentProviderLabel = mutable_source();
+  const filteredSkills = mutable_source();
   let settings = prop($$props, "settings", 12);
   let saveSettings = prop($$props, "saveSettings", 8);
   let plugin = prop(
@@ -32317,11 +32904,117 @@ function SettingsView($$anchor, $$props) {
     server.env = env;
     handleChange();
   }
+  let discoveredSkills = mutable_source([]);
+  let skillsLoading = mutable_source(false);
+  let skillsExpanded = mutable_source(false);
+  let skillSearchQuery = mutable_source("");
+  onMount(async () => {
+    try {
+      await refreshSkills();
+    } catch (e) {
+      console.error("SettingsView onMount error:", e);
+    }
+  });
+  async function refreshSkills() {
+    if (!plugin()?.skillService) return;
+    set(skillsLoading, true);
+    try {
+      await plugin().skillService.loadIndex();
+      set(discoveredSkills, plugin().skillService.getIndex().map((s) => ({
+        name: s.name,
+        description: s.description,
+        folderPath: s.folderPath
+      })));
+      if (!settings().skillConfigs) settings(settings().skillConfigs = [], true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get(currentModels);
+        handleChange;
+      });
+      for (const skill of get(discoveredSkills)) {
+        const existing = settings().skillConfigs.find((c) => c.folderPath === skill.folderPath);
+        if (!existing) {
+          settings(
+            settings().skillConfigs = [
+              ...settings().skillConfigs,
+              {
+                name: skill.name,
+                folderPath: skill.folderPath,
+                enabled: true,
+                mandatory: false
+              }
+            ],
+            true
+          ), invalidate_inner_signals(() => {
+            onProviderChange;
+            ALL_PROVIDERS;
+            PROVIDER_LABELS;
+            onModelChange;
+            get(currentModels);
+            handleChange;
+          });
+        }
+      }
+      const discoveredPaths = new Set(get(discoveredSkills).map((s) => s.folderPath));
+      settings(settings().skillConfigs = settings().skillConfigs.filter((c) => discoveredPaths.has(c.folderPath)), true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get(currentModels);
+        handleChange;
+      });
+      await saveSettings()();
+    } catch (e) {
+      console.error("Failed to load skills:", e);
+    } finally {
+      set(skillsLoading, false);
+    }
+  }
+  function getSkillConfig(folderPath) {
+    return settings().skillConfigs?.find((c) => c.folderPath === folderPath);
+  }
+  function toggleSkillEnabled(folderPath) {
+    const cfg = settings().skillConfigs?.find((c) => c.folderPath === folderPath);
+    if (cfg) {
+      cfg.enabled = !cfg.enabled;
+      if (!cfg.enabled) cfg.mandatory = false;
+      settings(settings().skillConfigs = [...settings().skillConfigs], true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get(currentModels);
+        handleChange;
+      });
+      saveSettings()();
+    }
+  }
+  function toggleSkillMandatory(folderPath) {
+    const cfg = settings().skillConfigs?.find((c) => c.folderPath === folderPath);
+    if (cfg && cfg.enabled) {
+      cfg.mandatory = !cfg.mandatory;
+      settings(settings().skillConfigs = [...settings().skillConfigs], true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get(currentModels);
+        handleChange;
+      });
+      saveSettings()();
+    }
+  }
   legacy_pre_effect(() => (PROVIDER_MODELS, deep_read_state(settings())), () => {
     set(currentModels, PROVIDER_MODELS[settings().provider] ?? []);
   });
   legacy_pre_effect(() => (PROVIDER_LABELS, deep_read_state(settings())), () => {
     set(currentProviderLabel, PROVIDER_LABELS[settings().provider] ?? settings().provider);
+  });
+  legacy_pre_effect(() => (get(skillSearchQuery), get(discoveredSkills)), () => {
+    set(filteredSkills, get(skillSearchQuery) ? get(discoveredSkills).filter((s) => s.name.toLowerCase().includes(get(skillSearchQuery).toLowerCase()) || s.description.toLowerCase().includes(get(skillSearchQuery).toLowerCase())) : get(discoveredSkills));
   });
   legacy_pre_effect_reset();
   init();
@@ -32442,46 +33135,46 @@ function SettingsView($$anchor, $$props) {
   reset(div_9);
   var div_11 = sibling(div_9, 2);
   var div_12 = sibling(child(div_11), 2);
-  var button = child(div_12);
+  var input_3 = child(div_12);
+  remove_input_defaults(input_3);
+  reset(div_12);
+  reset(div_11);
+  var div_13 = sibling(div_11, 2);
+  var div_14 = sibling(child(div_13), 2);
+  var button = child(div_14);
   let classes;
   var text_4 = child(button, true);
   reset(button);
   var node_4 = sibling(button, 2);
   {
     var consequent_3 = ($$anchor2) => {
-      var div_13 = root_65();
+      var div_15 = root_65();
       let classes_1;
-      var text_5 = child(div_13);
-      reset(div_13);
+      var text_5 = child(div_15);
+      reset(div_15);
       template_effect(() => {
-        classes_1 = set_class(div_13, 1, "test-result svelte-1av9wh", null, classes_1, {
+        classes_1 = set_class(div_15, 1, "test-result svelte-1av9wh", null, classes_1, {
           ok: get(testStatus) === "ok",
           error: get(testStatus) === "error"
         });
         set_text(text_5, `${get(testStatus) === "ok" ? "\u2705 " : get(testStatus) === "error" ? "\u274C " : ""}${get(testMessage) ?? ""}`);
       });
-      append($$anchor2, div_13);
+      append($$anchor2, div_15);
     };
     if_block(node_4, ($$render) => {
       if (get(testStatus) !== "idle") $$render(consequent_3);
     });
   }
-  reset(div_12);
-  reset(div_11);
-  var div_14 = sibling(div_11, 6);
-  var div_15 = sibling(child(div_14), 2);
-  var select_2 = child(div_15);
+  reset(div_14);
+  reset(div_13);
+  var div_16 = sibling(div_13, 6);
+  var div_17 = sibling(child(div_16), 2);
+  var select_2 = child(div_17);
   var option_3 = child(select_2);
   option_3.value = option_3.__value = "openai";
   var option_4 = sibling(option_3);
   option_4.value = option_4.__value = "ollama";
   reset(select_2);
-  reset(div_15);
-  reset(div_14);
-  var div_16 = sibling(div_14, 2);
-  var div_17 = sibling(child(div_16), 2);
-  var input_3 = child(div_17);
-  remove_input_defaults(input_3);
   reset(div_17);
   reset(div_16);
   var div_18 = sibling(div_16, 2);
@@ -32496,36 +33189,42 @@ function SettingsView($$anchor, $$props) {
   remove_input_defaults(input_5);
   reset(div_21);
   reset(div_20);
-  var div_22 = sibling(div_20, 6);
-  var node_5 = child(div_22);
+  var div_22 = sibling(div_20, 2);
+  var div_23 = sibling(child(div_22), 2);
+  var input_6 = child(div_23);
+  remove_input_defaults(input_6);
+  reset(div_23);
+  reset(div_22);
+  var div_24 = sibling(div_22, 6);
+  var node_5 = child(div_24);
   each(
     node_5,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().projects || [])),
     (project) => project.id,
     ($$anchor2, project, $$index_2) => {
-      var div_23 = root_74();
-      var div_24 = child(div_23);
-      var div_25 = child(div_24);
-      var span = child(div_25);
+      var div_25 = root_74();
+      var div_26 = child(div_25);
+      var div_27 = child(div_26);
+      var span = child(div_27);
       var text_6 = child(span, true);
       reset(span);
       var node_6 = sibling(span, 2);
       {
         var consequent_4 = ($$anchor3) => {
-          var span_1 = root_82();
+          var span_1 = root_83();
           append($$anchor3, span_1);
         };
         if_block(node_6, ($$render) => {
           if (deep_read_state(settings()), get(project), untrack(() => settings().activeProjectId === get(project).id)) $$render(consequent_4);
         });
       }
-      reset(div_25);
-      var div_26 = sibling(div_25, 2);
-      var node_7 = child(div_26);
+      reset(div_27);
+      var div_28 = sibling(div_27, 2);
+      var node_7 = child(div_28);
       {
         var consequent_5 = ($$anchor3) => {
-          var button_1 = root_92();
+          var button_1 = root_93();
           event("click", button_1, stopPropagation(() => {
             settings(settings().activeProjectId = get(project).id, true), invalidate_inner_signals(() => {
               onProviderChange;
@@ -32563,59 +33262,59 @@ function SettingsView($$anchor, $$props) {
       var span_2 = sibling(button_3, 2);
       var text_7 = child(span_2, true);
       reset(span_2);
+      reset(div_28);
       reset(div_26);
-      reset(div_24);
-      var node_8 = sibling(div_24, 2);
+      var node_8 = sibling(div_26, 2);
       {
         var consequent_6 = ($$anchor3) => {
-          var div_27 = root_11();
-          var div_28 = child(div_27);
-          var input_6 = sibling(child(div_28), 2);
-          remove_input_defaults(input_6);
-          reset(div_28);
-          var div_29 = sibling(div_28, 2);
-          var input_7 = sibling(child(div_29), 2);
+          var div_29 = root_11();
+          var div_30 = child(div_29);
+          var input_7 = sibling(child(div_30), 2);
           remove_input_defaults(input_7);
-          reset(div_29);
-          var div_30 = sibling(div_29, 2);
-          var input_8 = sibling(child(div_30), 2);
-          remove_input_defaults(input_8);
           reset(div_30);
           var div_31 = sibling(div_30, 2);
-          var input_9 = sibling(child(div_31), 2);
-          remove_input_defaults(input_9);
+          var input_8 = sibling(child(div_31), 2);
+          remove_input_defaults(input_8);
           reset(div_31);
           var div_32 = sibling(div_31, 2);
-          var textarea = sibling(child(div_32), 2);
-          remove_textarea_child(textarea);
+          var input_9 = sibling(child(div_32), 2);
+          remove_input_defaults(input_9);
           reset(div_32);
           var div_33 = sibling(div_32, 2);
           var input_10 = sibling(child(div_33), 2);
           remove_input_defaults(input_10);
           reset(div_33);
-          reset(div_27);
-          bind_value(input_6, () => get(project).name, ($$value) => (get(project).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_6, handleChange);
-          bind_value(input_7, () => get(project).description, ($$value) => (get(project).description = $$value, invalidate_inner_signals(() => settings())));
+          var div_34 = sibling(div_33, 2);
+          var textarea = sibling(child(div_34), 2);
+          remove_textarea_child(textarea);
+          reset(div_34);
+          var div_35 = sibling(div_34, 2);
+          var input_11 = sibling(child(div_35), 2);
+          remove_input_defaults(input_11);
+          reset(div_35);
+          reset(div_29);
+          bind_value(input_7, () => get(project).name, ($$value) => (get(project).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_7, handleChange);
-          bind_value(input_8, () => get(project).includeFolders, ($$value) => (get(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_8, () => get(project).description, ($$value) => (get(project).description = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_8, handleChange);
-          bind_value(input_9, () => get(project).includeTags, ($$value) => (get(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_9, () => get(project).includeFolders, ($$value) => (get(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_9, handleChange);
+          bind_value(input_10, () => get(project).includeTags, ($$value) => (get(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_10, handleChange);
           bind_value(textarea, () => get(project).systemPrompt, ($$value) => (get(project).systemPrompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea, handleChange);
-          bind_value(input_10, () => get(project).defaultModel, ($$value) => (get(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_10, handleChange);
-          append($$anchor3, div_27);
+          bind_value(input_11, () => get(project).defaultModel, ($$value) => (get(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_11, handleChange);
+          append($$anchor3, div_29);
         };
         if_block(node_8, ($$render) => {
           if (get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id)) $$render(consequent_6);
         });
       }
-      reset(div_23);
+      reset(div_25);
       template_effect(() => {
         set_class(
-          div_23,
+          div_25,
           1,
           `persona-card ${(get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
@@ -32624,24 +33323,24 @@ function SettingsView($$anchor, $$props) {
         set_text(text_7, (get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_3, stopPropagation(() => deleteProject(get(project).id)));
-      event("click", div_24, () => selectProject(get(project).id));
-      append($$anchor2, div_23);
+      event("click", div_26, () => selectProject(get(project).id));
+      append($$anchor2, div_25);
     }
   );
   var button_4 = sibling(node_5, 2);
-  reset(div_22);
-  var div_34 = sibling(div_22, 6);
-  var node_9 = child(div_34);
+  reset(div_24);
+  var div_36 = sibling(div_24, 6);
+  var node_9 = child(div_36);
   each(
     node_9,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().personas)),
     (persona) => persona.id,
     ($$anchor2, persona, $$index_3) => {
-      var div_35 = root_122();
-      var div_36 = child(div_35);
-      var div_37 = child(div_36);
-      var span_3 = child(div_37);
+      var div_37 = root_122();
+      var div_38 = child(div_37);
+      var div_39 = child(div_38);
+      var span_3 = child(div_39);
       var text_8 = child(span_3, true);
       reset(span_3);
       var node_10 = sibling(span_3, 2);
@@ -32654,9 +33353,9 @@ function SettingsView($$anchor, $$props) {
           if (deep_read_state(settings()), get(persona), untrack(() => settings().defaultPersonaId === get(persona).id)) $$render(consequent_7);
         });
       }
-      reset(div_37);
-      var div_38 = sibling(div_37, 2);
-      var node_11 = child(div_38);
+      reset(div_39);
+      var div_40 = sibling(div_39, 2);
+      var node_11 = child(div_40);
       {
         var consequent_8 = ($$anchor3) => {
           var button_5 = root_142();
@@ -32671,41 +33370,41 @@ function SettingsView($$anchor, $$props) {
       var span_5 = sibling(button_6, 2);
       var text_9 = child(span_5, true);
       reset(span_5);
+      reset(div_40);
       reset(div_38);
-      reset(div_36);
-      var node_12 = sibling(div_36, 2);
+      var node_12 = sibling(div_38, 2);
       {
         var consequent_9 = ($$anchor3) => {
-          var div_39 = root_152();
-          var div_40 = child(div_39);
-          var input_11 = sibling(child(div_40), 2);
-          remove_input_defaults(input_11);
-          reset(div_40);
-          var div_41 = sibling(div_40, 2);
-          var input_12 = sibling(child(div_41), 2);
+          var div_41 = root_152();
+          var div_42 = child(div_41);
+          var input_12 = sibling(child(div_42), 2);
           remove_input_defaults(input_12);
-          reset(div_41);
-          var div_42 = sibling(div_41, 2);
-          var textarea_1 = sibling(child(div_42), 2);
-          remove_textarea_child(textarea_1);
           reset(div_42);
-          reset(div_39);
-          bind_value(input_11, () => get(persona).name, ($$value) => (get(persona).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_11, handleChange);
-          bind_value(input_12, () => get(persona).description, ($$value) => (get(persona).description = $$value, invalidate_inner_signals(() => settings())));
+          var div_43 = sibling(div_42, 2);
+          var input_13 = sibling(child(div_43), 2);
+          remove_input_defaults(input_13);
+          reset(div_43);
+          var div_44 = sibling(div_43, 2);
+          var textarea_1 = sibling(child(div_44), 2);
+          remove_textarea_child(textarea_1);
+          reset(div_44);
+          reset(div_41);
+          bind_value(input_12, () => get(persona).name, ($$value) => (get(persona).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_12, handleChange);
+          bind_value(input_13, () => get(persona).description, ($$value) => (get(persona).description = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_13, handleChange);
           bind_value(textarea_1, () => get(persona).prompt, ($$value) => (get(persona).prompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_1, handleChange);
-          append($$anchor3, div_39);
+          append($$anchor3, div_41);
         };
         if_block(node_12, ($$render) => {
           if (get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id)) $$render(consequent_9);
         });
       }
-      reset(div_35);
+      reset(div_37);
       template_effect(() => {
         set_class(
-          div_35,
+          div_37,
           1,
           `persona-card ${(get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
@@ -32714,67 +33413,67 @@ function SettingsView($$anchor, $$props) {
         set_text(text_9, (get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_6, stopPropagation(() => deletePersona(get(persona).id)));
-      event("click", div_36, () => selectPersona(get(persona).id));
-      append($$anchor2, div_35);
+      event("click", div_38, () => selectPersona(get(persona).id));
+      append($$anchor2, div_37);
     }
   );
   var button_7 = sibling(node_9, 2);
-  reset(div_34);
-  var div_43 = sibling(div_34, 4);
-  var code = sibling(child(div_43));
+  reset(div_36);
+  var div_45 = sibling(div_36, 4);
+  var code = sibling(child(div_45));
   code.textContent = "{{selection}}";
   next();
-  reset(div_43);
-  var div_44 = sibling(div_43, 2);
-  var node_13 = child(div_44);
+  reset(div_45);
+  var div_46 = sibling(div_45, 2);
+  var node_13 = child(div_46);
   each(
     node_13,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().customActions || [])),
     (action2) => action2.id,
     ($$anchor2, action2, $$index_4) => {
-      var div_45 = root_162();
-      var div_46 = child(div_45);
-      var div_47 = child(div_46);
-      var span_6 = child(div_47);
+      var div_47 = root_162();
+      var div_48 = child(div_47);
+      var div_49 = child(div_48);
+      var span_6 = child(div_49);
       var text_10 = child(span_6, true);
       reset(span_6);
-      reset(div_47);
-      var div_48 = sibling(div_47, 2);
-      var button_8 = child(div_48);
+      reset(div_49);
+      var div_50 = sibling(div_49, 2);
+      var button_8 = child(div_50);
       var span_7 = sibling(button_8, 2);
       var text_11 = child(span_7, true);
       reset(span_7);
+      reset(div_50);
       reset(div_48);
-      reset(div_46);
-      var node_14 = sibling(div_46, 2);
+      var node_14 = sibling(div_48, 2);
       {
         var consequent_10 = ($$anchor3) => {
-          var div_49 = root_172();
-          var div_50 = child(div_49);
-          var input_13 = sibling(child(div_50), 2);
-          remove_input_defaults(input_13);
-          reset(div_50);
-          var div_51 = sibling(div_50, 2);
-          var textarea_2 = sibling(child(div_51), 2);
+          var div_51 = root_172();
+          var div_52 = child(div_51);
+          var input_14 = sibling(child(div_52), 2);
+          remove_input_defaults(input_14);
+          reset(div_52);
+          var div_53 = sibling(div_52, 2);
+          var textarea_2 = sibling(child(div_53), 2);
           remove_textarea_child(textarea_2);
           set_attribute2(textarea_2, "placeholder", "Translate the following text into French:\\n\\n{{selection}}");
+          reset(div_53);
           reset(div_51);
-          reset(div_49);
-          bind_value(input_13, () => get(action2).name, ($$value) => (get(action2).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_13, handleChange);
+          bind_value(input_14, () => get(action2).name, ($$value) => (get(action2).name = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_14, handleChange);
           bind_value(textarea_2, () => get(action2).promptTemplate, ($$value) => (get(action2).promptTemplate = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_2, handleChange);
-          append($$anchor3, div_49);
+          append($$anchor3, div_51);
         };
         if_block(node_14, ($$render) => {
           if (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id)) $$render(consequent_10);
         });
       }
-      reset(div_45);
+      reset(div_47);
       template_effect(() => {
         set_class(
-          div_45,
+          div_47,
           1,
           `persona-card ${(get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
@@ -32783,24 +33482,24 @@ function SettingsView($$anchor, $$props) {
         set_text(text_11, (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_8, stopPropagation(() => deleteCustomAction(get(action2).id)));
-      event("click", div_46, () => selectCustomAction(get(action2).id));
-      append($$anchor2, div_45);
+      event("click", div_48, () => selectCustomAction(get(action2).id));
+      append($$anchor2, div_47);
     }
   );
   var button_9 = sibling(node_13, 2);
-  reset(div_44);
-  var div_52 = sibling(div_44, 6);
-  var node_15 = child(div_52);
+  reset(div_46);
+  var div_54 = sibling(div_46, 6);
+  var node_15 = child(div_54);
   each(
     node_15,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().mcpServers || [])),
     (server) => server.id,
     ($$anchor2, server, $$index_5) => {
-      var div_53 = root_182();
-      var div_54 = child(div_53);
-      var div_55 = child(div_54);
-      var span_8 = child(div_55);
+      var div_55 = root_182();
+      var div_56 = child(div_55);
+      var div_57 = child(div_56);
+      var span_8 = child(div_57);
       var text_12 = child(span_8, true);
       reset(span_8);
       var node_16 = sibling(span_8, 2);
@@ -32818,45 +33517,45 @@ function SettingsView($$anchor, $$props) {
           else $$render(alternate_1, false);
         });
       }
-      reset(div_55);
-      var div_56 = sibling(div_55, 2);
-      var button_10 = child(div_56);
+      reset(div_57);
+      var div_58 = sibling(div_57, 2);
+      var button_10 = child(div_58);
       var text_13 = child(button_10, true);
       reset(button_10);
       var button_11 = sibling(button_10, 2);
       var span_11 = sibling(button_11, 2);
       var text_14 = child(span_11, true);
       reset(span_11);
+      reset(div_58);
       reset(div_56);
-      reset(div_54);
-      var node_17 = sibling(div_54, 2);
+      var node_17 = sibling(div_56, 2);
       {
         var consequent_12 = ($$anchor3) => {
-          var div_57 = root_21();
-          var div_58 = child(div_57);
-          var input_14 = sibling(child(div_58), 2);
-          remove_input_defaults(input_14);
-          reset(div_58);
-          var div_59 = sibling(div_58, 2);
-          var input_15 = sibling(child(div_59), 2);
+          var div_59 = root_21();
+          var div_60 = child(div_59);
+          var input_15 = sibling(child(div_60), 2);
           remove_input_defaults(input_15);
-          reset(div_59);
-          var div_60 = sibling(div_59, 2);
-          var input_16 = sibling(child(div_60), 2);
-          remove_input_defaults(input_16);
           reset(div_60);
           var div_61 = sibling(div_60, 2);
-          var textarea_3 = sibling(child(div_61), 2);
-          remove_textarea_child(textarea_3);
+          var input_16 = sibling(child(div_61), 2);
+          remove_input_defaults(input_16);
           reset(div_61);
           var div_62 = sibling(div_61, 2);
           var input_17 = sibling(child(div_62), 2);
           remove_input_defaults(input_17);
           reset(div_62);
-          reset(div_57);
+          var div_63 = sibling(div_62, 2);
+          var textarea_3 = sibling(child(div_63), 2);
+          remove_textarea_child(textarea_3);
+          reset(div_63);
+          var div_64 = sibling(div_63, 2);
+          var input_18 = sibling(child(div_64), 2);
+          remove_input_defaults(input_18);
+          reset(div_64);
+          reset(div_59);
           template_effect(
             ($0, $1) => {
-              set_value(input_16, $0);
+              set_value(input_17, $0);
               set_value(textarea_3, $1);
             },
             [
@@ -32864,24 +33563,24 @@ function SettingsView($$anchor, $$props) {
               () => (get(server), untrack(() => getEnvString(get(server).env)))
             ]
           );
-          bind_value(input_14, () => get(server).name, ($$value) => (get(server).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_14, handleChange);
-          bind_value(input_15, () => get(server).command, ($$value) => (get(server).command = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_15, () => get(server).name, ($$value) => (get(server).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_15, handleChange);
-          event("change", input_16, (e) => setArgsString(get(server), e.currentTarget.value));
+          bind_value(input_16, () => get(server).command, ($$value) => (get(server).command = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_16, handleChange);
+          event("change", input_17, (e) => setArgsString(get(server), e.currentTarget.value));
           event("change", textarea_3, (e) => setEnvString(get(server), e.currentTarget.value));
-          bind_value(input_17, () => get(server).cwd, ($$value) => (get(server).cwd = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_17, handleChange);
-          append($$anchor3, div_57);
+          bind_value(input_18, () => get(server).cwd, ($$value) => (get(server).cwd = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_18, handleChange);
+          append($$anchor3, div_59);
         };
         if_block(node_17, ($$render) => {
           if (get(editingMcpServerId), get(server), untrack(() => get(editingMcpServerId) === get(server).id)) $$render(consequent_12);
         });
       }
-      reset(div_53);
+      reset(div_55);
       template_effect(() => {
         set_class(
-          div_53,
+          div_55,
           1,
           `persona-card ${(get(editingMcpServerId), get(server), untrack(() => get(editingMcpServerId) === get(server).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
@@ -32893,19 +33592,157 @@ function SettingsView($$anchor, $$props) {
       });
       event("click", button_10, stopPropagation(() => toggleMcpServer(get(server).id)));
       event("click", button_11, stopPropagation(() => deleteMcpServer(get(server).id)));
-      event("click", div_54, () => selectMcpServer(get(server).id));
-      append($$anchor2, div_53);
+      event("click", div_56, () => selectMcpServer(get(server).id));
+      append($$anchor2, div_55);
     }
   );
   var button_12 = sibling(node_15, 2);
-  reset(div_52);
+  reset(div_54);
+  var div_65 = sibling(div_54, 6);
+  var div_66 = sibling(child(div_65), 2);
+  var input_19 = child(div_66);
+  remove_input_defaults(input_19);
+  var button_13 = sibling(input_19, 2);
+  var text_15 = child(button_13, true);
+  reset(button_13);
+  reset(div_66);
+  reset(div_65);
+  var div_67 = sibling(div_65, 2);
+  var button_14 = child(div_67);
+  var span_12 = child(button_14);
+  var text_16 = child(span_12);
+  reset(span_12);
+  var span_13 = sibling(span_12, 2);
+  var text_17 = child(span_13);
+  reset(span_13);
+  reset(button_14);
+  var node_18 = sibling(button_14, 2);
+  {
+    var consequent_18 = ($$anchor2) => {
+      var fragment = root_222();
+      var node_19 = first_child(fragment);
+      {
+        var consequent_13 = ($$anchor3) => {
+          var input_20 = root_232();
+          remove_input_defaults(input_20);
+          bind_value(input_20, () => get(skillSearchQuery), ($$value) => set(skillSearchQuery, $$value));
+          append($$anchor3, input_20);
+        };
+        if_block(node_19, ($$render) => {
+          if (get(discoveredSkills), untrack(() => get(discoveredSkills).length > 5)) $$render(consequent_13);
+        });
+      }
+      var node_20 = sibling(node_19, 2);
+      {
+        var consequent_14 = ($$anchor3) => {
+          var div_68 = root_242();
+          var text_18 = child(div_68, true);
+          reset(div_68);
+          template_effect(() => set_text(text_18, get(skillsLoading) ? "Loading skills..." : get(skillSearchQuery) ? "No skills match your search." : "No skills found. Check your skills path and click Refresh."));
+          append($$anchor3, div_68);
+        };
+        if_block(node_20, ($$render) => {
+          if (get(filteredSkills), untrack(() => get(filteredSkills).length === 0)) $$render(consequent_14);
+        });
+      }
+      var node_21 = sibling(node_20, 2);
+      each(node_21, 1, () => get(filteredSkills), (skill) => skill.folderPath, ($$anchor3, skill) => {
+        const cfg = derived_safe_equal(() => (get(skill), untrack(() => getSkillConfig(get(skill).folderPath))));
+        var div_69 = root_252();
+        var div_70 = child(div_69);
+        var div_71 = child(div_70);
+        var span_14 = child(div_71);
+        var text_19 = child(span_14, true);
+        reset(span_14);
+        var node_22 = sibling(span_14, 2);
+        {
+          var consequent_15 = ($$anchor4) => {
+            var span_15 = root_262();
+            append($$anchor4, span_15);
+          };
+          if_block(node_22, ($$render) => {
+            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled && get(cfg)?.mandatory)) $$render(consequent_15);
+          });
+        }
+        var node_23 = sibling(node_22, 2);
+        {
+          var consequent_16 = ($$anchor4) => {
+            var span_16 = root_272();
+            append($$anchor4, span_16);
+          };
+          var alternate_2 = ($$anchor4) => {
+            var span_17 = root_28();
+            append($$anchor4, span_17);
+          };
+          if_block(node_23, ($$render) => {
+            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)) $$render(consequent_16);
+            else $$render(alternate_2, false);
+          });
+        }
+        reset(div_71);
+        var div_72 = sibling(div_71, 2);
+        var label = child(div_72);
+        var input_21 = child(label);
+        remove_input_defaults(input_21);
+        reset(label);
+        var node_24 = sibling(label, 2);
+        {
+          var consequent_17 = ($$anchor4) => {
+            var button_15 = root_29();
+            var text_20 = child(button_15, true);
+            reset(button_15);
+            template_effect(() => {
+              set_attribute2(button_15, "title", (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "Remove mandatory" : "Make mandatory")));
+              set_style(button_15, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "opacity:1;" : "")));
+              set_text(text_20, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "\u2B50" : "\u2606")));
+            });
+            event("click", button_15, stopPropagation(() => toggleSkillMandatory(get(skill).folderPath)));
+            append($$anchor4, button_15);
+          };
+          if_block(node_24, ($$render) => {
+            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)) $$render(consequent_17);
+          });
+        }
+        reset(div_72);
+        reset(div_70);
+        var div_73 = sibling(div_70, 2);
+        var text_21 = child(div_73, true);
+        reset(div_73);
+        reset(div_69);
+        template_effect(() => {
+          set_text(text_19, (get(skill), untrack(() => get(skill).name)));
+          set_attribute2(label, "title", (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled ? "Disable skill" : "Enable skill")));
+          set_checked(input_21, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)));
+          set_text(text_21, (get(skill), untrack(() => get(skill).description)));
+        });
+        event("change", input_21, () => toggleSkillEnabled(get(skill).folderPath));
+        append($$anchor3, div_69);
+      });
+      append($$anchor2, fragment);
+    };
+    if_block(node_18, ($$render) => {
+      if (get(skillsExpanded)) $$render(consequent_18);
+    });
+  }
+  reset(div_67);
   reset(div);
-  template_effect(() => {
-    set_text(text_1, `Choose a model from ${get(currentProviderLabel) ?? ""}`);
-    classes = set_class(button, 1, "test-btn svelte-1av9wh", null, classes, { loading: get(testStatus) === "loading" });
-    button.disabled = get(testStatus) === "loading";
-    set_text(text_4, get(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
-  });
+  template_effect(
+    ($0, $1) => {
+      set_text(text_1, `Choose a model from ${get(currentProviderLabel) ?? ""}`);
+      classes = set_class(button, 1, "test-btn svelte-1av9wh", null, classes, { loading: get(testStatus) === "loading" });
+      button.disabled = get(testStatus) === "loading";
+      set_text(text_4, get(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
+      button_13.disabled = get(skillsLoading);
+      set_text(text_15, get(skillsLoading) ? "Scanning\u2026" : "\u{1F504} Refresh");
+      set_text(text_16, `${get(skillsExpanded) ? "\u25BC" : "\u25B6"} Skills (${(get(discoveredSkills), untrack(() => get(discoveredSkills).length)) ?? ""})`);
+      set_text(text_17, `${$0 ?? ""} enabled \xB7
+        ${$1 ?? ""} mandatory`);
+    },
+    [
+      () => (deep_read_state(settings()), untrack(() => settings().skillConfigs?.filter((c) => c.enabled).length ?? 0)),
+      () => (deep_read_state(settings()), untrack(() => settings().skillConfigs?.filter((c) => c.mandatory).length ?? 0))
+    ]
+  );
   bind_select_value(select, () => settings().provider, ($$value) => (settings(settings().provider = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
@@ -32933,6 +33770,15 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", input_2, handleChange);
+  bind_checked(input_3, () => settings().autoApplyEdits, ($$value) => (settings(settings().autoApplyEdits = $$value, true), invalidate_inner_signals(() => {
+    onProviderChange;
+    ALL_PROVIDERS;
+    PROVIDER_LABELS;
+    onModelChange;
+    get(currentModels);
+    handleChange;
+  })));
+  event("change", input_3, handleChange);
   event("click", button, testConnection);
   bind_select_value(select_2, () => settings().embeddingProvider, ($$value) => (settings(settings().embeddingProvider = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
@@ -32943,16 +33789,7 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", select_2, handleChange);
-  bind_value(input_3, () => settings().embeddingModel, ($$value) => (settings(settings().embeddingModel = $$value, true), invalidate_inner_signals(() => {
-    onProviderChange;
-    ALL_PROVIDERS;
-    PROVIDER_LABELS;
-    onModelChange;
-    get(currentModels);
-    handleChange;
-  })));
-  event("change", input_3, handleChange);
-  bind_checked(input_4, () => settings().autoIndexVault, ($$value) => (settings(settings().autoIndexVault = $$value, true), invalidate_inner_signals(() => {
+  bind_value(input_4, () => settings().embeddingModel, ($$value) => (settings(settings().embeddingModel = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
@@ -32961,7 +33798,7 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", input_4, handleChange);
-  bind_value(input_5, () => settings().indexExclusions, ($$value) => (settings(settings().indexExclusions = $$value, true), invalidate_inner_signals(() => {
+  bind_checked(input_5, () => settings().autoIndexVault, ($$value) => (settings(settings().autoIndexVault = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
@@ -32970,16 +33807,36 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", input_5, handleChange);
+  bind_value(input_6, () => settings().indexExclusions, ($$value) => (settings(settings().indexExclusions = $$value, true), invalidate_inner_signals(() => {
+    onProviderChange;
+    ALL_PROVIDERS;
+    PROVIDER_LABELS;
+    onModelChange;
+    get(currentModels);
+    handleChange;
+  })));
+  event("change", input_6, handleChange);
   event("click", button_4, addProject);
   event("click", button_7, addPersona);
   event("click", button_9, addCustomAction);
   event("click", button_12, addMcpServer);
+  bind_value(input_19, () => settings().skillsPath, ($$value) => (settings(settings().skillsPath = $$value, true), invalidate_inner_signals(() => {
+    onProviderChange;
+    ALL_PROVIDERS;
+    PROVIDER_LABELS;
+    onModelChange;
+    get(currentModels);
+    handleChange;
+  })));
+  event("change", input_19, handleChange);
+  event("click", button_13, refreshSkills);
+  event("click", button_14, () => set(skillsExpanded, !get(skillsExpanded)));
   append($$anchor, div);
   pop();
 }
 
 // main.ts
-var AICopilotPlugin = class extends import_obsidian18.Plugin {
+var AICopilotPlugin = class extends import_obsidian19.Plugin {
   settings;
   aiProvider;
   editorHandler;
@@ -32990,9 +33847,10 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
   relevantNotes;
   skillService;
   mcpClientService;
+  personaSoulService;
   async onload() {
     console.log("\u{1F680} AI Copilot v1.3.0 LOADED");
-    new import_obsidian18.Notice("\u{1F680} AI Copilot v1.3.0 LOADED");
+    new import_obsidian19.Notice("\u{1F680} AI Copilot v1.3.0 LOADED");
     this.addStatusBarItem().setText("AI Copilot v1.3.0");
     console.log("Docs GPT: Loading plugin...");
     await this.loadSettings();
@@ -33004,7 +33862,8 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
     this.skillService = new SkillService(this.app, this.settings.skillsPath);
     this.mcpClientService = new MCPClientService();
     this.mcpClientService.connectAll(this.settings.mcpServers || []).catch((e) => console.error("MCP Connect Error", e));
-    this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService);
+    this.personaSoulService = new PersonaSoulService(this.app);
+    this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService, void 0, this.skillService, this.personaSoulService, this.settings);
     try {
       this.aiProvider = this.getAIProvider();
       this.toolManager.setAIProvider(this.aiProvider);
@@ -33030,7 +33889,7 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
               const chatView = leaves[0].view;
               setTimeout(() => {
                 chatView.addSelectionContext(selection, filePath);
-                new import_obsidian18.Notice("\u{1F4CB} Selection added to AI Chat");
+                new import_obsidian19.Notice("\u{1F4CB} Selection added to AI Chat");
               }, 100);
             }
           });
@@ -33041,6 +33900,9 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
             const submenu = item.setSubmenu();
             submenu.addItem((subItem) => {
               subItem.setTitle("Fix grammar and spelling").setIcon("check-circle").setDisabled(!hasSelection).onClick(() => this.runQuickAction(editor, selection, "Fix all grammar and spelling errors in the text. Only output the corrected text, nothing else."));
+            });
+            submenu.addItem((subItem) => {
+              subItem.setTitle("Reformat").setIcon("text").setDisabled(!hasSelection).onClick(() => this.runQuickAction(editor, selection, "Reformat and restructure the following text to improve readability. Use proper paragraphs, headings (if appropriate), bullet points, and logical flow. Preserve all the original information but make it well-organized and easy to scan. Only output the reformatted text, nothing else."));
             });
             submenu.addItem((subItem) => {
               subItem.setTitle("Summarize").setIcon("align-left").setDisabled(!hasSelection).onClick(() => this.runQuickAction(editor, selection, "Summarize this text concisely. Only output the summary."));
@@ -33064,6 +33926,30 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
         });
       })
     );
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, fileOrFolder) => {
+        const isFolder = fileOrFolder instanceof import_obsidian19.TFolder;
+        const label = isFolder ? "Send folder to AI Copilot" : "Send to AI Copilot";
+        menu.addItem((item) => {
+          item.setTitle(label).setIcon("bot").onClick(async () => {
+            await this.activateView();
+            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
+            if (leaves.length > 0) {
+              const chatView = leaves[0].view;
+              setTimeout(() => {
+                if (isFolder) {
+                  chatView.addFolderContext(fileOrFolder.path, fileOrFolder.name);
+                  new import_obsidian19.Notice(`\u{1F4C1} Folder "${fileOrFolder.name}" added to AI Chat`);
+                } else if (fileOrFolder instanceof import_obsidian19.TFile) {
+                  chatView.addFileContext(fileOrFolder.path, fileOrFolder.basename);
+                  new import_obsidian19.Notice(`\u{1F4C4} "${fileOrFolder.basename}" added to AI Chat`);
+                }
+              }, 100);
+            }
+          });
+        });
+      })
+    );
     this.addCommand({
       id: "add-selection-to-chat",
       name: "Add selection to chat context",
@@ -33078,7 +33964,7 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
           const chatView = leaves[0].view;
           setTimeout(() => {
             chatView.addSelectionContext(selection, filePath);
-            new import_obsidian18.Notice("\u{1F4CB} Selection added to AI Chat");
+            new import_obsidian19.Notice("\u{1F4CB} Selection added to AI Chat");
           }, 100);
         }
       }
@@ -33110,7 +33996,7 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
       name: "Summarize Selection",
       editorCallback: async (editor, ctx) => {
         if (!this.aiProvider) {
-          new import_obsidian18.Notice("AI Provider not configured.");
+          new import_obsidian19.Notice("AI Provider not configured.");
           return;
         }
         const selection = editor.getSelection();
@@ -33122,7 +34008,7 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
 > ${summary}
 `);
           } catch (error2) {
-            new import_obsidian18.Notice(`Error: ${error2.message}`);
+            new import_obsidian19.Notice(`Error: ${error2.message}`);
           }
         }
       }
@@ -33140,17 +34026,17 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
       editorCallback: async (editor, ctx) => {
         const selection = editor.getSelection();
         if (!selection) {
-          new import_obsidian18.Notice("Please select some text first.");
+          new import_obsidian19.Notice("Please select some text first.");
           return;
         }
-        const filePath = ctx instanceof import_obsidian18.MarkdownView && ctx.file ? ctx.file.basename : "unknown";
+        const filePath = ctx instanceof import_obsidian19.MarkdownView && ctx.file ? ctx.file.basename : "unknown";
         await this.activateView();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
         if (leaves.length > 0) {
           const chatView = leaves[0].view;
           setTimeout(() => {
             chatView.addSelectionContext(selection, filePath);
-            new import_obsidian18.Notice(`\u{1F4CB} Selection added to AI Chat`);
+            new import_obsidian19.Notice(`\u{1F4CB} Selection added to AI Chat`);
           }, 100);
         }
       }
@@ -33175,16 +34061,16 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
   }
   async runQuickAction(editor, text2, instruction) {
     if (!this.aiProvider) {
-      new import_obsidian18.Notice("AI Provider not configured.");
+      new import_obsidian19.Notice("AI Provider not configured.");
       return;
     }
     try {
-      new import_obsidian18.Notice("AI Copilot: Processing...");
+      new import_obsidian19.Notice("AI Copilot: Processing...");
       const result = await this.aiProvider.executeAction(text2, instruction);
       editor.replaceSelection(result);
-      new import_obsidian18.Notice("AI Copilot: Done!");
+      new import_obsidian19.Notice("AI Copilot: Done!");
     } catch (error2) {
-      new import_obsidian18.Notice(`Error: ${error2.message}`);
+      new import_obsidian19.Notice(`Error: ${error2.message}`);
     }
   }
   addTextTransformCommand(id, name, systemInstruction, actionType = "replace", requiresSelection = true) {
@@ -33193,16 +34079,16 @@ var AICopilotPlugin = class extends import_obsidian18.Plugin {
       name,
       editorCallback: async (editor, ctx) => {
         if (!this.aiProvider) {
-          new import_obsidian18.Notice("AI Provider not configured.");
+          new import_obsidian19.Notice("AI Provider not configured.");
           return;
         }
         const selection = editor.getSelection();
         if (requiresSelection && !selection) {
-          new import_obsidian18.Notice(`Please select some text to run "${name}"`);
+          new import_obsidian19.Notice(`Please select some text to run "${name}"`);
           return;
         }
         try {
-          new import_obsidian18.Notice(`AI Copilot: ${name}...`);
+          new import_obsidian19.Notice(`AI Copilot: ${name}...`);
           let contextText = selection;
           if (!requiresSelection && !selection) {
             const cursor = editor.getCursor();
@@ -33227,9 +34113,9 @@ ${result}`, newCursor);
 
 ${result}`, cursor);
           }
-          new import_obsidian18.Notice(`AI Copilot: ${name} completed.`);
+          new import_obsidian19.Notice(`AI Copilot: ${name} completed.`);
         } catch (error2) {
-          new import_obsidian18.Notice(`Error: ${error2.message}`);
+          new import_obsidian19.Notice(`Error: ${error2.message}`);
         }
       }
     });
@@ -33264,7 +34150,7 @@ ${result}`, cursor);
       this.aiProvider = this.getAIProvider();
       this.toolManager.setAIProvider(this.aiProvider);
     } catch (e) {
-      new import_obsidian18.Notice(e.message);
+      new import_obsidian19.Notice(e.message);
     }
   }
   /** Reconnect MCP servers — call this only when MCP config changes, not on every save */
@@ -33286,7 +34172,7 @@ ${result}`, cursor);
     }
   }
 };
-var AICopilotSettingTab = class extends import_obsidian18.PluginSettingTab {
+var AICopilotSettingTab = class extends import_obsidian19.PluginSettingTab {
   plugin;
   component;
   constructor(app, plugin) {
@@ -33300,7 +34186,8 @@ var AICopilotSettingTab = class extends import_obsidian18.PluginSettingTab {
       target: containerEl,
       props: {
         settings: this.plugin.settings,
-        saveSettings: async () => await this.plugin.saveSettings()
+        saveSettings: async () => await this.plugin.saveSettings(),
+        plugin: this.plugin
       }
     });
   }

@@ -411,6 +411,24 @@
     </div>
   </div>
 
+  <!-- Auto-Apply Edits -->
+  <div class="setting-item" style="align-items: center;">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Auto-Apply Edits</div>
+      <div class="setting-item-description">
+        When enabled, AI edits to notes are applied directly without requiring
+        manual approval. You can still revert changes.
+      </div>
+    </div>
+    <div class="setting-item-control" style="align-items: flex-end;">
+      <input
+        type="checkbox"
+        bind:checked={settings.autoApplyEdits}
+        on:change={handleChange}
+      />
+    </div>
+  </div>
+
   <!-- Test Connection -->
   <div class="setting-item test-row">
     <div class="setting-item-info">
@@ -619,7 +637,7 @@
                 type="text"
                 bind:value={project.defaultModel}
                 on:change={handleChange}
-                placeholder="Optional (e.g. gpt-4o)"
+                placeholder="Optional (e.g. gpt-5-mini)"
               />
             </div>
           </div>

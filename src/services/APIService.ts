@@ -106,7 +106,7 @@ export class OpenAIProvider implements AIProvider {
         }
 
         const payload: any = {
-            model: this.settings.model || 'gpt-4o-mini',
+            model: this.settings.model || 'gpt-5-mini',
             messages: messages,
             temperature: options?.temperature ?? 0.7,
             max_tokens: options?.max_tokens ?? 4096, // Raised from 500

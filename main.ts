@@ -48,7 +48,7 @@ export default class AICopilotPlugin extends Plugin {
         this.mcpClientService = new MCPClientService();
         this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
         this.personaSoulService = new PersonaSoulService(this.app);
-        this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService, undefined, this.skillService, this.personaSoulService);
+        this.toolManager = new ToolManager(this.app, this.memoryService, this.vaultQA, this.mcpClientService, undefined, this.skillService, this.personaSoulService, this.settings);
         
         try {
 			this.aiProvider = this.getAIProvider();
