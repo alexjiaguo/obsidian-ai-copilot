@@ -101,18 +101,29 @@ export interface AICopilotSettings {
 
     // Composer
     autoApplyEdits: boolean;
+
+    // Tabs
+    tabs: { id: string; title: string; sessionId: string | null; projectId: string | null; personaId: string; pinned: boolean }[];
+    activeTabId: string;
 }
 
 // Provider-specific model lists (verified Mar 2026 - Text Generation Only)
 export const PROVIDER_MODELS: Record<ProviderType, string[]> = {
     openai: [
+        'gpt-5-pro',
+        'gpt-5',
         'gpt-5.4',
         'gpt-5.4-pro',
+        'gpt-5.2-pro',
+        'gpt-5.2',
+        'gpt-5.1',
         'gpt-5-mini',
         'gpt-5-nano',
-        'gpt-5',
-        'o4-mini',
         'o3',
+        'o1',
+        'o1-preview',
+        'o1-mini',
+        'o4-mini',
         'gpt-4.1',
         'gpt-4.1-mini',
         'gpt-4.1-nano',
@@ -215,5 +226,7 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     isVaultQAMode: false,
     skillsPath: '/Users/boss/Documents/ai_skills_hub',
     skillConfigs: [],
-    autoApplyEdits: true
+    autoApplyEdits: true,
+    tabs: [{ id: 'default-tab', title: 'New Chat', sessionId: null, projectId: null, personaId: 'default', pinned: false }],
+    activeTabId: 'default-tab'
 };

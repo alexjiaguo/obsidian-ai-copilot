@@ -1,47 +1,33 @@
 <script lang="ts">
   import { createEventDispatcher, afterUpdate, onMount } from "svelte";
 
-  export let selectedModel = "gpt-5-mini";
-  export let models: string[] = ["gpt-5-mini", "gpt-5.4"];
+  export let selectedProjectId: string | null = null;
+  export let projects: { id: string; name: string }[] = [];
 
   const dispatch = createEventDispatcher();
-  let selectEl: HTMLInputElement;
-  let measureSpan: HTMLSpanElement;
+  let selectEl: HTMLSelectElement;
 
   function handleChange(e: Event) {
-    const val = (e.target as HTMLInputElement).value;
-    selectedModel = val;
-    dispatch("change", val);
+    const val = (e.target as HTMLSelectElement).value;
+    const finalVal = val === "null" || val === "" ? null : val;
+    selectedProjectId = finalVal;
+    dispatch("change", finalVal);
   }
-
-  function updateWidth() {
-    if (!measureSpan || !selectEl) return;
-    measureSpan.textContent = selectedModel;
-    const textWidth = measureSpan.offsetWidth;
-    selectEl.style.width = `${textWidth + 40}px`;
-  }
-
-  onMount(updateWidth);
-  afterUpdate(updateWidth);
 </script>
 
-<div class="model-selector">
-  <span class="measure-span" bind:this={measureSpan}>{selectedModel}</span>
-  <input
-    list="model-list-{Math.random().toString(36).substring(2, 9)}"
+<div class="project-selector">
+  <select
     bind:this={selectEl}
-    bind:value={selectedModel}
+    value={selectedProjectId || "null"}
     on:change={handleChange}
-    on:input={handleChange}
-    title={selectedModel}
-    class="model-input"
-    placeholder="Select or type model..."
-  />
-  <datalist id={selectEl?.getAttribute("list") || "model-list"}>
-    {#each models as model}
-      <option value={model}>{model}</option>
+    class="project-input"
+    title={selectedProjectId ? projects.find(p => p.id === selectedProjectId)?.name || "Select Project" : "No Project (Global)"}
+  >
+    <option value="null">No Project (Global)</option>
+    {#each projects as project}
+      <option value={project.id}>{project.name}</option>
     {/each}
-  </datalist>
+  </select>
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="12"
@@ -57,51 +43,41 @@
 </div>
 
 <style>
-  .model-selector {
+  .project-selector {
     position: relative;
     display: inline-flex;
     align-items: center;
   }
 
-  .measure-span {
-    position: absolute;
-    visibility: hidden;
-    height: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: var(--font-ui-smaller);
-    font-family: inherit;
-  }
-
-  input {
+  select {
     appearance: none;
     -webkit-appearance: none;
     background: var(--background-modifier-hover);
     border: 1px solid var(--background-modifier-border);
     padding: 4px 28px 4px 10px;
     border-radius: 6px;
-    cursor: text;
+    cursor: pointer;
     color: var(--text-muted);
     font-size: var(--font-ui-smaller);
     font-family: inherit;
     transition:
       color 0.2s,
       background-color 0.2s,
-      border-color 0.2s,
-      width 0.15s ease;
+      border-color 0.2s;
+    width: 140px; /* Fixed small width for the header */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     outline: none;
   }
 
-  input:hover {
+  select:hover {
     color: var(--text-normal);
     background-color: var(--background-secondary);
     border-color: var(--interactive-accent);
   }
 
-  input:focus {
+  select:focus {
     color: var(--text-normal);
     border-color: var(--interactive-accent);
     box-shadow: 0 0 0 2px var(--background-modifier-border-focus);

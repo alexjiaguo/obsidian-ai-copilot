@@ -325,7 +325,8 @@
   }
 </script>
 
-<div class="settings-view">
+<div class="settings-padding-wrapper">
+  <div class="settings-view">
   <!-- ── Model Configuration ── -->
   <div class="setting-section-title">Model Configuration</div>
 
@@ -357,21 +358,16 @@
         {#each currentModels as m}
           <option value={m}>{m}</option>
         {/each}
-        <!-- Allow a custom value not in list -->
         {#if !currentModels.includes(settings.model) && settings.model}
           <option value={settings.model}>{settings.model} (custom)</option>
         {/if}
       </select>
-      <!-- Custom model input for Ollama or edge cases -->
-      {#if settings.provider === "ollama"}
-        <input
-          type="text"
-          bind:value={settings.model}
-          on:change={handleChange}
-          placeholder="or type custom model name"
-          style="margin-top: 6px; width: 100%;"
-        />
-      {/if}
+      <input
+        type="text"
+        bind:value={settings.model}
+        on:change={handleChange}
+        placeholder="or type custom model name"
+      />
     </div>
   </div>
 
@@ -412,15 +408,12 @@
   </div>
 
   <!-- Auto-Apply Edits -->
-  <div class="setting-item" style="align-items: center;">
+  <div class="setting-item">
     <div class="setting-item-info">
       <div class="setting-item-name">Auto-Apply Edits</div>
-      <div class="setting-item-description">
-        When enabled, AI edits to notes are applied directly without requiring
-        manual approval. You can still revert changes.
-      </div>
+      <div class="setting-item-description">Apply AI edits directly without manual approval.</div>
     </div>
-    <div class="setting-item-control" style="align-items: flex-end;">
+    <div class="setting-item-control">
       <input
         type="checkbox"
         bind:checked={settings.autoApplyEdits}
@@ -463,9 +456,7 @@
   </div>
 
   <!-- ── Vault QA & Embeddings ── -->
-  <div class="setting-section-title" style="margin-top:24px;">
-    Vault QA & Embeddings
-  </div>
+  <div class="setting-section-title">Vault QA & Embeddings</div>
   <div class="setting-description">
     Configure vector search settings for querying your notes.
   </div>
@@ -503,14 +494,14 @@
     </div>
   </div>
 
-  <div class="setting-item" style="align-items: center;">
+  <div class="setting-item">
     <div class="setting-item-info">
       <div class="setting-item-name">Auto-Index Vault</div>
       <div class="setting-item-description">
         Automatically index notes on startup or change
       </div>
     </div>
-    <div class="setting-item-control" style="align-items: flex-end;">
+    <div class="setting-item-control">
       <input
         type="checkbox"
         bind:checked={settings.autoIndexVault}
@@ -537,7 +528,7 @@
   </div>
 
   <!-- ── Projects ── -->
-  <div class="setting-section-title" style="margin-top:24px;">Projects</div>
+  <div class="setting-section-title">Projects</div>
   <div class="setting-description">
     Define scoped contexts. Manage project-level folders, tags, and system
     prompts.
@@ -649,7 +640,7 @@
   </div>
 
   <!-- ── Personas ── -->
-  <div class="setting-section-title" style="margin-top:24px;">Personas</div>
+  <div class="setting-section-title">Personas</div>
   <div class="setting-description">
     Manage AI personalities and system prompts.
   </div>
@@ -721,9 +712,7 @@
   </div>
 
   <!-- ── Custom Actions ── -->
-  <div class="setting-section-title" style="margin-top:24px;">
-    Custom Actions
-  </div>
+  <div class="setting-section-title">Custom Actions</div>
   <div class="setting-description">
     Create custom commands that operate on your selected text. Use <code
       >{`{{selection}}`}</code
@@ -788,7 +777,7 @@
   </div>
 
   <!-- ── MCP Servers ── -->
-  <div class="setting-section-title" style="margin-top:24px;">MCP Servers</div>
+  <div class="setting-section-title">MCP Servers</div>
   <div class="setting-description">
     Connect to local Model Context Protocol (MCP) servers to give the AI access
     to external data and tools.
@@ -887,7 +876,7 @@
   </div>
 
   <!-- ── Skills Management ── -->
-  <div class="setting-section-title" style="margin-top:24px;">Skills</div>
+  <div class="setting-section-title">Skills</div>
   <div class="setting-description">
     Manage AI skills discovered from your skills folder. Enable or disable
     individual skills, and mark skills as mandatory to ensure they are always
@@ -1015,37 +1004,52 @@
       {/each}
     {/if}
   </div>
+  </div>
 </div>
 
 <style>
+  .settings-padding-wrapper {
+    padding: 16px 20px 32px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  
   .settings-view {
-    padding-top: 10px;
+    box-sizing: border-box;
+    max-width: var(--settings-max-width, 100%);
+    margin: 0 auto;
   }
 
+  /* ── Section Titles ── */
   .setting-section-title {
-    font-size: 1.1em;
+    font-size: 1.05em;
     font-weight: 700;
     color: var(--text-normal);
-    margin-bottom: 4px;
+    margin: 24px 0 4px;
     padding-bottom: 6px;
     border-bottom: 2px solid var(--interactive-accent);
+  }
+  .setting-section-title:first-child {
+    margin-top: 0;
   }
 
   .setting-description {
     color: var(--text-muted);
-    margin-bottom: 12px;
-    font-size: 0.9em;
+    margin-bottom: 10px;
+    font-size: 0.85em;
+    line-height: 1.5;
   }
 
+  /* ── Setting Rows ── */
   .setting-item {
     border-top: 1px solid var(--background-modifier-border);
-    padding: 14px 0;
+    padding: 10px 0;
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 16px;
   }
-
   .setting-item:first-of-type {
     border-top: none;
   }
@@ -1056,21 +1060,24 @@
   }
 
   .setting-item-name {
-    font-size: var(--font-ui-medium);
+    font-size: 0.9em;
     font-weight: 600;
     color: var(--text-normal);
+    line-height: 1.3;
   }
 
   .setting-item-description {
     color: var(--text-muted);
-    font-size: var(--font-ui-small);
-    line-height: 1.5;
-    margin-top: 4px;
+    font-size: 0.8em;
+    line-height: 1.4;
+    margin-top: 2px;
   }
 
+  /* ── Controls (right side) ── */
   .setting-item-control {
     flex-shrink: 0;
-    min-width: 220px;
+    width: 320px;
+    min-width: 200px;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1079,74 +1086,85 @@
   .setting-item-control select,
   .setting-item-control input[type="text"],
   .setting-item-control input[type="password"] {
-    width: 100%;
+    width: 320px;
+    max-width: 320px;
     background: var(--background-modifier-form-field);
     border: 1px solid var(--background-modifier-border);
     color: var(--text-normal);
     border-radius: 4px;
-    padding: 6px 10px;
-    font-size: var(--font-ui-small);
+    padding: 5px 8px;
+    font-size: 0.85em;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+    align-self: flex-end;
+  }
+
+  .setting-item-control input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--interactive-accent);
+    align-self: flex-end;
   }
 
   .setting-item-control select:focus,
   .setting-item-control input:focus {
     outline: none;
     border-color: var(--interactive-accent);
-    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);
   }
 
-  /* Test connection */
+  /* ── Test Connection ── */
   .test-control {
-    align-items: flex-start;
+    align-items: flex-end;
   }
 
   .test-btn {
-    padding: 6px 16px;
+    padding: 5px 14px;
     background: var(--interactive-accent);
     color: var(--text-on-accent);
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: var(--font-ui-small);
-    transition: background-color 0.2s;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: background-color 0.15s;
   }
-
   .test-btn:hover:not(:disabled) {
     background: var(--interactive-accent-hover);
   }
-
   .test-btn:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 
   .test-result {
-    margin-top: 8px;
-    padding: 6px 10px;
+    margin-top: 6px;
+    padding: 5px 8px;
     border-radius: 4px;
-    font-size: var(--font-ui-small);
+    font-size: 0.8em;
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
     word-break: break-word;
+    max-width: 320px;
   }
-
   .test-result.ok {
     border-color: #22c55e;
     color: #16a34a;
     background: #f0fdf4;
   }
-
   .test-result.error {
     border-color: #ef4444;
     color: #dc2626;
     background: #fef2f2;
   }
 
-  /* Personas */
+  /* ── Cards (Projects, Personas, Actions, MCP, Skills) ── */
   .personas-container {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
+    margin-bottom: 4px;
   }
 
   .persona-card {
@@ -1154,114 +1172,148 @@
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     overflow: hidden;
+    transition: border-color 0.15s;
   }
-
   .persona-card.active {
     border-color: var(--interactive-accent);
   }
 
   .persona-header {
-    padding: 10px 15px;
+    padding: 8px 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
     background: var(--background-primary);
+    transition: background-color 0.1s;
   }
-
   .persona-header:hover {
     background: var(--background-secondary-alt);
   }
 
   .persona-name {
     font-weight: 600;
+    font-size: 0.9em;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .default-badge {
-    font-size: 0.7em;
+    font-size: 0.65em;
     background: var(--interactive-accent);
     color: var(--text-on-accent);
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   .persona-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .icon-btn {
     background: none;
     border: none;
     cursor: pointer;
-    opacity: 0.6;
-    font-size: 1.1em;
+    opacity: 0.5;
+    font-size: 1em;
     padding: 2px;
+    transition: opacity 0.12s;
   }
-
   .icon-btn:hover {
     opacity: 1;
   }
 
+  .chevron {
+    font-size: 0.75em;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+
+  /* ── Editors inside cards ── */
   .persona-editor {
-    padding: 15px;
+    padding: 12px 14px;
     border-top: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    background: var(--background-primary-alt, var(--background-secondary));
   }
 
   .form-group {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: baseline;
+    gap: 10px;
   }
 
   .form-group label {
-    font-size: 0.85em;
+    font-size: 0.8em;
     color: var(--text-muted);
+    font-weight: 500;
+    min-width: 100px;
+    flex-shrink: 0;
+    text-align: right;
   }
 
   .form-group input,
   .form-group textarea {
-    width: 100%;
+    flex: 1;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
     color: var(--text-normal);
     border-radius: 4px;
-    padding: 8px;
+    padding: 5px 8px;
     box-sizing: border-box;
+    font-size: 0.85em;
+    transition: border-color 0.15s;
   }
 
-  textarea {
+  .form-group textarea {
     font-family: var(--font-monospace);
-    font-size: var(--font-ui-smaller);
+    font-size: 0.8em;
     resize: vertical;
     line-height: 1.5;
   }
 
-  textarea:focus,
-  input:focus {
+  .form-group input:focus,
+  .form-group textarea:focus {
     border-color: var(--interactive-accent);
     outline: none;
-    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);
   }
 
+  /* Skill toggle */
+  .skill-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  .skill-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--interactive-accent);
+  }
+
+  /* ── Add Button ── */
   .add-btn {
-    margin-top: 10px;
-    padding: 8px 16px;
+    margin-top: 6px;
+    padding: 6px 14px;
     background: var(--interactive-accent);
     color: var(--text-on-accent);
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
     align-self: flex-start;
+    transition: background-color 0.15s;
   }
-
   .add-btn:hover {
     background: var(--interactive-accent-hover);
   }

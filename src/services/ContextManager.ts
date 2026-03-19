@@ -18,6 +18,8 @@ export interface SearchResult {
 
 export class ContextManager {
     app: App;
+    private searchCache: Map<string, { results: SearchResult[]; timestamp: number }> = new Map();
+    private cacheTimeout = 5000; // 5 seconds cache
 
     constructor(app: App) {
         this.app = app;
@@ -114,6 +116,15 @@ export class ContextManager {
 
     // Search for files and folders to support @ mentions
     searchFiles(query: string): SearchResult[] {
+        const cacheKey = query.toLowerCase();
+        const cached = this.searchCache.get(cacheKey);
+        const now = Date.now();
+
+        // Return cached results if still valid
+        if (cached && now - cached.timestamp < this.cacheTimeout) {
+            return cached.results;
+        }
+
         console.log('ContextManager: searchFiles called with', query);
         const files = this.app.vault.getFiles();
         const allFolders = this.getAllFolders();
@@ -121,9 +132,11 @@ export class ContextManager {
             // Show a mix of recent files and top-level folders
             const fileResults = files.slice(0, 15).map(f => ({ type: 'file' as const, file: f, matchScore: 0 }));
             const folderResults = allFolders.slice(0, 5).map(f => ({ type: 'folder' as const, file: null as any, folder: f, matchScore: 0 }));
-            return [...folderResults, ...fileResults];
+            const results = [...folderResults, ...fileResults];
+            this.searchCache.set(cacheKey, { results, timestamp: now });
+            return results;
         }
-        
+
         const lowerQuery = query.toLowerCase();
         const results: SearchResult[] = [];
 
@@ -152,7 +165,12 @@ export class ContextManager {
         }
 
         // Sort by score then name
-        return results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
+        const finalResults = results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
+
+        // Cache the results
+        this.searchCache.set(cacheKey, { results: finalResults, timestamp: now });
+
+        return finalResults;
     }
 
     // Get all folders in the vault (excluding hidden folders)

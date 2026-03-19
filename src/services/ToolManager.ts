@@ -34,6 +34,9 @@ export class ToolManager {
     private activePersonaId: string = 'default';
     private settings: AICopilotSettings | null;
 
+    // Static tool definitions - created once and reused
+    private static toolDefinitions: Tool[] | null = null;
+
     constructor(app: App, memoryService?: MemoryService, vaultQA?: VaultQA, mcpClientService?: MCPClientService, aiProvider?: AIProvider, skillService?: SkillService, personaSoulService?: PersonaSoulService, settings?: AICopilotSettings) {
         this.app = app;
         this.webSearch = new WebSearch();
@@ -65,6 +68,12 @@ export class ToolManager {
     }
 
     private registerTools() {
+        // Use static definitions if already created (for non-MCP tools)
+        if (ToolManager.toolDefinitions && this.tools.length === 0) {
+            this.tools = [...ToolManager.toolDefinitions];
+            return;
+        }
+
         // 1. Create Note
         this.tools.push({
             name: 'create_note',
@@ -592,6 +601,11 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
                 }
             }
         });
+
+        // Cache static tool definitions for reuse
+        if (!ToolManager.toolDefinitions) {
+            ToolManager.toolDefinitions = [...this.tools];
+        }
     }
 
     private buildMetaContext(extracted: import('./ContentExtractor').ExtractedContent): string {

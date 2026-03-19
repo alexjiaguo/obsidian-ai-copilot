@@ -7049,7 +7049,7 @@ var require_mode = __commonJS({
     }
     function checkMode(stat, options) {
       var mod = stat.mode;
-      var uid = stat.uid;
+      var uid2 = stat.uid;
       var gid = stat.gid;
       var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
       var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
@@ -7057,7 +7057,7 @@ var require_mode = __commonJS({
       var g = parseInt("010", 8);
       var o = parseInt("001", 8);
       var ug = u | g;
-      var ret = mod & o || mod & g && gid === myGid || mod & u && uid === myUid || mod & ug && myUid === 0;
+      var ret = mod & o || mod & g && gid === myGid || mod & u && uid2 === myUid || mod & ug && myUid === 0;
       return ret;
     }
   }
@@ -7493,18 +7493,25 @@ __export(main_exports, {
   default: () => AICopilotPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/settings/Settings.ts
 var PROVIDER_MODELS = {
   openai: [
+    "gpt-5-pro",
+    "gpt-5",
     "gpt-5.4",
     "gpt-5.4-pro",
+    "gpt-5.2-pro",
+    "gpt-5.2",
+    "gpt-5.1",
     "gpt-5-mini",
     "gpt-5-nano",
-    "gpt-5",
-    "o4-mini",
     "o3",
+    "o1",
+    "o1-preview",
+    "o1-mini",
+    "o4-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano"
@@ -7602,14 +7609,16 @@ var DEFAULT_SETTINGS = {
   isVaultQAMode: false,
   skillsPath: "/Users/boss/Documents/ai_skills_hub",
   skillConfigs: [],
-  autoApplyEdits: true
+  autoApplyEdits: true,
+  tabs: [{ id: "default-tab", title: "New Chat", sessionId: null, projectId: null, personaId: "default", pinned: false }],
+  activeTabId: "default-tab"
 };
 
 // main.ts
 init_APIService();
 
 // src/views/AIChatView.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // node_modules/esm-env/dev-fallback.js
 var node_env = globalThis.process?.env?.NODE_ENV;
@@ -7664,6 +7673,7 @@ var MAYBE_DIRTY = 1 << 12;
 var INERT = 1 << 13;
 var DESTROYED = 1 << 14;
 var REACTION_RAN = 1 << 15;
+var DESTROYING = 1 << 25;
 var EFFECT_TRANSPARENT = 1 << 16;
 var EAGER_EFFECT = 1 << 17;
 var HEAD_EFFECT = 1 << 18;
@@ -8166,6 +8176,10 @@ function push(props, runes = false, fn) {
     e: null,
     s: props,
     x: null,
+    r: (
+      /** @type {Effect} */
+      active_effect
+    ),
     l: legacy_mode_flag && !runes ? { s: null, u: null, $: [] } : null
   };
   if (dev_fallback_default) {
@@ -8329,16 +8343,35 @@ function defer_effect(effect2, dirty_effects, maybe_dirty_effects) {
   set_signal_status(effect2, CLEAN);
 }
 
+// node_modules/svelte/src/internal/client/reactivity/store.js
+var legacy_is_updating_store = false;
+var is_store_binding = false;
+function capture_store_binding(fn) {
+  var previous_is_store_binding = is_store_binding;
+  try {
+    is_store_binding = false;
+    return [fn(), is_store_binding];
+  } finally {
+    is_store_binding = previous_is_store_binding;
+  }
+}
+
 // node_modules/svelte/src/internal/client/reactivity/batch.js
 var batches = /* @__PURE__ */ new Set();
 var current_batch = null;
 var previous_batch = null;
 var batch_values = null;
-var queued_root_effects = [];
 var last_scheduled_effect = null;
-var is_flushing = false;
 var is_flushing_sync = false;
+var is_processing = false;
+var collected_effects = null;
+var legacy_updates = null;
+var flush_count = 0;
+var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
+var uid = 1;
 var Batch = class _Batch {
+  // for debugging. TODO remove once async is stable
+  id = uid++;
   /**
    * The current values of any sources that are updated in this batch
    * They keys of this map are identical to `this.#previous`
@@ -8354,7 +8387,7 @@ var Batch = class _Batch {
   /**
    * When the batch is committed (and the DOM is updated), we need to remove old branches
    * and append new ones by calling the functions added inside (if/each/key/etc) blocks
-   * @type {Set<() => void>}
+   * @type {Set<(batch: Batch) => void>}
    */
   #commit_callbacks = /* @__PURE__ */ new Set();
   /**
@@ -8376,6 +8409,11 @@ var Batch = class _Batch {
    * @type {{ promise: Promise<void>, resolve: (value?: any) => void, reject: (reason: unknown) => void } | null}
    */
   #deferred = null;
+  /**
+   * The root effects that need to be flushed
+   * @type {Effect[]}
+   */
+  #roots = [];
   /**
    * Deferred effects (which run after async work has completed) that are DIRTY
    * @type {Set<Effect>}
@@ -8419,26 +8457,36 @@ var Batch = class _Batch {
       this.#skipped_branches.delete(effect2);
       for (var e of tracked.d) {
         set_signal_status(e, DIRTY);
-        schedule_effect(e);
+        this.schedule(e);
       }
       for (e of tracked.m) {
         set_signal_status(e, MAYBE_DIRTY);
-        schedule_effect(e);
+        this.schedule(e);
       }
     }
   }
-  /**
-   *
-   * @param {Effect[]} root_effects
-   */
-  process(root_effects) {
-    queued_root_effects = [];
-    this.apply();
-    var effects = [];
-    var render_effects = [];
-    for (const root11 of root_effects) {
-      this.#traverse_effect_tree(root11, effects, render_effects);
+  #process() {
+    if (flush_count++ > 1e3) {
+      infinite_loop_guard();
     }
+    const roots = this.#roots;
+    this.#roots = [];
+    this.apply();
+    var effects = collected_effects = [];
+    var render_effects = [];
+    var updates = legacy_updates = [];
+    for (const root11 of roots) {
+      this.#traverse(root11, effects, render_effects);
+    }
+    current_batch = null;
+    if (updates.length > 0) {
+      var batch = _Batch.ensure();
+      for (const e of updates) {
+        batch.schedule(e);
+      }
+    }
+    collected_effects = null;
+    legacy_updates = null;
     if (this.#is_deferred()) {
       this.#defer_effects(render_effects);
       this.#defer_effects(effects);
@@ -8446,19 +8494,33 @@ var Batch = class _Batch {
         reset_branch(e, t);
       }
     } else {
-      for (const fn of this.#commit_callbacks) fn();
+      this.#dirty_effects.clear();
+      this.#maybe_dirty_effects.clear();
+      for (const fn of this.#commit_callbacks) fn(this);
       this.#commit_callbacks.clear();
-      if (this.#pending === 0) {
-        this.#commit();
-      }
       previous_batch = this;
-      current_batch = null;
       flush_queued_effects(render_effects);
       flush_queued_effects(effects);
       previous_batch = null;
+      if (this.#pending === 0) {
+        this.#commit();
+      }
       this.#deferred?.resolve();
     }
-    batch_values = null;
+    var next_batch = (
+      /** @type {Batch | null} */
+      /** @type {unknown} */
+      current_batch
+    );
+    if (next_batch !== null) {
+      batches.add(next_batch);
+      if (dev_fallback_default) {
+        for (const source2 of this.current.keys()) {
+          source_stacks.add(source2);
+        }
+      }
+      next_batch.#process();
+    }
   }
   /**
    * Traverse the effect tree, executing effects or stashing
@@ -8467,7 +8529,7 @@ var Batch = class _Batch {
    * @param {Effect[]} effects
    * @param {Effect[]} render_effects
    */
-  #traverse_effect_tree(root11, effects, render_effects) {
+  #traverse(root11, effects, render_effects) {
     root11.f ^= CLEAN;
     var effect2 = root11.first;
     while (effect2 !== null) {
@@ -8527,24 +8589,47 @@ var Batch = class _Batch {
   }
   activate() {
     current_batch = this;
-    this.apply();
   }
   deactivate() {
-    if (current_batch !== this) return;
     current_batch = null;
     batch_values = null;
   }
   flush() {
-    this.activate();
-    if (queued_root_effects.length > 0) {
-      flush_effects();
-      if (current_batch !== null && current_batch !== this) {
-        return;
+    var source_stacks2 = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
+    try {
+      is_processing = true;
+      current_batch = this;
+      if (!this.#is_deferred()) {
+        for (const e of this.#dirty_effects) {
+          this.#maybe_dirty_effects.delete(e);
+          set_signal_status(e, DIRTY);
+          this.schedule(e);
+        }
+        for (const e of this.#maybe_dirty_effects) {
+          set_signal_status(e, MAYBE_DIRTY);
+          this.schedule(e);
+        }
       }
-    } else if (this.#pending === 0) {
-      this.process([]);
+      this.#process();
+    } finally {
+      flush_count = 0;
+      last_scheduled_effect = null;
+      collected_effects = null;
+      legacy_updates = null;
+      is_processing = false;
+      current_batch = null;
+      batch_values = null;
+      old_values.clear();
+      if (dev_fallback_default) {
+        for (
+          const source2 of
+          /** @type {Set<Source>} */
+          source_stacks2
+        ) {
+          source2.updated = null;
+        }
+      }
     }
-    this.deactivate();
   }
   discard() {
     for (const fn of this.#discard_callbacks) fn(this);
@@ -8553,6 +8638,7 @@ var Batch = class _Batch {
   #commit() {
     if (batches.size > 1) {
       this.previous.clear();
+      var previous_batch2 = current_batch;
       var previous_batch_values = batch_values;
       var is_earlier = true;
       for (const batch of batches) {
@@ -8576,27 +8662,25 @@ var Batch = class _Batch {
         }
         const others = [...batch.current.keys()].filter((s) => !this.current.has(s));
         if (others.length > 0) {
-          var prev_queued_root_effects = queued_root_effects;
-          queued_root_effects = [];
+          batch.activate();
           const marked = /* @__PURE__ */ new Set();
           const checked = /* @__PURE__ */ new Map();
           for (const source2 of sources) {
             mark_effects(source2, others, marked, checked);
           }
-          if (queued_root_effects.length > 0) {
-            current_batch = batch;
+          if (batch.#roots.length > 0) {
             batch.apply();
-            for (const root11 of queued_root_effects) {
-              batch.#traverse_effect_tree(root11, [], []);
+            for (const root11 of batch.#roots) {
+              batch.#traverse(root11, [], []);
             }
-            batch.deactivate();
           }
-          queued_root_effects = prev_queued_root_effects;
+          batch.deactivate();
         }
       }
-      current_batch = null;
+      current_batch = previous_batch2;
       batch_values = previous_batch_values;
     }
+    this.#skipped_branches.clear();
     batches.delete(this);
   }
   /**
@@ -8608,36 +8692,20 @@ var Batch = class _Batch {
     if (blocking) this.#blocking_pending += 1;
   }
   /**
-   *
    * @param {boolean} blocking
+   * @param {boolean} skip - whether to skip updates (because this is triggered by a stale reaction)
    */
-  decrement(blocking) {
+  decrement(blocking, skip) {
     this.#pending -= 1;
     if (blocking) this.#blocking_pending -= 1;
-    if (this.#decrement_queued) return;
+    if (this.#decrement_queued || skip) return;
     this.#decrement_queued = true;
     queue_micro_task(() => {
       this.#decrement_queued = false;
-      if (!this.#is_deferred()) {
-        this.revive();
-      } else if (queued_root_effects.length > 0) {
-        this.flush();
-      }
+      this.flush();
     });
   }
-  revive() {
-    for (const e of this.#dirty_effects) {
-      this.#maybe_dirty_effects.delete(e);
-      set_signal_status(e, DIRTY);
-      schedule_effect(e);
-    }
-    for (const e of this.#maybe_dirty_effects) {
-      set_signal_status(e, MAYBE_DIRTY);
-      schedule_effect(e);
-    }
-    this.flush();
-  }
-  /** @param {() => void} fn */
+  /** @param {(batch: Batch) => void} fn */
   oncommit(fn) {
     this.#commit_callbacks.add(fn);
   }
@@ -8651,14 +8719,16 @@ var Batch = class _Batch {
   static ensure() {
     if (current_batch === null) {
       const batch = current_batch = new _Batch();
-      batches.add(current_batch);
-      if (!is_flushing_sync) {
-        queue_micro_task(() => {
-          if (current_batch !== batch) {
-            return;
-          }
-          batch.flush();
-        });
+      if (!is_processing) {
+        batches.add(current_batch);
+        if (!is_flushing_sync) {
+          queue_micro_task(() => {
+            if (current_batch !== batch) {
+              return;
+            }
+            batch.flush();
+          });
+        }
       }
     }
     return current_batch;
@@ -8675,6 +8745,35 @@ var Batch = class _Batch {
       }
     }
   }
+  /**
+   *
+   * @param {Effect} effect
+   */
+  schedule(effect2) {
+    last_scheduled_effect = effect2;
+    if (effect2.b?.is_pending && (effect2.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (effect2.f & REACTION_RAN) === 0) {
+      effect2.b.defer_effect(effect2);
+      return;
+    }
+    var e = effect2;
+    while (e.parent !== null) {
+      e = e.parent;
+      var flags2 = e.f;
+      if (collected_effects !== null && e === active_effect) {
+        if (async_mode_flag) return;
+        if ((active_reaction === null || (active_reaction.f & DERIVED) === 0) && !legacy_is_updating_store) {
+          return;
+        }
+      }
+      if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
+        if ((flags2 & CLEAN) === 0) {
+          return;
+        }
+        e.f ^= CLEAN;
+      }
+    }
+    this.#roots.push(e);
+  }
 };
 function flushSync(fn) {
   var was_flushing_sync = is_flushing_sync;
@@ -8682,81 +8781,48 @@ function flushSync(fn) {
   try {
     var result;
     if (fn) {
-      if (current_batch !== null) {
-        flush_effects();
+      if (current_batch !== null && !current_batch.is_fork) {
+        current_batch.flush();
       }
       result = fn();
     }
     while (true) {
       flush_tasks();
-      if (queued_root_effects.length === 0) {
-        current_batch?.flush();
-        if (queued_root_effects.length === 0) {
-          last_scheduled_effect = null;
-          return (
-            /** @type {T} */
-            result
-          );
-        }
+      if (current_batch === null) {
+        return (
+          /** @type {T} */
+          result
+        );
       }
-      flush_effects();
+      current_batch.flush();
     }
   } finally {
     is_flushing_sync = was_flushing_sync;
   }
 }
-function flush_effects() {
-  is_flushing = true;
-  var source_stacks = dev_fallback_default ? /* @__PURE__ */ new Set() : null;
-  try {
-    var flush_count = 0;
-    while (queued_root_effects.length > 0) {
-      var batch = Batch.ensure();
-      if (flush_count++ > 1e3) {
-        if (dev_fallback_default) {
-          var updates = /* @__PURE__ */ new Map();
-          for (const source2 of batch.current.keys()) {
-            for (const [stack2, update2] of source2.updated ?? []) {
-              var entry = updates.get(stack2);
-              if (!entry) {
-                entry = { error: update2.error, count: 0 };
-                updates.set(stack2, entry);
-              }
-              entry.count += update2.count;
-            }
-          }
-          for (const update2 of updates.values()) {
-            if (update2.error) {
-              console.error(update2.error);
-            }
-          }
+function infinite_loop_guard() {
+  if (dev_fallback_default) {
+    var updates = /* @__PURE__ */ new Map();
+    for (
+      const source2 of
+      /** @type {Batch} */
+      current_batch.current.keys()
+    ) {
+      for (const [stack2, update2] of source2.updated ?? []) {
+        var entry = updates.get(stack2);
+        if (!entry) {
+          entry = { error: update2.error, count: 0 };
+          updates.set(stack2, entry);
         }
-        infinite_loop_guard();
-      }
-      batch.process(queued_root_effects);
-      old_values.clear();
-      if (dev_fallback_default) {
-        for (const source2 of batch.current.keys()) {
-          source_stacks.add(source2);
-        }
+        entry.count += update2.count;
       }
     }
-  } finally {
-    queued_root_effects = [];
-    is_flushing = false;
-    last_scheduled_effect = null;
-    if (dev_fallback_default) {
-      for (
-        const source2 of
-        /** @type {Set<Source>} */
-        source_stacks
-      ) {
-        source2.updated = null;
+    for (const update2 of updates.values()) {
+      if (update2.error) {
+        console.error(update2.error);
       }
     }
   }
-}
-function infinite_loop_guard() {
   try {
     effect_update_depth_exceeded();
   } catch (error2) {
@@ -8854,27 +8920,8 @@ function depends_on(reaction, sources, checked) {
   checked.set(reaction, false);
   return false;
 }
-function schedule_effect(signal) {
-  var effect2 = last_scheduled_effect = signal;
-  var boundary2 = effect2.b;
-  if (boundary2?.is_pending && (signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (signal.f & REACTION_RAN) === 0) {
-    boundary2.defer_effect(signal);
-    return;
-  }
-  while (effect2.parent !== null) {
-    effect2 = effect2.parent;
-    var flags2 = effect2.f;
-    if (is_flushing && effect2 === active_effect && (flags2 & BLOCK_EFFECT) !== 0 && (flags2 & HEAD_EFFECT) === 0 && (flags2 & REACTION_RAN) !== 0) {
-      return;
-    }
-    if ((flags2 & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
-      if ((flags2 & CLEAN) === 0) {
-        return;
-      }
-      effect2.f ^= CLEAN;
-    }
-  }
-  queued_root_effects.push(effect2);
+function schedule_effect(effect2) {
+  current_batch.schedule(effect2);
 }
 function reset_branch(effect2, tracked) {
   if ((effect2.f & BRANCH_EFFECT) !== 0 && (effect2.f & CLEAN) !== 0) {
@@ -8903,7 +8950,7 @@ function createSubscriber(start) {
   }
   return () => {
     if (effect_tracking()) {
-      get(version2);
+      get2(version2);
       render_effect(() => {
         if (subscribers === 0) {
           stop = untrack(() => start(() => increment(version2)));
@@ -9054,12 +9101,15 @@ var Boundary = class {
     if (!pending2) return;
     this.is_pending = true;
     this.#pending_effect = branch(() => pending2(this.#anchor));
+    var batch = (
+      /** @type {Batch} */
+      current_batch
+    );
     queue_micro_task(() => {
       var fragment = this.#offscreen_fragment = document.createDocumentFragment();
       var anchor = create_text();
       fragment.append(anchor);
       this.#main_effect = this.#run(() => {
-        Batch.ensure();
         return branch(() => this.#children(anchor));
       });
       if (this.#pending_count === 0) {
@@ -9072,11 +9122,15 @@ var Boundary = class {
             this.#pending_effect = null;
           }
         );
-        this.#resolve();
+        this.#resolve(batch);
       }
     });
   }
   #render() {
+    var batch = (
+      /** @type {Batch} */
+      current_batch
+    );
     try {
       this.is_pending = this.has_pending_snippet();
       this.#pending_count = 0;
@@ -9093,21 +9147,24 @@ var Boundary = class {
         );
         this.#pending_effect = branch(() => pending2(this.#anchor));
       } else {
-        this.#resolve();
+        this.#resolve(batch);
       }
     } catch (error2) {
       this.error(error2);
     }
   }
-  #resolve() {
+  /**
+   * @param {Batch} batch
+   */
+  #resolve(batch) {
     this.is_pending = false;
     for (const e of this.#dirty_effects) {
       set_signal_status(e, DIRTY);
-      schedule_effect(e);
+      batch.schedule(e);
     }
     for (const e of this.#maybe_dirty_effects) {
       set_signal_status(e, MAYBE_DIRTY);
-      schedule_effect(e);
+      batch.schedule(e);
     }
     this.#dirty_effects.clear();
     this.#maybe_dirty_effects.clear();
@@ -9141,6 +9198,7 @@ var Boundary = class {
     set_active_reaction(this.#effect);
     set_component_context(this.#effect.ctx);
     try {
+      Batch.ensure();
       return fn();
     } catch (e) {
       handle_error(e);
@@ -9155,17 +9213,18 @@ var Boundary = class {
    * Updates the pending count associated with the currently visible pending snippet,
    * if any, such that we can replace the snippet with content once work is done
    * @param {1 | -1} d
+   * @param {Batch} batch
    */
-  #update_pending_count(d) {
+  #update_pending_count(d, batch) {
     if (!this.has_pending_snippet()) {
       if (this.parent) {
-        this.parent.#update_pending_count(d);
+        this.parent.#update_pending_count(d, batch);
       }
       return;
     }
     this.#pending_count += d;
     if (this.#pending_count === 0) {
-      this.#resolve();
+      this.#resolve(batch);
       if (this.#pending_effect) {
         pause_effect(this.#pending_effect, () => {
           this.#pending_effect = null;
@@ -9182,9 +9241,10 @@ var Boundary = class {
    * and controls when the current `pending` snippet (if any) is removed.
    * Do not call from inside the class
    * @param {1 | -1} d
+   * @param {Batch} batch
    */
-  update_pending_count(d) {
-    this.#update_pending_count(d);
+  update_pending_count(d, batch) {
+    this.#update_pending_count(d, batch);
     this.#local_pending_count += d;
     if (!this.#effect_pending || this.#pending_count_update_queued) return;
     this.#pending_count_update_queued = true;
@@ -9197,7 +9257,7 @@ var Boundary = class {
   }
   get_effect_pending() {
     this.#effect_pending_subscriber();
-    return get(
+    return get2(
       /** @type {Source<number>} */
       this.#effect_pending
     );
@@ -9246,7 +9306,6 @@ var Boundary = class {
         });
       }
       this.#run(() => {
-        Batch.ensure();
         this.#render();
       });
     };
@@ -9260,7 +9319,6 @@ var Boundary = class {
       }
       if (failed) {
         this.#failed_effect = this.#run(() => {
-          Batch.ensure();
           try {
             return branch(() => {
               var effect2 = (
@@ -9316,7 +9374,6 @@ function flatten(blockers, sync, async2, fn) {
     fn(sync.map(d));
     return;
   }
-  var batch = current_batch;
   var parent = (
     /** @type {Effect} */
     active_effect
@@ -9338,21 +9395,31 @@ function flatten(blockers, sync, async2, fn) {
     blocker_promise.then(() => finish(sync.map(d)));
     return;
   }
+  var decrement_pending = increment_pending();
   function run3() {
-    restore();
-    Promise.all(async2.map((expression) => async_derived(expression))).then((result) => finish([...sync.map(d), ...result])).catch((error2) => invoke_error_boundary(error2, parent));
+    Promise.all(async2.map((expression) => async_derived(expression))).then((result) => finish([...sync.map(d), ...result])).catch((error2) => invoke_error_boundary(error2, parent)).finally(() => decrement_pending());
   }
   if (blocker_promise) {
-    blocker_promise.then(run3);
+    blocker_promise.then(() => {
+      restore();
+      run3();
+      unset_context();
+    });
   } else {
     run3();
   }
 }
 function capture() {
-  var previous_effect = active_effect;
+  var previous_effect = (
+    /** @type {Effect} */
+    active_effect
+  );
   var previous_reaction = active_reaction;
   var previous_component_context = component_context;
-  var previous_batch2 = current_batch;
+  var previous_batch2 = (
+    /** @type {Batch} */
+    current_batch
+  );
   if (dev_fallback_default) {
     var previous_dev_stack = dev_stack;
   }
@@ -9360,7 +9427,10 @@ function capture() {
     set_active_effect(previous_effect);
     set_active_reaction(previous_reaction);
     set_component_context(previous_component_context);
-    if (activate_batch) previous_batch2?.activate();
+    if (activate_batch && (previous_effect.f & DESTROYED) === 0) {
+      previous_batch2?.activate();
+      previous_batch2?.apply();
+    }
     if (dev_fallback_default) {
       set_from_async_derived(null);
       set_dev_stack(previous_dev_stack);
@@ -9388,11 +9458,11 @@ function increment_pending() {
     current_batch
   );
   var blocking = boundary2.is_rendered();
-  boundary2.update_pending_count(1);
+  boundary2.update_pending_count(1, batch);
   batch.increment(blocking);
-  return () => {
-    boundary2.update_pending_count(-1);
-    batch.decrement(blocking);
+  return (skip = false) => {
+    boundary2.update_pending_count(-1, batch);
+    batch.decrement(blocking, skip);
   };
 }
 
@@ -9457,6 +9527,10 @@ function async_derived(fn, label, location) {
   var deferreds = /* @__PURE__ */ new Map();
   async_effect(() => {
     if (dev_fallback_default) current_async_effect = active_effect;
+    var effect2 = (
+      /** @type {Effect} */
+      active_effect
+    );
     var d = deferred();
     promise2 = d.promise;
     try {
@@ -9471,19 +9545,36 @@ function async_derived(fn, label, location) {
       current_batch
     );
     if (should_suspend) {
-      var decrement_pending = increment_pending();
-      deferreds.get(batch)?.reject(STALE_REACTION);
-      deferreds.delete(batch);
+      if ((effect2.f & REACTION_RAN) !== 0) {
+        var decrement_pending = increment_pending();
+      }
+      if (
+        /** @type {Boundary} */
+        parent.b.is_rendered()
+      ) {
+        deferreds.get(batch)?.reject(STALE_REACTION);
+        deferreds.delete(batch);
+      } else {
+        for (const d2 of deferreds.values()) {
+          d2.reject(STALE_REACTION);
+        }
+        deferreds.clear();
+      }
       deferreds.set(batch, d);
     }
     const handler = (value, error2 = void 0) => {
-      current_async_effect = null;
+      if (dev_fallback_default) current_async_effect = null;
+      if (decrement_pending) {
+        var skip = error2 === STALE_REACTION;
+        decrement_pending(skip);
+      }
+      if (error2 === STALE_REACTION || (effect2.f & DESTROYED) !== 0) {
+        return;
+      }
       batch.activate();
       if (error2) {
-        if (error2 !== STALE_REACTION) {
-          signal.f |= ERROR_VALUE;
-          internal_set(signal, error2);
-        }
+        signal.f |= ERROR_VALUE;
+        internal_set(signal, error2);
       } else {
         if ((signal.f & ERROR_VALUE) !== 0) {
           signal.f ^= ERROR_VALUE;
@@ -9508,9 +9599,7 @@ function async_derived(fn, label, location) {
           });
         }
       }
-      if (decrement_pending) {
-        decrement_pending();
-      }
+      batch.deactivate();
     };
     d.promise.then(handler, (e) => handler(null, e || "unknown"));
   });
@@ -9698,7 +9787,7 @@ function mutable_source(initial_value, immutable = false, trackable = true) {
 function mutate(source2, value) {
   set(
     source2,
-    untrack(() => get(source2))
+    untrack(() => get2(source2))
   );
   return value;
 }
@@ -9716,9 +9805,9 @@ function set(source2, value, should_proxy = false) {
       source2.label
     );
   }
-  return internal_set(source2, new_value);
+  return internal_set(source2, new_value, legacy_updates);
 }
-function internal_set(source2, value) {
+function internal_set(source2, value, updated_during_traversal = null) {
   if (!source2.equals(value)) {
     var old_value = source2.v;
     if (is_destroying_effect) {
@@ -9764,7 +9853,7 @@ function internal_set(source2, value) {
       update_derived_status(derived2);
     }
     source2.wv = increment_write_version();
-    mark_reactions(source2, DIRTY);
+    mark_reactions(source2, DIRTY, updated_during_traversal);
     if (is_runes() && active_effect !== null && (active_effect.f & CLEAN) !== 0 && (active_effect.f & (BRANCH_EFFECT | ROOT_EFFECT)) === 0) {
       if (untracked_writes === null) {
         set_untracked_writes([source2]);
@@ -9793,7 +9882,7 @@ function flush_eager_effects() {
 function increment(source2) {
   set(source2, source2.v + 1);
 }
-function mark_reactions(signal, status) {
+function mark_reactions(signal, status, updated_during_traversal) {
   var reactions = signal.reactions;
   if (reactions === null) return;
   var runes = is_runes();
@@ -9820,19 +9909,21 @@ function mark_reactions(signal, status) {
         if (flags2 & CONNECTED) {
           reaction.f |= WAS_MARKED;
         }
-        mark_reactions(derived2, MAYBE_DIRTY);
+        mark_reactions(derived2, MAYBE_DIRTY, updated_during_traversal);
       }
     } else if (not_dirty) {
-      if ((flags2 & BLOCK_EFFECT) !== 0 && eager_block_effects !== null) {
-        eager_block_effects.add(
-          /** @type {Effect} */
-          reaction
-        );
-      }
-      schedule_effect(
+      var effect2 = (
         /** @type {Effect} */
         reaction
       );
+      if ((flags2 & BLOCK_EFFECT) !== 0 && eager_block_effects !== null) {
+        eager_block_effects.add(effect2);
+      }
+      if (updated_during_traversal !== null) {
+        updated_during_traversal.push(effect2);
+      } else {
+        schedule_effect(effect2);
+      }
     }
   }
 }
@@ -9952,7 +10043,7 @@ function proxy(value) {
           sources.set(prop2, s);
         }
         if (s !== void 0) {
-          var v = get(s);
+          var v = get2(s);
           return v === UNINITIALIZED ? void 0 : v;
         }
         return Reflect.get(target, prop2, receiver);
@@ -9961,7 +10052,7 @@ function proxy(value) {
         var descriptor = Reflect.getOwnPropertyDescriptor(target, prop2);
         if (descriptor && "value" in descriptor) {
           var s = sources.get(prop2);
-          if (s) descriptor.value = get(s);
+          if (s) descriptor.value = get2(s);
         } else if (descriptor === void 0) {
           var source2 = sources.get(prop2);
           var value2 = source2?.v;
@@ -9994,7 +10085,7 @@ function proxy(value) {
             });
             sources.set(prop2, s);
           }
-          var value2 = get(s);
+          var value2 = get2(s);
           if (value2 === UNINITIALIZED) {
             return false;
           }
@@ -10053,7 +10144,7 @@ function proxy(value) {
         return true;
       },
       ownKeys(target) {
-        get(version2);
+        get2(version2);
         var own_keys = Reflect.ownKeys(target).filter((key3) => {
           var source3 = sources.get(key3);
           return source3 === void 0 || source3.v !== UNINITIALIZED;
@@ -10328,6 +10419,17 @@ function merge_text_nodes(text2) {
 }
 
 // node_modules/svelte/src/internal/client/dom/elements/misc.js
+function autofocus(dom, value) {
+  if (value) {
+    const body = document.body;
+    dom.autofocus = true;
+    queue_micro_task(() => {
+      if (document.activeElement === body) {
+        dom.focus();
+      }
+    });
+  }
+}
 function remove_textarea_child(dom) {
   if (hydrating && get_first_child(dom) !== null) {
     clear_text_content(dom);
@@ -10407,7 +10509,7 @@ function push_effect(effect2, parent_effect) {
     parent_effect.last = effect2;
   }
 }
-function create_effect(type, fn, sync) {
+function create_effect(type, fn) {
   var parent = active_effect;
   if (dev_fallback_default) {
     while (parent !== null && (parent.f & EAGER_EFFECT) !== 0) {
@@ -10436,22 +10538,26 @@ function create_effect(type, fn, sync) {
   if (dev_fallback_default) {
     effect2.component_function = dev_current_component_function;
   }
-  if (sync) {
+  var e = effect2;
+  if ((type & EFFECT) !== 0) {
+    if (collected_effects !== null) {
+      collected_effects.push(effect2);
+    } else {
+      Batch.ensure().schedule(effect2);
+    }
+  } else if (fn !== null) {
     try {
       update_effect(effect2);
     } catch (e2) {
       destroy_effect(effect2);
       throw e2;
     }
-  } else if (fn !== null) {
-    schedule_effect(effect2);
-  }
-  var e = effect2;
-  if (sync && e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
-  (e.f & EFFECT_PRESERVED) === 0) {
-    e = e.first;
-    if ((type & BLOCK_EFFECT) !== 0 && (type & EFFECT_TRANSPARENT) !== 0 && e !== null) {
-      e.f |= EFFECT_TRANSPARENT;
+    if (e.deps === null && e.teardown === null && e.nodes === null && e.first === e.last && // either `null`, or a singular child
+    (e.f & EFFECT_PRESERVED) === 0) {
+      e = e.first;
+      if ((type & BLOCK_EFFECT) !== 0 && (type & EFFECT_TRANSPARENT) !== 0 && e !== null) {
+        e.f |= EFFECT_TRANSPARENT;
+      }
     }
   }
   if (e !== null) {
@@ -10473,7 +10579,7 @@ function effect_tracking() {
   return active_reaction !== null && !untracking;
 }
 function teardown(fn) {
-  const effect2 = create_effect(RENDER_EFFECT, null, false);
+  const effect2 = create_effect(RENDER_EFFECT, null);
   set_signal_status(effect2, CLEAN);
   effect2.teardown = fn;
   return effect2;
@@ -10501,7 +10607,7 @@ function user_effect(fn) {
   }
 }
 function create_user_effect(fn) {
-  return create_effect(EFFECT | USER_EFFECT, fn, false);
+  return create_effect(EFFECT | USER_EFFECT, fn);
 }
 function user_pre_effect(fn) {
   validate_effect("$effect.pre");
@@ -10510,18 +10616,18 @@ function user_pre_effect(fn) {
       value: "$effect.pre"
     });
   }
-  return create_effect(RENDER_EFFECT | USER_EFFECT, fn, true);
+  return create_effect(RENDER_EFFECT | USER_EFFECT, fn);
 }
 function effect_root(fn) {
   Batch.ensure();
-  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
   return () => {
     destroy_effect(effect2);
   };
 }
 function component_root(fn) {
   Batch.ensure();
-  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn, true);
+  const effect2 = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
   return (options = {}) => {
     return new Promise((fulfil) => {
       if (options.outro) {
@@ -10537,7 +10643,7 @@ function component_root(fn) {
   };
 }
 function effect(fn) {
-  return create_effect(EFFECT, fn, false);
+  return create_effect(EFFECT, fn);
 }
 function legacy_pre_effect(deps, fn) {
   var context = (
@@ -10550,7 +10656,16 @@ function legacy_pre_effect(deps, fn) {
     deps();
     if (token.ran) return;
     token.ran = true;
-    untrack(fn);
+    var effect2 = (
+      /** @type {Effect} */
+      active_effect
+    );
+    try {
+      set_active_effect(effect2.parent);
+      untrack(fn);
+    } finally {
+      set_active_effect(effect2);
+    }
   });
 }
 function legacy_pre_effect_reset() {
@@ -10573,25 +10688,25 @@ function legacy_pre_effect_reset() {
   });
 }
 function async_effect(fn) {
-  return create_effect(ASYNC | EFFECT_PRESERVED, fn, true);
+  return create_effect(ASYNC | EFFECT_PRESERVED, fn);
 }
 function render_effect(fn, flags2 = 0) {
-  return create_effect(RENDER_EFFECT | flags2, fn, true);
+  return create_effect(RENDER_EFFECT | flags2, fn);
 }
 function template_effect(fn, sync = [], async2 = [], blockers = []) {
   flatten(blockers, sync, async2, (values) => {
-    create_effect(RENDER_EFFECT, () => fn(...values.map(get)), true);
+    create_effect(RENDER_EFFECT, () => fn(...values.map(get2)));
   });
 }
 function block(fn, flags2 = 0) {
-  var effect2 = create_effect(BLOCK_EFFECT | flags2, fn, true);
+  var effect2 = create_effect(BLOCK_EFFECT | flags2, fn);
   if (dev_fallback_default) {
     effect2.dev_stack = dev_stack;
   }
   return effect2;
 }
 function branch(fn) {
-  return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn, true);
+  return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn);
 }
 function execute_effect_teardown(effect2) {
   var teardown2 = effect2.teardown;
@@ -10647,9 +10762,9 @@ function destroy_effect(effect2, remove_dom = true) {
     );
     removed = true;
   }
+  set_signal_status(effect2, DESTROYING);
   destroy_effect_children(effect2, remove_dom && !removed);
   remove_reactions(effect2, 0);
-  set_signal_status(effect2, DESTROYED);
   var transitions = effect2.nodes && effect2.nodes.t;
   if (transitions !== null) {
     for (const transition2 of transitions) {
@@ -10657,6 +10772,8 @@ function destroy_effect(effect2, remove_dom = true) {
     }
   }
   execute_effect_teardown(effect2);
+  effect2.f ^= DESTROYING;
+  effect2.f |= DESTROYED;
   var parent = effect2.parent;
   if (parent !== null && parent.first !== null) {
     unlink_effect(effect2);
@@ -10731,7 +10848,7 @@ function resume_children(effect2, local) {
   effect2.f ^= INERT;
   if ((effect2.f & CLEAN) === 0) {
     set_signal_status(effect2, DIRTY);
-    schedule_effect(effect2);
+    Batch.ensure().schedule(effect2);
   }
   var child2 = effect2.first;
   while (child2 !== null) {
@@ -11088,7 +11205,7 @@ async function tick() {
   await Promise.resolve();
   flushSync();
 }
-function get(signal) {
+function get2(signal) {
   var flags2 = signal.f;
   var is_derived = (flags2 & DERIVED) !== 0;
   captured_signals?.add(signal);
@@ -11874,11 +11991,10 @@ var BranchManager = class {
     this.anchor = anchor;
     this.#transition = transition2;
   }
-  #commit = () => {
-    var batch = (
-      /** @type {Batch} */
-      current_batch
-    );
+  /**
+   * @param {Batch} batch
+   */
+  #commit = (batch) => {
     if (!this.#batches.has(batch)) return;
     var key2 = (
       /** @type {Key} */
@@ -11994,30 +12110,27 @@ var BranchManager = class {
       if (hydrating) {
         this.anchor = hydrate_node;
       }
-      this.#commit();
+      this.#commit(batch);
     }
   }
 };
 
 // node_modules/svelte/src/internal/client/dom/blocks/if.js
 function if_block(node, fn, elseif = false) {
+  var marker;
   if (hydrating) {
+    marker = hydrate_node;
     hydrate_next();
   }
   var branches = new BranchManager(node);
   var flags2 = elseif ? EFFECT_TRANSPARENT : 0;
   function update_branch(key2, fn2) {
     if (hydrating) {
-      const data = read_hydration_instruction(node);
-      var hydrated_key;
-      if (data === HYDRATION_START) {
-        hydrated_key = 0;
-      } else if (data === HYDRATION_START_ELSE) {
-        hydrated_key = false;
-      } else {
-        hydrated_key = parseInt(data.substring(1));
-      }
-      if (key2 !== hydrated_key) {
+      var data = read_hydration_instruction(
+        /** @type {TemplateNode} */
+        marker
+      );
+      if (key2 !== parseInt(data.substring(1))) {
         var anchor = skip_nodes();
         set_hydrate_node(anchor);
         branches.anchor = anchor;
@@ -12036,7 +12149,7 @@ function if_block(node, fn, elseif = false) {
       update_branch(key2, fn2);
     });
     if (!has_branch) {
-      update_branch(false, null);
+      update_branch(-1, null);
     }
   }, flags2);
 }
@@ -12063,7 +12176,7 @@ function pause_effects(state2, to_destroy, controlled_anchor) {
               /** @type {Set<EachOutroGroup>} */
               state2.outrogroups
             );
-            destroy_effects(array_from(group.done));
+            destroy_effects(state2, array_from(group.done));
             groups.delete(group);
             if (groups.size === 0) {
               state2.outrogroups = null;
@@ -12091,7 +12204,7 @@ function pause_effects(state2, to_destroy, controlled_anchor) {
       parent_node.append(anchor);
       state2.items.clear();
     }
-    destroy_effects(to_destroy, !fast_path);
+    destroy_effects(state2, to_destroy, !fast_path);
   } else {
     group = {
       pending: new Set(to_destroy),
@@ -12100,9 +12213,28 @@ function pause_effects(state2, to_destroy, controlled_anchor) {
     (state2.outrogroups ??= /* @__PURE__ */ new Set()).add(group);
   }
 }
-function destroy_effects(to_destroy, remove_dom = true) {
+function destroy_effects(state2, to_destroy, remove_dom = true) {
+  var preserved_effects;
+  if (state2.pending.size > 0) {
+    preserved_effects = /* @__PURE__ */ new Set();
+    for (const keys of state2.pending.values()) {
+      for (const key2 of keys) {
+        preserved_effects.add(
+          /** @type {EachItem} */
+          state2.items.get(key2).e
+        );
+      }
+    }
+  }
   for (var i = 0; i < to_destroy.length; i++) {
-    destroy_effect(to_destroy[i], remove_dom);
+    var e = to_destroy[i];
+    if (preserved_effects?.has(e)) {
+      e.f |= EFFECT_OFFSCREEN;
+      const fragment = document.createDocumentFragment();
+      move_effect(e, fragment);
+    } else {
+      destroy_effect(to_destroy[i], remove_dom);
+    }
   }
 }
 var offscreen_anchor;
@@ -12126,8 +12258,13 @@ function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = nu
     return is_array(collection) ? collection : collection == null ? [] : array_from(collection);
   });
   var array2;
+  var pending2 = /* @__PURE__ */ new Map();
   var first_run = true;
-  function commit() {
+  function commit(batch) {
+    if ((state2.effect.f & DESTROYED) !== 0) {
+      return;
+    }
+    state2.pending.delete(batch);
     state2.fallback = fallback2;
     reconcile(state2, array2, anchor, flags2, get_key);
     if (fallback2 !== null) {
@@ -12145,9 +12282,12 @@ function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = nu
       }
     }
   }
+  function discard(batch) {
+    state2.pending.delete(batch);
+  }
   var effect2 = block(() => {
     array2 = /** @type {V[]} */
-    get(each_array);
+    get2(each_array);
     var length = array2.length;
     let mismatch = false;
     if (hydrating) {
@@ -12225,6 +12365,7 @@ function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = nu
       set_hydrate_node(skip_nodes());
     }
     if (!first_run) {
+      pending2.set(batch, keys);
       if (defer) {
         for (const [key3, item2] of items) {
           if (!keys.has(key3)) {
@@ -12232,18 +12373,17 @@ function each(node, flags2, get_collection, get_key, render_fn, fallback_fn = nu
           }
         }
         batch.oncommit(commit);
-        batch.ondiscard(() => {
-        });
+        batch.ondiscard(discard);
       } else {
-        commit();
+        commit(batch);
       }
     }
     if (mismatch) {
       set_hydrating(true);
     }
-    get(each_array);
+    get2(each_array);
   });
-  var state2 = { effect: effect2, flags: flags2, items, outrogroups: null, fallback: fallback2 };
+  var state2 = { effect: effect2, flags: flags2, items, pending: pending2, outrogroups: null, fallback: fallback2 };
   first_run = false;
   if (hydrating) {
     anchor = hydrate_node;
@@ -12372,7 +12512,7 @@ function reconcile(state2, array2, anchor, flags2, get_key) {
   if (state2.outrogroups !== null) {
     for (const group of state2.outrogroups) {
       if (group.pending.size === 0) {
-        destroy_effects(array_from(group.done));
+        destroy_effects(state2, array_from(group.done));
         state2.outrogroups?.delete(group);
       }
     }
@@ -12762,7 +12902,7 @@ function bind_select_value(select, get3, set3 = get3) {
     if (select === document.activeElement) {
       var batch = (
         /** @type {Batch} */
-        previous_batch ?? current_batch
+        async_mode_flag ? previous_batch : current_batch
       );
       if (batches2.has(batch)) {
         return;
@@ -12832,15 +12972,6 @@ function set_checked(element2, checked) {
     return;
   }
   element2.checked = checked;
-}
-function set_selected(element2, selected) {
-  if (selected) {
-    if (!element2.hasAttribute("selected")) {
-      element2.setAttribute("selected", "");
-    }
-  } else {
-    element2.removeAttribute("selected");
-  }
 }
 function set_attribute2(element2, attribute, value, skip_warning) {
   var attributes = get_attributes(element2);
@@ -12976,7 +13107,7 @@ function bind_value(input, get3, set3 = get3) {
     if (input === document.activeElement) {
       var batch = (
         /** @type {Batch} */
-        previous_batch ?? current_batch
+        async_mode_flag ? previous_batch : current_batch
       );
       if (batches2.has(batch)) {
         return;
@@ -13035,6 +13166,14 @@ function is_bound_this(bound_value, element_or_component) {
   return bound_value === element_or_component || bound_value?.[STATE_SYMBOL] === element_or_component;
 }
 function bind_this(element_or_component = {}, update2, get_value, get_parts) {
+  var component_effect = (
+    /** @type {ComponentContext} */
+    component_context.r
+  );
+  var parent = (
+    /** @type {Effect} */
+    active_effect
+  );
   effect(() => {
     var old_parts;
     var parts;
@@ -13051,11 +13190,20 @@ function bind_this(element_or_component = {}, update2, get_value, get_parts) {
       });
     });
     return () => {
-      queue_micro_task(() => {
+      let p = parent;
+      while (p !== component_effect && p.parent !== null && p.parent.f & DESTROYING) {
+        p = p.parent;
+      }
+      const teardown2 = () => {
         if (parts && is_bound_this(get_value(...parts), element_or_component)) {
           update2(null, ...parts);
         }
-      });
+      };
+      const original_teardown = p.teardown;
+      p.teardown = () => {
+        teardown2();
+        original_teardown?.();
+      };
     };
   });
   return element_or_component;
@@ -13069,6 +13217,16 @@ function stopPropagation(fn) {
       args[0]
     );
     event2.stopPropagation();
+    return fn?.apply(this, args);
+  };
+}
+function preventDefault(fn) {
+  return function(...args) {
+    var event2 = (
+      /** @type {Event} */
+      args[0]
+    );
+    event2.preventDefault();
     return fn?.apply(this, args);
   };
 }
@@ -13100,7 +13258,7 @@ function init(immutable = false) {
       if (changed) version2++;
       return version2;
     });
-    props = () => get(d);
+    props = () => get2(d);
   }
   if (callbacks.b.length) {
     user_pre_effect(() => {
@@ -13127,21 +13285,9 @@ function init(immutable = false) {
 }
 function observe_all(context, props) {
   if (context.l.s) {
-    for (const signal of context.l.s) get(signal);
+    for (const signal of context.l.s) get2(signal);
   }
   props();
-}
-
-// node_modules/svelte/src/internal/client/reactivity/store.js
-var is_store_binding = false;
-function capture_store_binding(fn) {
-  var previous_is_store_binding = is_store_binding;
-  try {
-    is_store_binding = false;
-    return [fn(), is_store_binding];
-  } finally {
-    is_store_binding = previous_is_store_binding;
-  }
 }
 
 // node_modules/svelte/src/internal/client/reactivity/props.js
@@ -13167,7 +13313,7 @@ function prop(props, key2, flags2, fallback2) {
     }
     return fallback_value;
   };
-  var setter;
+  let setter;
   if (bindable) {
     var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
     setter = get_descriptor(props, key2)?.set ?? (is_entry_props && key2 in props ? (v) => props[key2] = v : void 0);
@@ -13240,7 +13386,7 @@ function prop(props, key2, flags2, fallback2) {
   if (dev_fallback_default) {
     d.label = key2;
   }
-  if (bindable) get(d);
+  if (bindable) get2(d);
   var parent_effect = (
     /** @type {Effect} */
     active_effect
@@ -13249,7 +13395,7 @@ function prop(props, key2, flags2, fallback2) {
     /** @type {() => V} */
     (function(value, mutation) {
       if (arguments.length > 0) {
-        const new_value = mutation ? get(d) : runes && bindable ? proxy(value) : value;
+        const new_value = mutation ? get2(d) : runes && bindable ? proxy(value) : value;
         set(d, new_value);
         overridden = true;
         if (fallback_value !== void 0) {
@@ -13260,7 +13406,7 @@ function prop(props, key2, flags2, fallback2) {
       if (is_destroying_effect && overridden || (parent_effect.f & DESTROYED) !== 0) {
         return d.v;
       }
-      return get(d);
+      return get2(d);
     })
   );
 }
@@ -13290,11 +13436,11 @@ var Svelte4Component = class {
       { ...options.props || {}, $$events: {} },
       {
         get(target, prop2) {
-          return get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
+          return get2(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
         },
         has(target, prop2) {
           if (prop2 === LEGACY_PROPS) return true;
-          get(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
+          get2(sources.get(prop2) ?? add_source(prop2, Reflect.get(target, prop2)));
           return Reflect.has(target, prop2);
         },
         set(target, prop2, value) {
@@ -13626,6 +13772,12 @@ function onMount(fn) {
     });
   }
 }
+function onDestroy(fn) {
+  if (component_context === null) {
+    lifecycle_outside_component("onDestroy");
+  }
+  onMount(() => () => untrack(fn));
+}
 function create_custom_event(type, detail, { bubbles = false, cancelable = false } = {}) {
   return new CustomEvent(type, { detail, bubbles, cancelable });
 }
@@ -13685,6 +13837,9 @@ if (typeof window !== "undefined") {
 
 // node_modules/svelte/src/internal/flags/legacy.js
 enable_legacy_mode_flag();
+
+// src/views/ChatApp.svelte
+var import_obsidian3 = require("obsidian");
 
 // src/views/ChatView.svelte
 var import_obsidian2 = require("obsidian");
@@ -13752,9 +13907,9 @@ function SuggestionList($$anchor, $$props) {
         append($$anchor3, svg_2);
       };
       if_block(node, ($$render) => {
-        if (get(item), untrack(() => get(item).type === "heading")) $$render(consequent);
-        else if (get(item), untrack(() => get(item).type === "folder")) $$render(consequent_1, 1);
-        else $$render(alternate, false);
+        if (get2(item), untrack(() => get2(item).type === "heading")) $$render(consequent);
+        else if (get2(item), untrack(() => get2(item).type === "folder")) $$render(consequent_1, 1);
+        else $$render(alternate, -1);
       });
     }
     reset(div_2);
@@ -13771,8 +13926,8 @@ function SuggestionList($$anchor, $$props) {
         var text_1 = child(span_1, true);
         reset(span_1);
         template_effect(() => {
-          set_text(text2, (get(item), untrack(() => get(item).file.basename)));
-          set_text(text_1, (get(item), untrack(() => get(item).heading.heading)));
+          set_text(text2, (get2(item), untrack(() => get2(item).file.basename)));
+          set_text(text_1, (get2(item), untrack(() => get2(item).heading.heading)));
         });
         append($$anchor3, fragment);
       };
@@ -13780,28 +13935,28 @@ function SuggestionList($$anchor, $$props) {
         var span_2 = root_6();
         var text_2 = child(span_2);
         reset(span_2);
-        template_effect(() => set_text(text_2, `\u{1F4C1} ${(get(item), untrack(() => get(item).folder.name)) ?? ""}/`));
+        template_effect(() => set_text(text_2, `\u{1F4C1} ${(get2(item), untrack(() => get2(item).folder.name)) ?? ""}/`));
         append($$anchor3, span_2);
       };
       var consequent_4 = ($$anchor3) => {
         var span_3 = root_7();
         var text_3 = child(span_3, true);
         reset(span_3);
-        template_effect(() => set_text(text_3, (get(item), untrack(() => get(item).file.basename))));
+        template_effect(() => set_text(text_3, (get2(item), untrack(() => get2(item).file.basename))));
         append($$anchor3, span_3);
       };
       var alternate_1 = ($$anchor3) => {
         var span_4 = root_8();
         var text_4 = child(span_4, true);
         reset(span_4);
-        template_effect(() => set_text(text_4, (get(item), untrack(() => get(item).basename))));
+        template_effect(() => set_text(text_4, (get2(item), untrack(() => get2(item).basename))));
         append($$anchor3, span_4);
       };
       if_block(node_1, ($$render) => {
-        if (get(item), untrack(() => get(item).type === "heading")) $$render(consequent_2);
-        else if (get(item), untrack(() => get(item).type === "folder")) $$render(consequent_3, 1);
-        else if (get(item), untrack(() => get(item).file)) $$render(consequent_4, 2);
-        else $$render(alternate_1, false);
+        if (get2(item), untrack(() => get2(item).type === "heading")) $$render(consequent_2);
+        else if (get2(item), untrack(() => get2(item).type === "folder")) $$render(consequent_3, 1);
+        else if (get2(item), untrack(() => get2(item).file)) $$render(consequent_4, 2);
+        else $$render(alternate_1, -1);
       });
     }
     reset(div_4);
@@ -13822,9 +13977,9 @@ function SuggestionList($$anchor, $$props) {
     reset(button);
     template_effect(() => {
       classes = set_class(button, 1, "suggestion-item svelte-q6j178", null, classes, { selected: i === selectedIndex() });
-      set_text(text_5, (get(item), untrack(() => get(item).type === "folder" ? get(item).folder.path : get(item).file ? get(item).file.path : get(item).path)));
+      set_text(text_5, (get2(item), untrack(() => get2(item).type === "folder" ? get2(item).folder.path : get2(item).file ? get2(item).file.path : get2(item).path)));
     });
-    event("click", button, stopPropagation(() => select(get(item))));
+    event("click", button, stopPropagation(() => select(get2(item))));
     event("mouseenter", button, () => selectedIndex(i));
     append($$anchor2, button);
   });
@@ -13860,6 +14015,8 @@ function ChatInput($$anchor, $$props) {
   );
   const dispatch = createEventDispatcher();
   let textarea = mutable_source();
+  let searchDebounceTimer = null;
+  const SEARCH_DEBOUNCE_MS = 150;
   let showSuggestions = mutable_source(false);
   let suggestions = mutable_source([]);
   let suggestionIndex = mutable_source(0);
@@ -13867,9 +14024,9 @@ function ChatInput($$anchor, $$props) {
   let mentionStartIndex = -1;
   let currentTrigger = null;
   function resize() {
-    if (get(textarea)) {
-      mutate(textarea, get(textarea).style.height = "auto");
-      mutate(textarea, get(textarea).style.height = get(textarea).scrollHeight + "px");
+    if (get2(textarea)) {
+      mutate(textarea, get2(textarea).style.height = "auto");
+      mutate(textarea, get2(textarea).style.height = get2(textarea).scrollHeight + "px");
     }
   }
   async function handleInput(event2) {
@@ -13889,7 +14046,7 @@ function ChatInput($$anchor, $$props) {
       mentionStartIndex = lastBracket;
       currentTrigger = "[[";
       set(showSuggestions, true);
-      set(suggestions, await onSearch()(query));
+      debouncedSearch(query);
       set(suggestionIndex, 0);
       return;
     }
@@ -13912,24 +14069,40 @@ function ChatInput($$anchor, $$props) {
       mentionStartIndex = lastAt;
       currentTrigger = "@";
       set(showSuggestions, true);
-      set(suggestions, await onSearch()(query));
+      debouncedSearch(query);
       set(suggestionIndex, 0);
       return;
     }
     set(showSuggestions, false);
     currentTrigger = null;
   }
+  function debouncedSearch(query) {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    searchDebounceTimer = setTimeout(
+      async () => {
+        set(suggestions, await onSearch()(query));
+      },
+      SEARCH_DEBOUNCE_MS
+    );
+  }
+  onDestroy(() => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+  });
   function handleKeydown(event2) {
-    if (get(showSuggestions) && get(suggestions).length > 0) {
+    if (get2(showSuggestions) && get2(suggestions).length > 0) {
       if (event2.key === "ArrowUp") {
         event2.preventDefault();
-        set(suggestionIndex, (get(suggestionIndex) - 1 + get(suggestions).length) % get(suggestions).length);
+        set(suggestionIndex, (get2(suggestionIndex) - 1 + get2(suggestions).length) % get2(suggestions).length);
       } else if (event2.key === "ArrowDown") {
         event2.preventDefault();
-        set(suggestionIndex, (get(suggestionIndex) + 1) % get(suggestions).length);
+        set(suggestionIndex, (get2(suggestionIndex) + 1) % get2(suggestions).length);
       } else if (event2.key === "Enter") {
         event2.preventDefault();
-        selectSuggestion(get(suggestions)[get(suggestionIndex)]);
+        selectSuggestion(get2(suggestions)[get2(suggestionIndex)]);
       } else if (event2.key === "Escape") {
         event2.preventDefault();
         set(showSuggestions, false);
@@ -13951,10 +14124,10 @@ function ChatInput($$anchor, $$props) {
       value(before + insertedText + after);
       setTimeout(
         () => {
-          if (get(textarea)) {
-            get(textarea).focus();
+          if (get2(textarea)) {
+            get2(textarea).focus();
             const newCursor = before.length + insertedText.length;
-            get(textarea).setSelectionRange(newCursor, newCursor);
+            get2(textarea).setSelectionRange(newCursor, newCursor);
           }
         },
         0
@@ -13964,10 +14137,10 @@ function ChatInput($$anchor, $$props) {
       value(before + insertedText + after);
       setTimeout(
         () => {
-          if (get(textarea)) {
-            get(textarea).focus();
+          if (get2(textarea)) {
+            get2(textarea).focus();
             const newCursor = before.length + insertedText.length;
-            get(textarea).setSelectionRange(newCursor, newCursor);
+            get2(textarea).setSelectionRange(newCursor, newCursor);
           }
         },
         0
@@ -13994,11 +14167,11 @@ function ChatInput($$anchor, $$props) {
       content: selectedText
     });
   }
+  function focusInput() {
+    if (get2(textarea)) get2(textarea).focus();
+  }
   onMount(() => {
     resize();
-    if (get(textarea)) {
-      get(textarea).focus();
-    }
   });
   let fileInput = mutable_source();
   async function handleFileChange(event2) {
@@ -14037,25 +14210,26 @@ function ChatInput($$anchor, $$props) {
     target.value = "";
   }
   function triggerFileUpload() {
-    get(fileInput).click();
+    get2(fileInput).click();
   }
   legacy_pre_effect(() => deep_read_state(value()), () => {
     if (value() === "") resize();
   });
   legacy_pre_effect_reset();
+  var $$exports = { focusInput };
   init();
   var div = root2();
   var input = child(div);
-  bind_this(input, ($$value) => set(fileInput, $$value), () => get(fileInput));
+  bind_this(input, ($$value) => set(fileInput, $$value), () => get2(fileInput));
   var node = sibling(input, 2);
   {
     var consequent = ($$anchor2) => {
       SuggestionList($$anchor2, {
         get items() {
-          return get(suggestions);
+          return get2(suggestions);
         },
         get selectedIndex() {
-          return get(suggestionIndex);
+          return get2(suggestionIndex);
         },
         set selectedIndex($$value) {
           set(suggestionIndex, $$value);
@@ -14065,14 +14239,14 @@ function ChatInput($$anchor, $$props) {
       });
     };
     if_block(node, ($$render) => {
-      if (get(showSuggestions), get(suggestions), untrack(() => get(showSuggestions) && get(suggestions).length > 0)) $$render(consequent);
+      if (get2(showSuggestions), get2(suggestions), untrack(() => get2(showSuggestions) && get2(suggestions).length > 0)) $$render(consequent);
     });
   }
   var div_1 = sibling(node, 2);
   let classes;
   var textarea_1 = child(div_1);
   remove_textarea_child(textarea_1);
-  bind_this(textarea_1, ($$value) => set(textarea, $$value), () => get(textarea));
+  bind_this(textarea_1, ($$value) => set(textarea, $$value), () => get2(textarea));
   var div_2 = sibling(textarea_1, 2);
   var div_3 = child(div_2);
   var button = child(div_3);
@@ -14093,7 +14267,7 @@ function ChatInput($$anchor, $$props) {
     };
     if_block(node_1, ($$render) => {
       if (isLoading()) $$render(consequent_1);
-      else $$render(alternate, false);
+      else $$render(alternate, -1);
     });
   }
   reset(div_2);
@@ -14111,7 +14285,8 @@ function ChatInput($$anchor, $$props) {
   event("click", button, triggerFileUpload);
   event("click", button_1, grabSelection);
   append($$anchor, div);
-  pop();
+  bind_prop($$props, "focusInput", focusInput);
+  return pop($$exports);
 }
 
 // src/components/MessageBubble.svelte
@@ -14149,16 +14324,16 @@ function MessageBubble($$anchor, $$props) {
   let lastRenderedContent = "";
   let dots = mutable_source("");
   function renderMarkdown() {
-    if (!get(markdownEl) || !content() || !app()) return;
+    if (!get2(markdownEl) || !content() || !app()) return;
     if (role() === "user") return;
     if (content() === lastRenderedContent) return;
     if (renderComponent) {
       renderComponent.unload();
     }
-    get(markdownEl).empty();
+    get2(markdownEl).empty();
     renderComponent = new import_obsidian.Component();
     renderComponent.load();
-    import_obsidian.MarkdownRenderer.render(app(), content(), get(
+    import_obsidian.MarkdownRenderer.render(app(), content(), get2(
       markdownEl
       // sourcePath - empty string is fine for chat
     ), "", renderComponent);
@@ -14176,12 +14351,12 @@ function MessageBubble($$anchor, $$props) {
     renderMarkdown();
   });
   legacy_pre_effect(
-    () => (deep_read_state(role()), deep_read_state(content()), deep_read_state(isStreaming()), get(dots)),
+    () => (deep_read_state(role()), deep_read_state(content()), deep_read_state(isStreaming()), get2(dots)),
     () => {
       if (role() === "assistant" && content() === "" && isStreaming()) {
         const interval = setInterval(
           () => {
-            set(dots, get(dots).length < 3 ? get(dots) + "." : "");
+            set(dots, get2(dots).length < 3 ? get2(dots) + "." : "");
           },
           500
         );
@@ -14209,7 +14384,7 @@ function MessageBubble($$anchor, $$props) {
     if_block(node, ($$render) => {
       if (role() === "user") $$render(consequent);
       else if (role() === "assistant") $$render(consequent_1, 1);
-      else $$render(alternate, false);
+      else $$render(alternate, -1);
     });
   }
   reset(div_1);
@@ -14221,7 +14396,7 @@ function MessageBubble($$anchor, $$props) {
       var span_3 = root_42();
       var text2 = child(span_3);
       reset(span_3);
-      template_effect(() => set_text(text2, `AI is thinking${get(dots) ?? ""}`));
+      template_effect(() => set_text(text2, `AI is thinking${get2(dots) ?? ""}`));
       append($$anchor2, span_3);
     };
     var consequent_3 = ($$anchor2) => {
@@ -14233,13 +14408,13 @@ function MessageBubble($$anchor, $$props) {
     };
     var alternate_1 = ($$anchor2) => {
       var div_5 = root_62();
-      bind_this(div_5, ($$value) => set(markdownEl, $$value), () => get(markdownEl));
+      bind_this(div_5, ($$value) => set(markdownEl, $$value), () => get2(markdownEl));
       append($$anchor2, div_5);
     };
     if_block(node_1, ($$render) => {
       if (role() === "assistant" && !content()) $$render(consequent_2);
       else if (role() === "user") $$render(consequent_3, 1);
-      else $$render(alternate_1, false);
+      else $$render(alternate_1, -1);
     });
   }
   reset(div_3);
@@ -14275,7 +14450,7 @@ function MessageBubble($$anchor, $$props) {
         };
         if_block(node_3, ($$render) => {
           if (role() === "user") $$render(consequent_4);
-          else $$render(alternate_2, false);
+          else $$render(alternate_2, -1);
         });
       }
       reset(div_6);
@@ -14357,92 +14532,25 @@ function ContextPill($$anchor, $$props) {
   pop();
 }
 
-// src/components/ModelSelector.svelte
-var root_13 = from_html(`<option class="svelte-1rt0kwk"> </option>`);
-var root5 = from_html(`<div class="model-selector svelte-1rt0kwk"><span class="measure-span svelte-1rt0kwk"> </span> <select class="svelte-1rt0kwk"></select> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron svelte-1rt0kwk"><polyline points="6 9 12 15 18 9"></polyline></svg></div>`);
-var $$css5 = {
-  hash: "svelte-1rt0kwk",
-  code: ".model-selector.svelte-1rt0kwk {position:relative;display:inline-flex;align-items:center;}.measure-span.svelte-1rt0kwk {position:absolute;visibility:hidden;height:0;overflow:hidden;white-space:nowrap;font-size:var(--font-ui-smaller);font-family:inherit;}select.svelte-1rt0kwk {appearance:none;-webkit-appearance:none;background:var(--background-modifier-hover);border:1px solid var(--background-modifier-border);padding:4px 28px 4px 10px;border-radius:6px;cursor:pointer;color:var(--text-muted);font-size:var(--font-ui-smaller);font-family:inherit;transition:color 0.2s,\n      background-color 0.2s,\n      border-color 0.2s,\n      width 0.15s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;}select.svelte-1rt0kwk:hover {color:var(--text-normal);background-color:var(--background-secondary);border-color:var(--interactive-accent);}select.svelte-1rt0kwk:focus {color:var(--text-normal);border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Style the dropdown options to match Obsidian theme */select.svelte-1rt0kwk option:where(.svelte-1rt0kwk) {background:var(--background-primary);color:var(--text-normal);font-size:var(--font-ui-smaller);}.chevron.svelte-1rt0kwk {position:absolute;right:8px;pointer-events:none;color:var(--text-muted);flex-shrink:0;}"
-};
-function ModelSelector($$anchor, $$props) {
-  push($$props, false);
-  append_styles($$anchor, $$css5);
-  let selectedModel = prop($$props, "selectedModel", 12, "gpt-5-mini");
-  let models = prop($$props, "models", 24, () => ["gpt-5-mini", "gpt-5.4"]);
-  const dispatch = createEventDispatcher();
-  let selectEl = mutable_source();
-  let measureSpan = mutable_source();
-  function handleChange(e) {
-    const val = e.target.value;
-    selectedModel(val);
-    dispatch("change", val);
-  }
-  function updateWidth() {
-    if (!get(measureSpan) || !get(selectEl)) return;
-    mutate(measureSpan, get(measureSpan).textContent = selectedModel());
-    const textWidth = get(measureSpan).offsetWidth;
-    mutate(selectEl, get(selectEl).style.width = `${textWidth + 40}px`);
-  }
-  onMount(updateWidth);
-  afterUpdate(updateWidth);
-  init();
-  var div = root5();
-  var span = child(div);
-  var text2 = child(span, true);
-  reset(span);
-  bind_this(span, ($$value) => set(measureSpan, $$value), () => get(measureSpan));
-  var select = sibling(span, 2);
-  each(select, 5, models, index, ($$anchor2, model) => {
-    var option = root_13();
-    var text_1 = child(option, true);
-    reset(option);
-    var option_value = {};
-    template_effect(() => {
-      set_selected(option, get(model) === selectedModel());
-      set_text(text_1, get(model));
-      if (option_value !== (option_value = get(model))) {
-        option.value = (option.__value = get(model)) ?? "";
-      }
-    });
-    append($$anchor2, option);
-  });
-  reset(select);
-  bind_this(select, ($$value) => set(selectEl, $$value), () => get(selectEl));
-  var select_value;
-  init_select(select);
-  next(2);
-  reset(div);
-  template_effect(() => {
-    set_text(text2, selectedModel());
-    set_attribute2(select, "title", selectedModel());
-    if (select_value !== (select_value = selectedModel())) {
-      select.value = (select.__value = selectedModel()) ?? "", select_option(select, selectedModel());
-    }
-  });
-  event("change", select, handleChange);
-  append($$anchor, div);
-  pop();
-}
-
 // src/components/PersonaSelector.svelte
 var root_34 = from_html(`<span class="item-desc svelte-1wrdx1p"> </span>`);
 var root_24 = from_html(`<button><span class="item-name svelte-1wrdx1p"> </span> <!></button>`);
-var root_14 = from_html(`<div class="dropdown-menu svelte-1wrdx1p"></div>`);
-var root6 = from_html(`<div class="persona-selector svelte-1wrdx1p"><button class="selector-btn svelte-1wrdx1p"><span class="icon">\u{1F3AD}</span> <span class="persona-name svelte-1wrdx1p"> </span> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button> <!></div>`);
-var $$css6 = {
+var root_13 = from_html(`<div class="dropdown-menu svelte-1wrdx1p"></div>`);
+var root5 = from_html(`<div class="persona-selector svelte-1wrdx1p"><button class="selector-btn svelte-1wrdx1p"><span class="icon">\u{1F3AD}</span> <span class="persona-name svelte-1wrdx1p"> </span> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button> <!></div>`);
+var $$css5 = {
   hash: "svelte-1wrdx1p",
   code: ".persona-selector.svelte-1wrdx1p {position:relative;display:inline-block;}.selector-btn.svelte-1wrdx1p {background:transparent;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:var(--font-ui-smaller);transition:color 0.2s,\n      background-color 0.2s;}.selector-btn.svelte-1wrdx1p:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.persona-name.svelte-1wrdx1p {max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}svg.svelte-1wrdx1p {transition:transform 0.2s;opacity:0.7;}svg.rotated.svelte-1wrdx1p {transform:rotate(180deg);}.dropdown-menu.svelte-1wrdx1p {position:absolute;top:100%;right:0;margin-top:4px;background-color:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;box-shadow:0 4px 12px rgba(0, 0, 0, 0.1);z-index:1000;min-width:200px;padding:4px;max-height:300px;overflow-y:auto;}.dropdown-item.svelte-1wrdx1p {display:flex;flex-direction:column;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;border-radius:4px;cursor:pointer;color:var(--text-normal);}.dropdown-item.svelte-1wrdx1p:hover {background-color:var(--background-modifier-hover);}.dropdown-item.active.svelte-1wrdx1p {background-color:var(--interactive-accent);color:var(--text-on-accent);}.dropdown-item.active.svelte-1wrdx1p .item-name:where(.svelte-1wrdx1p),\n  .dropdown-item.active.svelte-1wrdx1p .item-desc:where(.svelte-1wrdx1p) {color:var(--text-on-accent);}.item-name.svelte-1wrdx1p {font-weight:500;font-size:var(--font-ui-smaller);margin-bottom:2px;}.item-desc.svelte-1wrdx1p {font-size:0.8em;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}"
 };
 function PersonaSelector($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css6);
+  append_styles($$anchor, $$css5);
   const selectedPersona = mutable_source();
   let selectedPersonaId = prop($$props, "selectedPersonaId", 12);
   let personas = prop($$props, "personas", 24, () => []);
   const dispatch = createEventDispatcher();
   let isOpen = mutable_source(false);
   function toggle() {
-    set(isOpen, !get(isOpen));
+    set(isOpen, !get2(isOpen));
   }
   function select(id) {
     selectedPersonaId(id);
@@ -14450,7 +14558,7 @@ function PersonaSelector($$anchor, $$props) {
     dispatch("change", id);
   }
   function close(e) {
-    if (get(isOpen)) set(isOpen, false);
+    if (get2(isOpen)) set(isOpen, false);
   }
   legacy_pre_effect(
     () => (deep_read_state(personas()), deep_read_state(selectedPersonaId())),
@@ -14460,7 +14568,7 @@ function PersonaSelector($$anchor, $$props) {
   );
   legacy_pre_effect_reset();
   init();
-  var div = root6();
+  var div = root5();
   event("click", $window, close);
   var button = child(div);
   var span = sibling(child(button), 2);
@@ -14472,7 +14580,7 @@ function PersonaSelector($$anchor, $$props) {
   var node = sibling(button, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_1 = root_14();
+      var div_1 = root_13();
       each(div_1, 5, personas, index, ($$anchor3, persona) => {
         var button_1 = root_24();
         let classes_1;
@@ -14485,143 +14593,105 @@ function PersonaSelector($$anchor, $$props) {
             var span_2 = root_34();
             var text_2 = child(span_2, true);
             reset(span_2);
-            template_effect(() => set_text(text_2, (get(persona), untrack(() => get(persona).description))));
+            template_effect(() => set_text(text_2, (get2(persona), untrack(() => get2(persona).description))));
             append($$anchor4, span_2);
           };
           if_block(node_1, ($$render) => {
-            if (get(persona), untrack(() => get(persona).description)) $$render(consequent);
+            if (get2(persona), untrack(() => get2(persona).description)) $$render(consequent);
           });
         }
         reset(button_1);
         template_effect(() => {
-          classes_1 = set_class(button_1, 1, "dropdown-item svelte-1wrdx1p", null, classes_1, { active: get(persona).id === selectedPersonaId() });
-          set_attribute2(button_1, "title", (get(persona), untrack(() => get(persona).description)));
-          set_text(text_1, (get(persona), untrack(() => get(persona).name)));
+          classes_1 = set_class(button_1, 1, "dropdown-item svelte-1wrdx1p", null, classes_1, { active: get2(persona).id === selectedPersonaId() });
+          set_attribute2(button_1, "title", (get2(persona), untrack(() => get2(persona).description)));
+          set_text(text_1, (get2(persona), untrack(() => get2(persona).name)));
         });
-        event("click", button_1, () => select(get(persona).id));
+        event("click", button_1, () => select(get2(persona).id));
         append($$anchor3, button_1);
       });
       reset(div_1);
       append($$anchor2, div_1);
     };
     if_block(node, ($$render) => {
-      if (get(isOpen)) $$render(consequent_1);
+      if (get2(isOpen)) $$render(consequent_1);
     });
   }
   reset(div);
   template_effect(() => {
-    set_attribute2(button, "title", (get(selectedPersona), untrack(() => get(selectedPersona)?.description)));
-    set_text(text2, (get(selectedPersona), untrack(() => get(selectedPersona)?.name || "Select Persona")));
-    classes = set_class(svg, 0, "svelte-1wrdx1p", null, classes, { rotated: get(isOpen) });
+    set_attribute2(button, "title", (get2(selectedPersona), untrack(() => get2(selectedPersona)?.description)));
+    set_text(text2, (get2(selectedPersona), untrack(() => get2(selectedPersona)?.name || "Select Persona")));
+    classes = set_class(svg, 0, "svelte-1wrdx1p", null, classes, { rotated: get2(isOpen) });
   });
   event("click", button, stopPropagation(toggle));
   append($$anchor, div);
   pop();
 }
 
-// src/components/SessionHistory.svelte
-var root_25 = from_html(`<button><div class="session-info svelte-lf7hc0"><span class="item-name svelte-lf7hc0"> </span> <span class="item-date svelte-lf7hc0"> </span></div> <div class="delete-btn svelte-lf7hc0" title="Delete Session" aria-label="Delete Session">\u2715</div></button>`);
-var root_35 = from_html(`<div class="dropdown-item empty svelte-lf7hc0">No history found</div>`);
-var root_15 = from_html(`<div class="dropdown-menu svelte-lf7hc0"><!> <!></div>`);
-var root7 = from_html(`<div class="session-selector svelte-lf7hc0"><button title="Chat History"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-history"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg></button> <!></div>`);
-var $$css7 = {
-  hash: "svelte-lf7hc0",
-  code: ".session-selector.svelte-lf7hc0 {position:relative;display:inline-flex;align-items:center;}.selector-btn.svelte-lf7hc0 {background:transparent;border:none;padding:4px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:var(--font-ui-smaller);transition:color 0.2s,\n      background-color 0.2s;}.selector-btn.svelte-lf7hc0:hover,\n  .selector-btn.active.svelte-lf7hc0 {color:var(--text-normal);background-color:var(--background-modifier-hover);}.dropdown-menu.svelte-lf7hc0 {position:absolute;top:100%;left:0;margin-top:4px;background-color:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;box-shadow:0 4px 12px rgba(0, 0, 0, 0.1);z-index:1000;min-width:260px;padding:4px;max-height:350px;overflow-y:auto;}.dropdown-item.svelte-lf7hc0 {display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;border-radius:4px;cursor:pointer;color:var(--text-normal);gap:8px;}.dropdown-item.svelte-lf7hc0:hover {background-color:var(--background-modifier-hover);}.dropdown-item.current.svelte-lf7hc0 {background-color:var(--interactive-accent);color:var(--text-on-accent);}.dropdown-item.current.svelte-lf7hc0 .item-date:where(.svelte-lf7hc0),\n  .dropdown-item.current.svelte-lf7hc0 .delete-btn:where(.svelte-lf7hc0) {color:var(--text-on-accent);opacity:0.8;}.session-info.svelte-lf7hc0 {display:flex;flex-direction:column;overflow:hidden;flex:1;}.item-name.svelte-lf7hc0 {font-weight:500;font-size:var(--font-ui-smaller);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.item-date.svelte-lf7hc0 {font-size:0.8em;color:var(--text-muted);}.empty.svelte-lf7hc0 {justify-content:center;color:var(--text-muted);cursor:default;}.empty.svelte-lf7hc0:hover {background-color:transparent;}.delete-btn.svelte-lf7hc0 {background:transparent;border:none;padding:4px;border-radius:4px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s,\n      background-color 0.2s,\n      color 0.2s;}.dropdown-item.svelte-lf7hc0:hover .delete-btn:where(.svelte-lf7hc0) {opacity:1;}.delete-btn.svelte-lf7hc0:hover {background-color:var(--background-modifier-error-hover) !important;color:var(--text-error) !important;opacity:1;}"
+// src/components/ProjectSelector.svelte
+var root_14 = from_html(`<option> </option>`);
+var root6 = from_html(`<div class="project-selector svelte-1kanzy0"><select class="project-input svelte-1kanzy0"><option>No Project (Global)</option><!></select> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron svelte-1kanzy0"><polyline points="6 9 12 15 18 9"></polyline></svg></div>`);
+var $$css6 = {
+  hash: "svelte-1kanzy0",
+  code: ".project-selector.svelte-1kanzy0 {position:relative;display:inline-flex;align-items:center;}select.svelte-1kanzy0 {appearance:none;-webkit-appearance:none;background:var(--background-modifier-hover);border:1px solid var(--background-modifier-border);padding:4px 28px 4px 10px;border-radius:6px;cursor:pointer;color:var(--text-muted);font-size:var(--font-ui-smaller);font-family:inherit;transition:color 0.2s,\n      background-color 0.2s,\n      border-color 0.2s;width:140px; /* Fixed small width for the header */white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;}select.svelte-1kanzy0:hover {color:var(--text-normal);background-color:var(--background-secondary);border-color:var(--interactive-accent);}select.svelte-1kanzy0:focus {color:var(--text-normal);border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.chevron.svelte-1kanzy0 {position:absolute;right:8px;pointer-events:none;color:var(--text-muted);flex-shrink:0;}"
 };
-function SessionHistory($$anchor, $$props) {
+function ProjectSelector($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css7);
-  const sortedSessions = mutable_source();
-  let sessions = prop($$props, "sessions", 24, () => []);
-  let currentSessionId = prop($$props, "currentSessionId", 8);
+  append_styles($$anchor, $$css6);
+  let selectedProjectId = prop($$props, "selectedProjectId", 12, null);
+  let projects = prop($$props, "projects", 24, () => []);
   const dispatch = createEventDispatcher();
-  let isOpen = mutable_source(false);
-  function toggle() {
-    set(isOpen, !get(isOpen));
+  let selectEl = mutable_source();
+  function handleChange(e) {
+    const val = e.target.value;
+    const finalVal = val === "null" || val === "" ? null : val;
+    selectedProjectId(finalVal);
+    dispatch("change", finalVal);
   }
-  function select(id) {
-    set(isOpen, false);
-    if (id !== currentSessionId()) {
-      dispatch("select", id);
-    }
-  }
-  function deleteSession(id, e) {
-    e.stopPropagation();
-    dispatch("delete", id);
-  }
-  function close(e) {
-    if (get(isOpen)) set(isOpen, false);
-  }
-  legacy_pre_effect(() => deep_read_state(sessions()), () => {
-    set(sortedSessions, [...sessions()].sort((a, b) => b.updatedAt - a.updatedAt));
-  });
-  legacy_pre_effect_reset();
   init();
-  var div = root7();
-  event("click", $window, close);
-  var button = child(div);
-  let classes;
-  var node = sibling(button, 2);
-  {
-    var consequent_1 = ($$anchor2) => {
-      var div_1 = root_15();
-      var node_1 = child(div_1);
-      each(node_1, 1, () => get(sortedSessions), index, ($$anchor3, session) => {
-        var button_1 = root_25();
-        let classes_1;
-        var div_2 = child(button_1);
-        var span = child(div_2);
-        var text2 = child(span, true);
-        reset(span);
-        var span_1 = sibling(span, 2);
-        var text_1 = child(span_1, true);
-        reset(span_1);
-        reset(div_2);
-        var div_3 = sibling(div_2, 2);
-        reset(button_1);
-        template_effect(
-          ($0) => {
-            classes_1 = set_class(button_1, 1, "dropdown-item svelte-lf7hc0", null, classes_1, { current: get(session).id === currentSessionId() });
-            set_attribute2(button_1, "title", (get(session), untrack(() => get(session).title)));
-            set_text(text2, (get(session), untrack(() => get(session).title || "New Chat")));
-            set_text(text_1, $0);
-          },
-          [
-            () => (get(session), untrack(() => new Date(get(session).updatedAt).toLocaleDateString()))
-          ]
-        );
-        event("click", div_3, (e) => deleteSession(get(session).id, e));
-        event("click", button_1, () => select(get(session).id));
-        append($$anchor3, button_1);
-      });
-      var node_2 = sibling(node_1, 2);
-      {
-        var consequent = ($$anchor3) => {
-          var div_4 = root_35();
-          append($$anchor3, div_4);
-        };
-        if_block(node_2, ($$render) => {
-          if (get(sortedSessions), untrack(() => get(sortedSessions).length === 0)) $$render(consequent);
-        });
+  var div = root6();
+  var select = child(div);
+  var option = child(select);
+  option.value = option.__value = "null";
+  var node = sibling(option);
+  each(node, 1, projects, index, ($$anchor2, project) => {
+    var option_1 = root_14();
+    var text2 = child(option_1, true);
+    reset(option_1);
+    var option_1_value = {};
+    template_effect(() => {
+      set_text(text2, (get2(project), untrack(() => get2(project).name)));
+      if (option_1_value !== (option_1_value = (get2(project), untrack(() => get2(project).id)))) {
+        option_1.value = (option_1.__value = (get2(project), untrack(() => get2(project).id))) ?? "";
       }
-      reset(div_1);
-      append($$anchor2, div_1);
-    };
-    if_block(node, ($$render) => {
-      if (get(isOpen)) $$render(consequent_1);
     });
-  }
+    append($$anchor2, option_1);
+  });
+  reset(select);
+  bind_this(select, ($$value) => set(selectEl, $$value), () => get2(selectEl));
+  var select_value;
+  init_select(select);
+  next(2);
   reset(div);
-  template_effect(() => classes = set_class(button, 1, "selector-btn svelte-lf7hc0", null, classes, { active: get(isOpen) }));
-  event("click", button, stopPropagation(toggle));
+  template_effect(
+    ($0) => {
+      set_attribute2(select, "title", $0);
+      if (select_value !== (select_value = selectedProjectId() || "null")) {
+        select.value = (select.__value = selectedProjectId() || "null") ?? "", select_option(select, selectedProjectId() || "null");
+      }
+    },
+    [
+      () => (deep_read_state(selectedProjectId()), deep_read_state(projects()), untrack(() => selectedProjectId() ? projects().find((p) => p.id === selectedProjectId())?.name || "Select Project" : "No Project (Global)"))
+    ]
+  );
+  event("change", select, handleChange);
   append($$anchor, div);
   pop();
 }
 
 // src/components/ComposerDiff.svelte
-var root_16 = from_html(`<button class="accept-btn svelte-jucvk3" title="Accept Edit">\u2713 Accept</button> <button class="reject-btn svelte-jucvk3" title="Reject Edit">\u2715 Reject</button>`, 1);
-var root_36 = from_html(`<button class="revert-btn svelte-jucvk3" title="Revert Edit">\u21BA Revert</button>`);
-var root_26 = from_html(`<span class="status-badge svelte-jucvk3"> </span> <!>`, 1);
+var root_15 = from_html(`<button class="accept-btn svelte-jucvk3" title="Accept Edit">\u2713 Accept</button> <button class="reject-btn svelte-jucvk3" title="Reject Edit">\u2715 Reject</button>`, 1);
+var root_35 = from_html(`<button class="revert-btn svelte-jucvk3" title="Revert Edit">\u21BA Revert</button>`);
+var root_25 = from_html(`<span class="status-badge svelte-jucvk3"> </span> <!>`, 1);
 var root_53 = from_html(
   `
           <div class="diff-line removed svelte-jucvk3"><span class="diff-sigil svelte-jucvk3">-</span> </div>
@@ -14640,14 +14710,14 @@ var root_73 = from_html(
 var root_63 = from_html(`<pre class="diff-new svelte-jucvk3">
         <!>
       </pre>`);
-var root8 = from_html(`<div class="composer-diff svelte-jucvk3"><div><span class="diff-file svelte-jucvk3"> </span> <div class="diff-actions svelte-jucvk3"><!></div></div> <div class="diff-content svelte-jucvk3"><!> <!></div></div>`);
-var $$css8 = {
+var root7 = from_html(`<div class="composer-diff svelte-jucvk3"><div><span class="diff-file svelte-jucvk3"> </span> <div class="diff-actions svelte-jucvk3"><!></div></div> <div class="diff-content svelte-jucvk3"><!> <!></div></div>`);
+var $$css7 = {
   hash: "svelte-jucvk3",
   code: ".composer-diff.svelte-jucvk3 {border:1px solid var(--background-modifier-border);border-radius:8px;margin:12px 0;overflow:hidden;background-color:var(--background-primary);}.diff-header.svelte-jucvk3 {background-color:var(--background-secondary);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--background-modifier-border);}.diff-header.accepted.svelte-jucvk3 {background-color:rgba(var(--color-green-rgb), 0.1);}.diff-header.rejected.svelte-jucvk3 {background-color:rgba(var(--color-red-rgb), 0.1);}.diff-file.svelte-jucvk3 {font-family:var(--font-monospace);font-size:0.9em;font-weight:600;}.diff-actions.svelte-jucvk3 {display:flex;gap:6px;}.diff-actions.svelte-jucvk3 button:where(.svelte-jucvk3) {font-size:0.8em;padding:4px 8px;cursor:pointer;border-radius:4px;border:none;font-weight:500;}.accept-btn.svelte-jucvk3 {background-color:var(--color-green);color:var(--text-on-accent);}.reject-btn.svelte-jucvk3 {background-color:var(--color-red);color:var(--text-on-accent);}.revert-btn.svelte-jucvk3 {background-color:var(--background-modifier-hover);color:var(--text-normal);}.status-badge.svelte-jucvk3 {font-size:0.8em;font-weight:bold;padding:4px 8px;border-radius:4px;background-color:var(--background-modifier-active-hover);}.diff-content.svelte-jucvk3 {overflow-x:auto;font-family:var(--font-monospace);font-size:0.85em;max-height:400px;}.diff-line.svelte-jucvk3 {padding:0 12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;}.diff-sigil.svelte-jucvk3 {opacity:0.5;user-select:none;display:inline-block;width:1em;}.diff-old.svelte-jucvk3,\n  .diff-new.svelte-jucvk3 {margin:0;padding:8px 0;}.removed.svelte-jucvk3 {background-color:rgba(var(--color-red-rgb), 0.15);color:var(--text-error);}.added.svelte-jucvk3 {background-color:rgba(var(--color-green-rgb), 0.15);color:var(--text-success);}"
 };
 function ComposerDiff($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css8);
+  append_styles($$anchor, $$css7);
   const oldLines = mutable_source();
   const newLines = mutable_source();
   let path3 = prop($$props, "path", 8);
@@ -14667,7 +14737,7 @@ function ComposerDiff($$anchor, $$props) {
   });
   legacy_pre_effect_reset();
   init();
-  var div = root8();
+  var div = root7();
   var div_1 = child(div);
   var span = child(div_1);
   var text_1 = child(span, true);
@@ -14676,7 +14746,7 @@ function ComposerDiff($$anchor, $$props) {
   var node = child(div_2);
   {
     var consequent = ($$anchor2) => {
-      var fragment = root_16();
+      var fragment = root_15();
       var button = first_child(fragment);
       var button_1 = sibling(button, 2);
       event("click", button, () => dispatch("accept"));
@@ -14684,14 +14754,14 @@ function ComposerDiff($$anchor, $$props) {
       append($$anchor2, fragment);
     };
     var alternate = ($$anchor2) => {
-      var fragment_1 = root_26();
+      var fragment_1 = root_25();
       var span_1 = first_child(fragment_1);
       var text_2 = child(span_1, true);
       reset(span_1);
       var node_1 = sibling(span_1, 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var button_2 = root_36();
+          var button_2 = root_35();
           event("click", button_2, () => dispatch("revert"));
           append($$anchor3, button_2);
         };
@@ -14706,7 +14776,7 @@ function ComposerDiff($$anchor, $$props) {
     };
     if_block(node, ($$render) => {
       if (status() === "pending") $$render(consequent);
-      else $$render(alternate, false);
+      else $$render(alternate, -1);
     });
   }
   reset(div_2);
@@ -14717,14 +14787,14 @@ function ComposerDiff($$anchor, $$props) {
     var consequent_2 = ($$anchor2) => {
       var pre = root_43();
       var node_3 = sibling(child(pre));
-      each(node_3, 1, () => get(oldLines), index, ($$anchor3, line) => {
+      each(node_3, 1, () => get2(oldLines), index, ($$anchor3, line) => {
         next();
         var fragment_2 = root_53();
         var div_4 = sibling(first_child(fragment_2));
         var text_3 = sibling(child(div_4));
         reset(div_4);
         next();
-        template_effect(() => set_text(text_3, ` ${get(line) ?? ""}`));
+        template_effect(() => set_text(text_3, ` ${get2(line) ?? ""}`));
         append($$anchor3, fragment_2);
       });
       next();
@@ -14732,7 +14802,7 @@ function ComposerDiff($$anchor, $$props) {
       append($$anchor2, pre);
     };
     if_block(node_2, ($$render) => {
-      if (get(oldLines), untrack(() => get(oldLines).length > 0)) $$render(consequent_2);
+      if (get2(oldLines), untrack(() => get2(oldLines).length > 0)) $$render(consequent_2);
     });
   }
   var node_4 = sibling(node_2, 2);
@@ -14740,14 +14810,14 @@ function ComposerDiff($$anchor, $$props) {
     var consequent_3 = ($$anchor2) => {
       var pre_1 = root_63();
       var node_5 = sibling(child(pre_1));
-      each(node_5, 1, () => get(newLines), index, ($$anchor3, line) => {
+      each(node_5, 1, () => get2(newLines), index, ($$anchor3, line) => {
         next();
         var fragment_3 = root_73();
         var div_5 = sibling(first_child(fragment_3));
         var text_4 = sibling(child(div_5));
         reset(div_5);
         next();
-        template_effect(() => set_text(text_4, ` ${get(line) ?? ""}`));
+        template_effect(() => set_text(text_4, ` ${get2(line) ?? ""}`));
         append($$anchor3, fragment_3);
       });
       next();
@@ -14755,7 +14825,7 @@ function ComposerDiff($$anchor, $$props) {
       append($$anchor2, pre_1);
     };
     if_block(node_4, ($$render) => {
-      if (get(newLines), untrack(() => get(newLines).length > 0)) $$render(consequent_3);
+      if (get2(newLines), untrack(() => get2(newLines).length > 0)) $$render(consequent_3);
     });
   }
   reset(div_3);
@@ -14769,24 +14839,27 @@ function ComposerDiff($$anchor, $$props) {
 }
 
 // src/views/ChatView.svelte
-var root_17 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button></div></div>`);
-var root_54 = from_html(`<div class="active-file-indicator svelte-1mg2b0j"><span class="indicator-icon">\u{1F4C4}</span> <span class="indicator-text"> </span></div>`);
-var root_64 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
-var root9 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="title svelte-1mg2b0j">AI Copilot <span style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;">v1.3</span></div> <div class="controls svelte-1mg2b0j"><!> <button title="Toggle Vault QA Mode"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg></button> <button class="new-chat-btn svelte-1mg2b0j" aria-label="New Chat" title="New Chat"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-circle"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg></button> <!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!> <!></div></div>`);
-var $$css9 = {
+var root_16 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button></div></div>`);
+var root_64 = from_html(`<div class="active-file-indicator svelte-1mg2b0j"><span class="indicator-icon">\u{1F4C4}</span> <span class="indicator-text"> </span></div>`);
+var root_74 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
+var root8 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="controls svelte-1mg2b0j"><!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!> <!></div></div>`);
+var $$css8 = {
   hash: "svelte-1mg2b0j",
-  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);user-select:text;-webkit-user-select:text;}.header.svelte-1mg2b0j {padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);display:flex;justify-content:space-between;align-items:center;position:relative;z-index:10;}.title.svelte-1mg2b0j {font-weight:600;font-size:var(--font-ui-medium);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:75%;box-sizing:border-box;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}.new-chat-btn.svelte-1mg2b0j {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;}.new-chat-btn.svelte-1mg2b0j:hover {color:var(--text-normal);}.active-file-indicator.svelte-1mg2b0j {font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:4px;padding:0 4px;}"
+  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);user-select:text;-webkit-user-select:text;}.header.svelte-1mg2b0j {flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--background-modifier-border);background-color:var(--background-secondary);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:75%;box-sizing:border-box;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}.active-file-indicator.svelte-1mg2b0j {font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:4px;padding:0 4px;}"
 };
 function ChatView($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css9);
-  const activeProjectId = mutable_source();
-  const sessionsList = mutable_source();
-  const currentModels = mutable_source();
+  append_styles($$anchor, $$css8);
+  const activeProject = mutable_source();
   let plugin = prop($$props, "plugin", 12);
+  let sessionId = prop($$props, "sessionId", 12, null);
+  let projectId = prop($$props, "projectId", 12, null);
+  let personaId = prop($$props, "personaId", 8, "default");
+  let isVaultQAMode = prop($$props, "isVaultQAMode", 8, false);
+  const dispatch = createEventDispatcher();
   function addSelectionContext(text2, filePath) {
     set(selectedContext, [
-      ...get(selectedContext),
+      ...get2(selectedContext),
       {
         type: "selection",
         text: `\u{1F4CB} Selection from ${filePath}`,
@@ -14797,41 +14870,57 @@ function ChatView($$anchor, $$props) {
     ]);
   }
   function addFileContext(filePath, fileName) {
-    if (get(selectedContext).some((c) => c.path === filePath && c.type !== "selection")) return;
+    if (get2(selectedContext).some((c) => c.path === filePath && c.type !== "selection")) return;
     set(selectedContext, [
-      ...get(selectedContext),
+      ...get2(selectedContext),
       { type: "file", text: fileName, path: filePath }
     ]);
   }
   function addFolderContext(folderPath, folderName) {
-    if (get(selectedContext).some((c) => c.path === folderPath && c.type === "folder")) return;
+    if (get2(selectedContext).some((c) => c.path === folderPath && c.type === "folder")) return;
     set(selectedContext, [
-      ...get(selectedContext),
+      ...get2(selectedContext),
       { type: "folder", text: `\u{1F4C1} ${folderName}`, path: folderPath }
     ]);
+  }
+  let chatInputRef = mutable_source();
+  function focusChatInput() {
+    if (get2(chatInputRef) && typeof get2(chatInputRef).focusInput === "function") {
+      get2(chatInputRef).focusInput();
+    }
   }
   let query = mutable_source("");
   let messages = mutable_source([]);
   let isLoading = mutable_source(false);
   let activeContextFile = mutable_source(null);
-  let currentSessionId = mutable_source("");
-  let isVaultQAMode = mutable_source(false);
+  let currentSessionId = "";
+  let messageQueue = mutable_source([]);
   let selectedContext = mutable_source([]);
-  let currentModel = mutable_source("gpt-5-mini");
-  let selectedPersonaId = mutable_source("default");
+  let currentModel = "gpt-5-mini";
+  let selectedPersonaId = mutable_source(personaId() || "default");
+  let activeLeafChangeCallback = null;
+  let _mounted = mutable_source(false);
+  let _prevSessionId = mutable_source(sessionId());
   onMount(async () => {
     if (plugin().settings) {
-      set(currentModel, plugin().settings.model || "gpt-5-mini");
-      set(selectedPersonaId, plugin().settings.defaultPersonaId || "default");
-      set(isVaultQAMode, plugin().settings.isVaultQAMode || false);
-      if (plugin().settings.activeSessionId) {
-        loadSession(plugin().settings.activeSessionId);
+      currentModel = plugin().settings.model || "gpt-5-mini";
+      set(selectedPersonaId, personaId() || plugin().settings.defaultPersonaId || "default");
+      if (sessionId()) {
+        loadSession(sessionId());
       } else {
         createNewSession();
       }
     }
     checkActiveFile();
-    plugin().app.workspace.on("active-leaf-change", () => checkActiveFile());
+    activeLeafChangeCallback = () => checkActiveFile();
+    plugin().app.workspace.on("active-leaf-change", activeLeafChangeCallback);
+    set(_mounted, true);
+  });
+  onDestroy(() => {
+    if (activeLeafChangeCallback) {
+      plugin().app.workspace.off("active-leaf-change", activeLeafChangeCallback);
+      activeLeafChangeCallback = null;
+    }
   });
   async function checkActiveFile() {
     if (plugin().contextManager) {
@@ -14841,28 +14930,13 @@ function ChatView($$anchor, $$props) {
   function loadSession(id) {
     const session = plugin().settings.sessions.find((s) => s.id === id);
     if (session) {
-      set(currentSessionId, session.id);
+      currentSessionId = session.id;
+      sessionId(session.id);
       set(messages, session.messages);
-      plugin(plugin().settings.activeSessionId = session.id, true);
-      plugin().saveSettings();
+      dispatch("sessionChange", session.id);
+      dispatch("titleChange", session.title || "New Chat");
     } else {
       createNewSession();
-    }
-  }
-  function handleSessionDelete(event2) {
-    const idToDelete = event2.detail;
-    let sessions = plugin().settings.sessions;
-    sessions = sessions.filter((s) => s.id !== idToDelete);
-    plugin(plugin().settings.sessions = sessions, true);
-    plugin().saveSettings();
-    plugin(plugin().settings = { ...plugin().settings }, true);
-    if (idToDelete === get(currentSessionId)) {
-      if (sessions.length > 0) {
-        const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
-        loadSession(sorted[0].id);
-      } else {
-        createNewSession();
-      }
     }
   }
   function createNewSession() {
@@ -14875,21 +14949,25 @@ function ChatView($$anchor, $$props) {
       projectId: plugin().settings.activeProjectId || null
     };
     plugin(plugin().settings.sessions = [...plugin().settings.sessions, newSession], true);
-    plugin(plugin().settings.activeSessionId = newSession.id, true);
-    set(currentSessionId, newSession.id);
+    currentSessionId = newSession.id;
+    sessionId(newSession.id);
     set(messages, newSession.messages);
     plugin().saveSettings();
+    dispatch("sessionChange", newSession.id);
+    dispatch("titleChange", newSession.title);
     plugin(plugin().settings = { ...plugin().settings }, true);
   }
   function updateSessionTitle(firstMessage) {
-    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    const session = plugin().settings.sessions.find((s) => s.id === currentSessionId);
     if (session && session.title === "New Chat") {
-      session.title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+      const newTitle = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+      session.title = newTitle;
       plugin().saveSettings();
+      dispatch("titleChange", newTitle);
     }
   }
   function saveMessageToHistory(role, content) {
-    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    const session = plugin().settings.sessions.find((s) => s.id === currentSessionId);
     if (session) {
       session.messages.push({ role, content });
       session.updatedAt = Date.now();
@@ -14903,22 +14981,15 @@ function ChatView($$anchor, $$props) {
       plugin().saveSettings();
     }
   }
-  function handleModelChange(model) {
-    set(currentModel, model);
-    if (plugin().settings) {
-      plugin(plugin().settings.model = model, true);
-      plugin().saveSettings?.();
-    }
-  }
   async function handleSearch(query2) {
     if (!plugin() || !plugin().contextManager) return [];
     return plugin().contextManager.searchFiles(query2);
   }
   function handleAddContext(item) {
-    if (item.type !== "selection" && item.path && get(selectedContext).some((c) => c.path === item.path && c.type !== "selection")) return;
+    if (item.type !== "selection" && item.path && get2(selectedContext).some((c) => c.path === item.path && c.type !== "selection")) return;
     if (item.type === "selection") {
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "selection",
           text: item.text || "\u{1F4CB} Selection",
@@ -14929,7 +15000,7 @@ function ChatView($$anchor, $$props) {
       ]);
     } else if (!item.type && item.path && item.basename !== void 0) {
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "file",
           text: item.basename || item.name || item.path,
@@ -14938,7 +15009,7 @@ function ChatView($$anchor, $$props) {
       ]);
     } else if (item.type === "image") {
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "image",
           text: item.basename || item.path,
@@ -14949,7 +15020,7 @@ function ChatView($$anchor, $$props) {
     } else if (item.type === "file") {
       const displayName = item.basename || item.path;
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "file",
           text: displayName,
@@ -14960,7 +15031,7 @@ function ChatView($$anchor, $$props) {
       ]);
     } else if (item.type === "heading") {
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "heading",
           text: `${item.file?.basename ?? item.path} > ${item.heading}`,
@@ -14970,7 +15041,7 @@ function ChatView($$anchor, $$props) {
       ]);
     } else if (item.type === "folder") {
       set(selectedContext, [
-        ...get(selectedContext),
+        ...get2(selectedContext),
         {
           type: "folder",
           text: `\u{1F4C1} ${item.name || item.path}`,
@@ -14980,9 +15051,9 @@ function ChatView($$anchor, $$props) {
     }
   }
   async function sendMessage() {
-    if (!get(query).trim() && get(selectedContext).length === 0 || get(isLoading)) return;
-    const textContexts = get(selectedContext).filter((c) => c.type !== "image");
-    const imageContexts = get(selectedContext).filter((c) => c.type === "image");
+    if (!get2(query).trim() && get2(selectedContext).length === 0) return;
+    const textContexts = get2(selectedContext).filter((c) => c.type !== "image");
+    const imageContexts = get2(selectedContext).filter((c) => c.type === "image");
     let contextText = "";
     if (plugin().contextManager && textContexts.length > 0) {
       const vaultContexts = textContexts.filter((c) => !c.content);
@@ -14991,16 +15062,16 @@ function ChatView($$anchor, $$props) {
         contextText = await plugin().contextManager.resolveContexts(vaultContexts);
       }
       if (inlineContexts.length > 0) {
-        contextText += inlineContexts.map((c) => `
+        const inlineParts = inlineContexts.map((c) => `
 
 --- ${c.text} ---
-${c.content}`).join("");
+${c.content}`);
+        contextText += inlineParts.join("");
       }
     }
     let qaSources = [];
-    if (get(isVaultQAMode) && plugin().vaultQA && plugin().vaultQA.isIndexed) {
-      const activeProject = plugin().settings.projects?.find((p) => p.id === plugin().settings.activeProjectId);
-      const results = await plugin().vaultQA.search(get(query), 5, activeProject);
+    if (isVaultQAMode() && plugin().vaultQA && plugin().vaultQA.isIndexed) {
+      const results = await plugin().vaultQA.search(get2(query), 5, get2(activeProject));
       if (results && results.length > 0) {
         contextText += `
 
@@ -15017,33 +15088,57 @@ ${res.text}
     }
     const fullPromptText = `${contextText}
 
-User Question: ${get(query)}`;
+User Question: ${get2(query)}`;
     let systemBase = "";
-    if (get(activeContextFile) && !textContexts.some((c) => c.path === get(activeContextFile)?.path)) {
+    if (get2(activeContextFile) && !textContexts.some((c) => c.path === get2(activeContextFile)?.path)) {
       systemBase += `
 
-=== CURRENT ACTIVE FILE (${get(activeContextFile).path}) ===
-${get(activeContextFile).content}
+=== CURRENT ACTIVE FILE (${get2(activeContextFile).path}) ===
+${get2(activeContextFile).content}
 ==========================
 `;
     }
-    const displayContent = get(query) + (imageContexts.length > 0 ? `
+    const displayContent = get2(query) + (imageContexts.length > 0 ? `
 [Attached ${imageContexts.length} images]` : "");
-    saveMessageToHistory("user", displayContent);
-    if (get(messages).length === 1) {
-      updateSessionTitle(get(query));
+    set(messageQueue, [
+      ...get2(messageQueue),
+      {
+        text: fullPromptText,
+        context: [...imageContexts],
+        displayContent,
+        qaSources,
+        systemBase
+      }
+    ]);
+    if (get2(messages).length === 0 && get2(messageQueue).length === 1) {
+      updateSessionTitle(get2(query));
     }
     set(query, "");
+    set(selectedContext, []);
     await tick();
     scrollToBottom();
+    if (!get2(isLoading)) {
+      processQueue();
+    }
+  }
+  async function processQueue() {
+    if (get2(isLoading) || get2(messageQueue).length === 0) return;
     set(isLoading, true);
+    const nextMessage = get2(messageQueue).shift();
+    set(messageQueue, [...get2(messageQueue)]);
+    if (!nextMessage) {
+      set(isLoading, false);
+      return;
+    }
+    saveMessageToHistory("user", nextMessage.displayContent);
+    await tick();
+    scrollToBottom();
     try {
       let currentMessages = [];
-      const persona = plugin().settings.personas.find((p) => p.id === get(selectedPersonaId)) || DEFAULT_PERSONAS[0];
-      const activeProject = plugin().settings.projects?.find((p) => p.id === plugin().settings.activeProjectId);
+      const persona = plugin().settings.personas.find((p) => p.id === get2(selectedPersonaId)) || DEFAULT_PERSONAS[0];
       let baseSystemPrompt = persona.prompt;
-      if (activeProject && activeProject.systemPrompt) {
-        baseSystemPrompt = activeProject.systemPrompt;
+      if (get2(activeProject) && get2(activeProject).systemPrompt) {
+        baseSystemPrompt = get2(activeProject).systemPrompt;
       }
       let memoryPreamble = "";
       if (plugin().memoryService) {
@@ -15056,7 +15151,7 @@ ${get(activeContextFile).content}
       let skillContext = "";
       if (plugin().skillService) {
         try {
-          skillContext = await plugin().skillService.buildSkillContext(fullPromptText, plugin().settings);
+          skillContext = await plugin().skillService.buildSkillContext(nextMessage.text, plugin().settings);
           if (skillContext) {
             console.log("SkillService: Injected relevant skills into prompt");
           }
@@ -15067,37 +15162,33 @@ ${get(activeContextFile).content}
       let soulPreamble = "";
       if (plugin().personaSoulService) {
         try {
-          soulPreamble = await plugin().personaSoulService.buildSoulPreamble(get(selectedPersonaId));
+          soulPreamble = await plugin().personaSoulService.buildSoulPreamble(get2(selectedPersonaId));
         } catch (e) {
           console.warn("Could not load persona soul:", e);
         }
       }
       if (plugin().toolManager) {
-        plugin().toolManager.setActivePersonaId(get(selectedPersonaId));
+        plugin().toolManager.setActivePersonaId(get2(selectedPersonaId));
       }
-      const actualModel = activeProject && activeProject.defaultModel ? activeProject.defaultModel : get(currentModel);
-      const finalSystemPrompt = baseSystemPrompt + soulPreamble + memoryPreamble + skillContext + (systemBase ? `
+      const actualModel = get2(activeProject)?.defaultModel ? get2(activeProject).defaultModel : currentModel;
+      const finalSystemPrompt = baseSystemPrompt + soulPreamble + memoryPreamble + skillContext + (nextMessage.systemBase ? `
 
 Context:
-${systemBase}` : "");
+${nextMessage.systemBase}` : "");
       currentMessages.push({ role: "system", content: finalSystemPrompt });
-      const priorMessages = get(messages).slice(0, get(messages).length - 1);
-      for (const msg of priorMessages) {
-        if (msg.role === "user" || msg.role === "assistant") {
-          currentMessages.push({ role: msg.role, content: msg.content });
-        }
-      }
-      if (imageContexts.length > 0) {
+      const priorMessages = get2(messages).slice(0, get2(messages).length - 1).filter((msg) => msg.role === "user" || msg.role === "assistant").map((msg) => ({ role: msg.role, content: msg.content }));
+      currentMessages.push(...priorMessages);
+      if (nextMessage.context.length > 0) {
         const contentParts = [];
-        if (fullPromptText.trim()) {
-          contentParts.push({ type: "text", text: fullPromptText });
+        if (nextMessage.text.trim()) {
+          contentParts.push({ type: "text", text: nextMessage.text });
         }
-        for (const img of imageContexts) {
+        for (const img of nextMessage.context) {
           contentParts.push({ type: "image_url", image_url: { url: img.data } });
         }
         currentMessages.push({ role: "user", content: contentParts });
       } else {
-        currentMessages.push({ role: "user", content: fullPromptText });
+        currentMessages.push({ role: "user", content: nextMessage.text });
       }
       let steps = 0;
       const maxSteps = 10;
@@ -15113,7 +15204,7 @@ ${systemBase}` : "");
           });
           for (const tool of response.tool_calls) {
             set(messages, [
-              ...get(messages),
+              ...get2(messages),
               {
                 role: "assistant",
                 content: `\u{1F6E0}\uFE0F Using tool: \`${tool.function.name}\`...`
@@ -15147,7 +15238,7 @@ ${systemBase}` : "");
             currentMessages.push({ role: "tool", tool_call_id: tool.id, content: result });
             if (parsedComposerDiff) {
               set(messages, [
-                ...get(messages),
+                ...get2(messages),
                 {
                   role: "assistant",
                   content: "",
@@ -15156,7 +15247,7 @@ ${systemBase}` : "");
               ]);
             } else {
               set(messages, [
-                ...get(messages),
+                ...get2(messages),
                 { role: "assistant", content: `> ${result}` }
               ]);
             }
@@ -15167,11 +15258,11 @@ ${systemBase}` : "");
           break;
         }
       }
-      if (get(isVaultQAMode) && qaSources.length > 0 && finalContent) {
+      if (isVaultQAMode() && nextMessage.qaSources.length > 0 && finalContent) {
         finalContent += `
 
 **Sources:**
-${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
+${nextMessage.qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       }
       saveMessageToHistory("assistant", finalContent || "(No response from model)");
     } catch (error2) {
@@ -15181,11 +15272,14 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       set(isLoading, false);
       await tick();
       scrollToBottom();
+      if (get2(messageQueue).length > 0) {
+        processQueue();
+      }
     }
   }
   function removeContext(index2) {
-    get(selectedContext).splice(index2, 1);
-    set(selectedContext, get(selectedContext));
+    get2(selectedContext).splice(index2, 1);
+    set(selectedContext, get2(selectedContext));
   }
   function scrollToBottom() {
     const container = document.querySelector(".chat-history");
@@ -15201,28 +15295,12 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     navigator.clipboard.writeText(content);
     new import_obsidian2.Notice("Copied to clipboard");
   }
-  async function toggleVaultQAMode() {
-    set(isVaultQAMode, !get(isVaultQAMode));
-    if (plugin().settings) {
-      plugin(plugin().settings.isVaultQAMode = get(isVaultQAMode), true);
-      plugin().saveSettings();
-    }
-    new import_obsidian2.Notice(get(isVaultQAMode) ? "Vault QA Mode: ON" : "Vault QA Mode: OFF");
-    try {
-      if (get(isVaultQAMode) && plugin().settings?.autoIndexVault && plugin().vaultQA && !plugin().vaultQA.isIndexed) {
-        await plugin().vaultQA.indexVault();
-      }
-    } catch (e) {
-      console.error("Error toggling Vault QA:", e);
-      new import_obsidian2.Notice("Error: " + e.message);
-    }
-  }
   async function performDiffAction(message, action2) {
     if (!message.composerDiff) return;
     const diff = message.composerDiff;
     if (action2 === "reject") {
       diff.status = "rejected";
-      set(messages, [...get(messages)]);
+      set(messages, [...get2(messages)]);
       plugin().saveSettings();
       return;
     }
@@ -15246,7 +15324,7 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
         }
         await plugin().app.vault.modify(file2, newContent);
         diff.status = action2 === "accept" ? "accepted" : "pending";
-        set(messages, [...get(messages)]);
+        set(messages, [...get2(messages)]);
         plugin().saveSettings();
         new import_obsidian2.Notice(`Edit ${action2 === "accept" ? "applied" : "reverted"}.`);
       } else {
@@ -15257,10 +15335,10 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     }
   }
   function handleDeleteMessage(index2) {
-    set(messages, get(messages).filter((_, idx) => idx !== index2));
-    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    set(messages, get2(messages).filter((_, idx) => idx !== index2));
+    const session = plugin().settings.sessions.find((s) => s.id === currentSessionId);
     if (session) {
-      session.messages = get(messages);
+      session.messages = get2(messages);
       session.updatedAt = Date.now();
       plugin(plugin().settings.sessions = [...plugin().settings.sessions], true);
       plugin(plugin().settings = { ...plugin().settings }, true);
@@ -15269,13 +15347,14 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     new import_obsidian2.Notice("Message deleted");
   }
   function handleEditMessage(index2) {
-    const msg = get(messages)[index2];
+    set(messageQueue, []);
+    const msg = get2(messages)[index2];
     if (msg?.role === "user") {
       set(query, msg.content);
-      set(messages, get(messages).slice(0, index2));
-      const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+      set(messages, get2(messages).slice(0, index2));
+      const session = plugin().settings.sessions.find((s) => s.id === currentSessionId);
       if (session) {
-        session.messages = get(messages);
+        session.messages = get2(messages);
         session.updatedAt = Date.now();
         plugin(plugin().settings.sessions = [...plugin().settings.sessions], true);
         plugin(plugin().settings = { ...plugin().settings }, true);
@@ -15284,20 +15363,21 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     }
   }
   async function handleRegenerate(index2) {
-    const assistantMsg = get(messages)[index2];
+    set(messageQueue, []);
+    const assistantMsg = get2(messages)[index2];
     if (assistantMsg?.role !== "assistant") return;
     let lastUserQuery = "";
     for (let j = index2 - 1; j >= 0; j--) {
-      if (get(messages)[j].role === "user") {
-        lastUserQuery = get(messages)[j].content;
+      if (get2(messages)[j].role === "user") {
+        lastUserQuery = get2(messages)[j].content;
         break;
       }
     }
     if (!lastUserQuery) return;
-    set(messages, get(messages).slice(0, index2));
-    const session = plugin().settings.sessions.find((s) => s.id === get(currentSessionId));
+    set(messages, get2(messages).slice(0, index2));
+    const session = plugin().settings.sessions.find((s) => s.id === currentSessionId);
     if (session) {
-      session.messages = get(messages);
+      session.messages = get2(messages);
       session.updatedAt = Date.now();
       plugin(plugin().settings.sessions = [...plugin().settings.sessions], true);
       plugin(plugin().settings = { ...plugin().settings }, true);
@@ -15306,136 +15386,135 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
     set(query, lastUserQuery);
     await sendMessage();
   }
-  legacy_pre_effect(() => deep_read_state(plugin()), () => {
-    set(activeProjectId, plugin().settings?.activeProjectId || null);
-  });
-  legacy_pre_effect(() => (deep_read_state(plugin()), get(activeProjectId)), () => {
-    set(sessionsList, (plugin().settings?.sessions || []).filter((s) => (s.projectId || null) === get(activeProjectId)));
-  });
   legacy_pre_effect(
-    () => (deep_read_state(plugin()), PROVIDER_MODELS, get(currentModel)),
+    () => (get2(_mounted), deep_read_state(sessionId()), get2(_prevSessionId)),
     () => {
-      set(currentModels, plugin().settings ? PROVIDER_MODELS[plugin().settings.provider] ?? [get(currentModel)] : [get(currentModel)]);
+      if (get2(_mounted) && sessionId() !== get2(_prevSessionId)) {
+        set(_prevSessionId, sessionId());
+        if (sessionId()) {
+          loadSession(sessionId());
+        } else {
+          createNewSession();
+        }
+      }
     }
   );
-  legacy_pre_effect_reset();
-  var $$exports = { addSelectionContext, addFileContext, addFolderContext };
-  init();
-  var div = root9();
-  var div_1 = child(div);
-  var div_2 = sibling(child(div_1), 2);
-  var node = child(div_2);
-  SessionHistory(node, {
-    get sessions() {
-      return get(sessionsList);
-    },
-    get currentSessionId() {
-      return get(currentSessionId);
-    },
-    $$events: {
-      select: (e) => loadSession(e.detail),
-      delete: handleSessionDelete
-    }
+  legacy_pre_effect(() => (deep_read_state(plugin()), deep_read_state(projectId())), () => {
+    set(activeProject, plugin().settings?.projects?.find((p) => p.id === projectId()) || null);
   });
-  var button = sibling(node, 2);
-  var button_1 = sibling(button, 2);
-  var node_1 = sibling(button_1, 2);
+  legacy_pre_effect_reset();
+  var $$exports = {
+    addSelectionContext,
+    addFileContext,
+    addFolderContext,
+    focusChatInput
+  };
+  init();
+  var div = root8();
+  var div_1 = child(div);
+  var div_2 = child(div_1);
+  var node = child(div_2);
+  {
+    let $0 = derived_safe_equal(() => (deep_read_state(plugin()), untrack(() => plugin().settings?.projects || [])));
+    ProjectSelector(node, {
+      get selectedProjectId() {
+        return projectId();
+      },
+      get projects() {
+        return get2($0);
+      },
+      $$events: {
+        change: (e) => {
+          projectId(e.detail);
+          dispatch("projectChange", e.detail);
+        }
+      }
+    });
+  }
+  var node_1 = sibling(node, 2);
   {
     let $0 = derived_safe_equal(() => (deep_read_state(plugin()), deep_read_state(DEFAULT_PERSONAS), untrack(() => plugin().settings?.personas || DEFAULT_PERSONAS)));
     PersonaSelector(node_1, {
       get personas() {
-        return get($0);
+        return get2($0);
       },
       get selectedPersonaId() {
-        return get(selectedPersonaId);
+        return get2(selectedPersonaId);
       },
       set selectedPersonaId($$value) {
         set(selectedPersonaId, $$value);
       },
+      $$events: { change: (e) => dispatch("personaChange", e.detail) },
       $$legacy: true
     });
   }
-  var node_2 = sibling(node_1, 2);
-  ModelSelector(node_2, {
-    get models() {
-      return get(currentModels);
-    },
-    get selectedModel() {
-      return get(currentModel);
-    },
-    set selectedModel($$value) {
-      set(currentModel, $$value);
-    },
-    $$events: { change: (e) => handleModelChange(e.detail) },
-    $$legacy: true
-  });
   reset(div_2);
   reset(div_1);
   var div_3 = sibling(div_1, 2);
-  var node_3 = child(div_3);
+  var node_2 = child(div_3);
   {
     var consequent = ($$anchor2) => {
-      var div_4 = root_17();
+      var div_4 = root_16();
       var div_5 = sibling(child(div_4), 4);
-      var button_2 = child(div_5);
+      var button = child(div_5);
       reset(div_5);
       reset(div_4);
-      event("click", button_2, () => {
+      event("click", button, () => {
         set(query, "Summarize this note");
         sendMessage();
       });
       append($$anchor2, div_4);
     };
-    if_block(node_3, ($$render) => {
-      if (get(messages), untrack(() => get(messages).length === 0)) $$render(consequent);
+    if_block(node_2, ($$render) => {
+      if (get2(messages), untrack(() => get2(messages).length === 0)) $$render(consequent);
     });
   }
-  var node_4 = sibling(node_3, 2);
-  each(node_4, 1, () => get(messages), index, ($$anchor2, message, i) => {
+  var node_3 = sibling(node_2, 2);
+  each(node_3, 1, () => get2(messages), index, ($$anchor2, message, i) => {
     var fragment = comment();
-    var node_5 = first_child(fragment);
+    var node_4 = first_child(fragment);
     {
       var consequent_1 = ($$anchor3) => {
         ComposerDiff($$anchor3, {
           get path() {
-            return get(message), untrack(() => get(message).composerDiff.path);
+            return get2(message), untrack(() => get2(message).composerDiff.path);
           },
           get oldText() {
-            return get(message), untrack(() => get(message).composerDiff.oldText);
+            return get2(message), untrack(() => get2(message).composerDiff.oldText);
           },
           get newText() {
-            return get(message), untrack(() => get(message).composerDiff.newText);
+            return get2(message), untrack(() => get2(message).composerDiff.newText);
           },
           get status() {
-            return get(message), untrack(() => get(message).composerDiff.status);
+            return get2(message), untrack(() => get2(message).composerDiff.status);
           },
           $$events: {
-            accept: () => performDiffAction(get(message), "accept"),
-            reject: () => performDiffAction(get(message), "reject"),
-            revert: () => performDiffAction(get(message), "revert")
+            accept: () => performDiffAction(get2(message), "accept"),
+            reject: () => performDiffAction(get2(message), "reject"),
+            revert: () => performDiffAction(get2(message), "revert")
           }
         });
       };
       var alternate = ($$anchor3) => {
         {
-          let $0 = derived_safe_equal(() => (get(isLoading), get(message), get(messages), untrack(() => get(isLoading) && get(message) === get(messages)[get(messages).length - 1])));
+          let $0 = derived_safe_equal(() => (get2(isLoading), get2(message), get2(messages), untrack(() => get2(isLoading) && get2(message) === get2(messages)[get2(messages).length - 1])));
           MessageBubble($$anchor3, {
             get role() {
-              return get(message), untrack(() => get(message).role);
+              return get2(message), untrack(() => get2(message).role);
             },
             get content() {
-              return get(message), untrack(() => get(message).content);
+              return get2(message), untrack(() => get2(message).content);
             },
             get isStreaming() {
-              return get($0);
+              return get2($0);
             },
             get app() {
               return deep_read_state(plugin()), untrack(() => plugin().app);
             },
             $$events: {
-              insert: () => handleInsert(get(message).content),
-              replace: () => handleReplace(get(message).content),
-              copy: () => handleCopy(get(message).content),
+              insert: () => handleInsert(get2(message).content),
+              replace: () => handleReplace(get2(message).content),
+              copy: () => handleCopy(get2(message).content),
               edit: () => handleEditMessage(i),
               delete: () => handleDeleteMessage(i),
               regenerate: () => handleRegenerate(i)
@@ -15443,41 +15522,57 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
           });
         }
       };
-      if_block(node_5, ($$render) => {
-        if (get(message), untrack(() => get(message).composerDiff)) $$render(consequent_1);
-        else $$render(alternate, false);
+      if_block(node_4, ($$render) => {
+        if (get2(message), untrack(() => get2(message).composerDiff)) $$render(consequent_1);
+        else $$render(alternate, -1);
       });
     }
     append($$anchor2, fragment);
+  });
+  var node_5 = sibling(node_3, 2);
+  each(node_5, 1, () => get2(messageQueue), index, ($$anchor2, queuedMsg) => {
+    {
+      let $0 = derived_safe_equal(() => (get2(queuedMsg), untrack(() => get2(queuedMsg).displayContent + "\n\n*(Queued...)*")));
+      MessageBubble($$anchor2, {
+        role: "user",
+        get content() {
+          return get2($0);
+        },
+        isStreaming: false,
+        get app() {
+          return deep_read_state(plugin()), untrack(() => plugin().app);
+        }
+      });
+    }
   });
   reset(div_3);
   var div_6 = sibling(div_3, 2);
   var node_6 = child(div_6);
   {
     var consequent_2 = ($$anchor2) => {
-      var div_7 = root_54();
+      var div_7 = root_64();
       var span = sibling(child(div_7), 2);
       var text_1 = child(span);
       reset(span);
       reset(div_7);
-      template_effect(() => set_text(text_1, `Viewing: ${(get(activeContextFile), untrack(() => get(activeContextFile).path)) ?? ""}`));
+      template_effect(() => set_text(text_1, `Viewing: ${(get2(activeContextFile), untrack(() => get2(activeContextFile).path)) ?? ""}`));
       append($$anchor2, div_7);
     };
     if_block(node_6, ($$render) => {
-      if (get(activeContextFile)) $$render(consequent_2);
+      if (get2(activeContextFile)) $$render(consequent_2);
     });
   }
   var node_7 = sibling(node_6, 2);
   {
     var consequent_3 = ($$anchor2) => {
-      var div_8 = root_64();
-      each(div_8, 5, () => get(selectedContext), index, ($$anchor3, context, i) => {
+      var div_8 = root_74();
+      each(div_8, 5, () => get2(selectedContext), index, ($$anchor3, context, i) => {
         ContextPill($$anchor3, {
           get text() {
-            return get(context), untrack(() => get(context).text);
+            return get2(context), untrack(() => get2(context).text);
           },
           get type() {
-            return get(context), untrack(() => get(context).type);
+            return get2(context), untrack(() => get2(context).type);
           },
           $$events: { remove: () => removeContext(i) }
         });
@@ -15486,45 +15581,531 @@ ${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       append($$anchor2, div_8);
     };
     if_block(node_7, ($$render) => {
-      if (get(selectedContext), untrack(() => get(selectedContext).length > 0)) $$render(consequent_3);
+      if (get2(selectedContext), untrack(() => get2(selectedContext).length > 0)) $$render(consequent_3);
     });
   }
   var node_8 = sibling(node_7, 2);
-  ChatInput(node_8, {
-    onSearch: handleSearch,
-    get editorHandler() {
-      return deep_read_state(plugin()), untrack(() => plugin().editorHandler);
-    },
-    get value() {
-      return get(query);
-    },
-    set value($$value) {
-      set(query, $$value);
-    },
-    $$events: {
-      submit: sendMessage,
-      "add-context": (e) => handleAddContext(e.detail)
-    },
-    $$legacy: true
-  });
+  bind_this(
+    ChatInput(node_8, {
+      onSearch: handleSearch,
+      get editorHandler() {
+        return deep_read_state(plugin()), untrack(() => plugin().editorHandler);
+      },
+      get value() {
+        return get2(query);
+      },
+      set value($$value) {
+        set(query, $$value);
+      },
+      $$events: {
+        submit: sendMessage,
+        "add-context": (e) => handleAddContext(e.detail)
+      },
+      $$legacy: true
+    }),
+    ($$value) => set(chatInputRef, $$value),
+    () => get2(chatInputRef)
+  );
   reset(div_6);
   reset(div);
-  template_effect(() => {
-    set_class(button, 1, `new-chat-btn ${get(isVaultQAMode) ? "active" : ""}`, "svelte-1mg2b0j");
-    set_style(button, get(isVaultQAMode) ? "color: var(--interactive-accent); background: var(--background-modifier-active-hover);" : "");
-  });
-  event("click", button, () => toggleVaultQAMode());
-  event("click", button_1, createNewSession);
   append($$anchor, div);
   bind_prop($$props, "addSelectionContext", addSelectionContext);
   bind_prop($$props, "addFileContext", addFileContext);
   bind_prop($$props, "addFolderContext", addFolderContext);
+  bind_prop($$props, "focusChatInput", focusChatInput);
+  return pop($$exports);
+}
+
+// src/components/SessionHistory.svelte
+var root_26 = from_html(`<div><div class="session-info svelte-lf7hc0"><span class="item-name svelte-lf7hc0"> </span> <span class="item-date svelte-lf7hc0"> </span></div>  <span class="delete-btn svelte-lf7hc0" title="Delete session">\u2715</span></div>`);
+var root_36 = from_html(`<div class="empty-state svelte-lf7hc0">No history yet</div>`);
+var root_17 = from_html(`<div class="drawer-backdrop svelte-lf7hc0"></div> <div class="history-drawer svelte-lf7hc0"><div class="drawer-header svelte-lf7hc0"><span class="drawer-title svelte-lf7hc0">Chat History</span> <button class="drawer-close svelte-lf7hc0" aria-label="Close history">\u2715</button></div> <div class="drawer-list svelte-lf7hc0"><!> <!></div></div>`, 1);
+var $$css9 = {
+  hash: "svelte-lf7hc0",
+  code: ".drawer-backdrop.svelte-lf7hc0 {position:fixed;inset:0;background:rgba(0, 0, 0, 0.25);z-index:999;}.history-drawer.svelte-lf7hc0 {position:absolute;top:0;right:0;bottom:0;width:280px;max-width:80%;background-color:var(--background-primary);border-left:1px solid var(--background-modifier-border);box-shadow:-4px 0 16px rgba(0, 0, 0, 0.1);z-index:1000;display:flex;flex-direction:column;\n    animation: svelte-lf7hc0-slideIn 0.2s ease-out;}\n\n  @keyframes svelte-lf7hc0-slideIn {\n    from { transform: translateX(100%); }\n    to { transform: translateX(0); }\n  }.drawer-header.svelte-lf7hc0 {display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--background-modifier-border);flex-shrink:0;}.drawer-title.svelte-lf7hc0 {font-weight:600;font-size:var(--font-ui-small);}.drawer-close.svelte-lf7hc0 {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;border-radius:4px;font-size:12px;}.drawer-close.svelte-lf7hc0:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.drawer-list.svelte-lf7hc0 {flex:1;overflow-y:auto;padding:4px;}.session-item.svelte-lf7hc0 {display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;border-radius:4px;cursor:pointer;color:var(--text-normal);gap:6px;margin-bottom:1px;}.session-item.svelte-lf7hc0:hover {background-color:var(--background-modifier-hover);}.session-item.current.svelte-lf7hc0 {background-color:var(--interactive-accent);color:var(--text-on-accent);}.session-item.current.svelte-lf7hc0 .item-date:where(.svelte-lf7hc0),\n  .session-item.current.svelte-lf7hc0 .delete-btn:where(.svelte-lf7hc0) {color:var(--text-on-accent);opacity:0.8;}.session-info.svelte-lf7hc0 {display:flex;flex-direction:column;overflow:hidden;flex:1;}.item-name.svelte-lf7hc0 {font-weight:500;font-size:var(--font-ui-smaller);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.item-date.svelte-lf7hc0 {font-size:0.75em;color:var(--text-muted);}.empty-state.svelte-lf7hc0 {text-align:center;padding:24px;color:var(--text-muted);font-size:var(--font-ui-smaller);}.delete-btn.svelte-lf7hc0 {background:transparent;border:none;padding:3px;border-radius:4px;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;font-size:11px;transition:opacity 0.15s, background-color 0.15s, color 0.15s;}.session-item.svelte-lf7hc0:hover .delete-btn:where(.svelte-lf7hc0) {opacity:1;}.delete-btn.svelte-lf7hc0:hover {background-color:var(--background-modifier-error-hover) !important;color:var(--text-error) !important;opacity:1;}"
+};
+function SessionHistory($$anchor, $$props) {
+  push($$props, false);
+  append_styles($$anchor, $$css9);
+  const sortedSessions = mutable_source();
+  let sessions = prop($$props, "sessions", 24, () => []);
+  let currentSessionId = prop($$props, "currentSessionId", 8);
+  let isOpen = prop($$props, "isOpen", 12, false);
+  const dispatch = createEventDispatcher();
+  function toggle() {
+    isOpen(!isOpen());
+  }
+  function select(id) {
+    isOpen(false);
+    if (id !== currentSessionId()) {
+      dispatch("select", id);
+    }
+  }
+  function deleteSession(id, e) {
+    e.stopPropagation();
+    dispatch("delete", id);
+  }
+  legacy_pre_effect(() => deep_read_state(sessions()), () => {
+    set(sortedSessions, [...sessions()].sort((a, b) => b.updatedAt - a.updatedAt));
+  });
+  legacy_pre_effect_reset();
+  var $$exports = { toggle };
+  init();
+  var fragment = comment();
+  var node = first_child(fragment);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var fragment_1 = root_17();
+      var div = first_child(fragment_1);
+      var div_1 = sibling(div, 2);
+      var div_2 = child(div_1);
+      var button = sibling(child(div_2), 2);
+      reset(div_2);
+      var div_3 = sibling(div_2, 2);
+      var node_1 = child(div_3);
+      each(node_1, 1, () => get2(sortedSessions), index, ($$anchor3, session) => {
+        var div_4 = root_26();
+        let classes;
+        var div_5 = child(div_4);
+        var span = child(div_5);
+        var text2 = child(span, true);
+        reset(span);
+        var span_1 = sibling(span, 2);
+        var text_1 = child(span_1, true);
+        reset(span_1);
+        reset(div_5);
+        var span_2 = sibling(div_5, 2);
+        reset(div_4);
+        template_effect(
+          ($0) => {
+            classes = set_class(div_4, 1, "session-item svelte-lf7hc0", null, classes, { current: get2(session).id === currentSessionId() });
+            set_attribute2(div_4, "title", (get2(session), untrack(() => get2(session).title)));
+            set_text(text2, (get2(session), untrack(() => get2(session).title || "New Chat")));
+            set_text(text_1, $0);
+          },
+          [
+            () => (get2(session), untrack(() => new Date(get2(session).updatedAt).toLocaleDateString()))
+          ]
+        );
+        event("click", span_2, (e) => deleteSession(get2(session).id, e));
+        event("click", div_4, () => select(get2(session).id));
+        append($$anchor3, div_4);
+      });
+      var node_2 = sibling(node_1, 2);
+      {
+        var consequent = ($$anchor3) => {
+          var div_6 = root_36();
+          append($$anchor3, div_6);
+        };
+        if_block(node_2, ($$render) => {
+          if (get2(sortedSessions), untrack(() => get2(sortedSessions).length === 0)) $$render(consequent);
+        });
+      }
+      reset(div_3);
+      reset(div_1);
+      event("click", div, () => isOpen(false));
+      event("click", button, () => isOpen(false));
+      append($$anchor2, fragment_1);
+    };
+    if_block(node, ($$render) => {
+      if (isOpen()) $$render(consequent_1);
+    });
+  }
+  append($$anchor, fragment);
+  bind_prop($$props, "toggle", toggle);
+  return pop($$exports);
+}
+
+// src/views/ChatApp.svelte
+var root_27 = from_html(`<input class="tab-rename-input svelte-zhnfhr"/>`);
+var root_44 = from_html(`<span class="pin-icon svelte-zhnfhr">\u{1F4CC}</span>`);
+var root_37 = from_html(`<!> <span class="tab-title svelte-zhnfhr"> </span>`, 1);
+var root_54 = from_html(`<button class="tab-close svelte-zhnfhr" aria-label="Close tab">\u2715</button>`);
+var root_18 = from_html(`<div><!> <!></div>`);
+var root_65 = from_html(`<div class="tab-container svelte-zhnfhr"><!></div>`);
+var root9 = from_html(`<div class="chat-app-container svelte-zhnfhr"><div class="app-header svelte-zhnfhr"><div class="title-bar svelte-zhnfhr"><div class="title svelte-zhnfhr">AI Copilot</div> <div class="global-controls svelte-zhnfhr"><button class="header-btn svelte-zhnfhr" title="Chat History" aria-label="Chat History"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg></button> <button class="header-btn svelte-zhnfhr" title="Settings" aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button></div></div> <div class="tab-bar svelte-zhnfhr"><!> <button class="new-tab-btn svelte-zhnfhr" title="New Tab" aria-label="New Tab">+</button></div></div> <div class="tabs-content svelte-zhnfhr"><!> <!></div></div>`);
+var $$css10 = {
+  hash: "svelte-zhnfhr",
+  code: ".chat-app-container.svelte-zhnfhr {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);}.app-header.svelte-zhnfhr {display:flex;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--background-modifier-border);}.title-bar.svelte-zhnfhr {padding:4px 10px;display:flex;justify-content:space-between;align-items:center;}.title.svelte-zhnfhr {font-weight:600;font-size:var(--font-ui-small);color:var(--text-normal);}.global-controls.svelte-zhnfhr {display:flex;align-items:center;gap:2px;}.header-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:4px;transition:color 0.15s;}.header-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Tab Bar \u2500\u2500\u2500 */.tab-bar.svelte-zhnfhr {display:flex;align-items:center;background-color:var(--background-secondary);padding:0 6px;overflow-x:auto;scrollbar-width:none;gap:1px;}.tab-bar.svelte-zhnfhr::-webkit-scrollbar {display:none;}.tab.svelte-zhnfhr {display:flex;align-items:center;padding:3px 8px;background-color:transparent;border-radius:4px 4px 0 0;cursor:pointer;font-size:11px;color:var(--text-muted);max-width:140px;min-width:40px;transition:background-color 0.12s, color 0.12s;line-height:1.3;gap:3px;flex-shrink:0;}.tab.svelte-zhnfhr:hover {background-color:var(--background-modifier-hover);color:var(--text-normal);}.tab.active.svelte-zhnfhr {background-color:var(--background-primary);color:var(--text-normal);font-weight:500;}.tab.pinned.svelte-zhnfhr {min-width:unset;max-width:100px;}.pin-icon.svelte-zhnfhr {font-size:9px;flex-shrink:0;}.tab-title.svelte-zhnfhr {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;}.tab-rename-input.svelte-zhnfhr {background:var(--background-primary);border:1px solid var(--interactive-accent);border-radius:2px;color:var(--text-normal);font-size:11px;padding:1px 4px;width:80px;outline:none;}.tab-close.svelte-zhnfhr {background:transparent;border:none;color:var(--text-faint);cursor:pointer;padding:0 2px;font-size:10px;line-height:1;border-radius:2px;opacity:0;transition:opacity 0.12s, color 0.12s;flex-shrink:0;}.tab.svelte-zhnfhr:hover .tab-close:where(.svelte-zhnfhr) {opacity:1;}.tab-close.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.new-tab-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:3px 6px;font-size:14px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:color 0.12s;flex-shrink:0;}.new-tab-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Content area \u2500\u2500\u2500 */.tabs-content.svelte-zhnfhr {flex:1;overflow:hidden;position:relative;}.tab-container.svelte-zhnfhr {height:100%;width:100%;flex-direction:column;}"
+};
+function ChatApp($$anchor, $$props) {
+  push($$props, false);
+  append_styles($$anchor, $$css10);
+  const sessionsList = mutable_source();
+  const activeTab = mutable_source();
+  const currentSessionId = mutable_source();
+  const sortedTabs = mutable_source();
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1e3;
+  let plugin = prop($$props, "plugin", 12);
+  let tabs = mutable_source(plugin().settings?.tabs || [
+    {
+      id: "default-tab",
+      title: "New Chat",
+      sessionId: null,
+      projectId: null,
+      personaId: "default",
+      pinned: false
+    }
+  ]);
+  let activeTabId = mutable_source(plugin().settings?.activeTabId || get2(tabs)[0]?.id);
+  let isVaultQAMode = plugin().settings?.isVaultQAMode || false;
+  let historyOpen = mutable_source(false);
+  onMount(() => {
+    const cutoff = Date.now() - TWENTY_FOUR_HOURS;
+    const activeSessionIds = new Set(get2(tabs).map((t) => t.sessionId).filter(Boolean));
+    const before = plugin().settings.sessions?.length || 0;
+    plugin(plugin().settings.sessions = (plugin().settings.sessions || []).filter((s) => s.updatedAt >= cutoff || activeSessionIds.has(s.id)), true);
+    const purged = before - (plugin().settings.sessions?.length || 0);
+    if (purged > 0) {
+      plugin().saveSettings();
+      console.log(`AI Copilot: purged ${purged} sessions older than 24h`);
+    }
+  });
+  let renamingTabId = mutable_source(null);
+  let renameValue = mutable_source("");
+  let tabRefs = mutable_source({});
+  function addSelectionContext(text2, filePath) {
+    if (get2(tabRefs)[get2(activeTabId)]) {
+      get2(tabRefs)[get2(activeTabId)].addSelectionContext(text2, filePath);
+    }
+  }
+  function addFileContext(filePath, fileName) {
+    if (get2(tabRefs)[get2(activeTabId)]) {
+      get2(tabRefs)[get2(activeTabId)].addFileContext(filePath, fileName);
+    }
+  }
+  function addFolderContext(folderPath, folderName) {
+    if (get2(tabRefs)[get2(activeTabId)]) {
+      get2(tabRefs)[get2(activeTabId)].addFolderContext(folderPath, folderName);
+    }
+  }
+  function focusChatInput() {
+    if (get2(tabRefs)[get2(activeTabId)]) {
+      get2(tabRefs)[get2(activeTabId)].focusChatInput();
+    }
+  }
+  function createTab() {
+    const currentTab = get2(tabs).find((t) => t.id === get2(activeTabId));
+    const id = crypto.randomUUID();
+    set(tabs, [
+      ...get2(tabs),
+      {
+        id,
+        title: "New Chat",
+        sessionId: null,
+        projectId: currentTab?.projectId || null,
+        personaId: currentTab?.personaId || "default",
+        pinned: false
+      }
+    ]);
+    set(activeTabId, id);
+  }
+  function closeTab(id, e) {
+    e.stopPropagation();
+    const tab = get2(tabs).find((t) => t.id === id);
+    if (tab?.pinned) return;
+    if (get2(tabs).length === 1) {
+      set(tabs, [
+        {
+          id: crypto.randomUUID(),
+          title: "New Chat",
+          sessionId: null,
+          projectId: null,
+          personaId: "default",
+          pinned: false
+        }
+      ]);
+      set(activeTabId, get2(tabs)[0].id);
+      return;
+    }
+    const idx = get2(tabs).findIndex((t) => t.id === id);
+    set(tabs, get2(tabs).filter((t) => t.id !== id));
+    delete get2(tabRefs)[id];
+    set(tabRefs, get2(tabRefs));
+    if (get2(activeTabId) === id) {
+      set(activeTabId, get2(tabs)[Math.max(0, idx - 1)]?.id);
+    }
+  }
+  function togglePin(id, e) {
+    e.stopPropagation();
+    const tabIndex = get2(tabs).findIndex((t) => t.id === id);
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].pinned = !get2(tabs)[tabIndex].pinned);
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function startRename(tabId) {
+    const tab = get2(tabs).find((t) => t.id === tabId);
+    if (tab) {
+      set(renamingTabId, tabId);
+      set(renameValue, tab.title);
+    }
+  }
+  function commitRename() {
+    if (get2(renamingTabId)) {
+      const tabIndex = get2(tabs).findIndex((t) => t.id === get2(renamingTabId));
+      if (tabIndex !== -1 && get2(renameValue).trim()) {
+        const newTitle = get2(renameValue).trim();
+        mutate(tabs, get2(tabs)[tabIndex].title = newTitle);
+        const sid = get2(tabs)[tabIndex].sessionId;
+        if (sid) {
+          const session = plugin().settings.sessions?.find((s) => s.id === sid);
+          if (session) {
+            session.title = newTitle;
+            plugin().saveSettings();
+          }
+        }
+        set(tabs, [...get2(tabs)]);
+      }
+      set(renamingTabId, null);
+      set(renameValue, "");
+    }
+  }
+  function handleRenameKeydown(e) {
+    if (e.key === "Enter") {
+      commitRename();
+    } else if (e.key === "Escape") {
+      set(renamingTabId, null);
+      set(renameValue, "");
+    }
+  }
+  function handleTitleChange(tabId, event2) {
+    const tabIndex = get2(tabs).findIndex((t) => t.id === tabId);
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].title = event2.detail);
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function handleSessionChange(tabId, event2) {
+    const tabIndex = get2(tabs).findIndex((t) => t.id === tabId);
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].sessionId = event2.detail);
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function handleProjectChange(tabId, event2) {
+    const tabIndex = get2(tabs).findIndex((t) => t.id === tabId);
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].projectId = event2.detail);
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function handlePersonaChange(tabId, event2) {
+    const tabIndex = get2(tabs).findIndex((t) => t.id === tabId);
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].personaId = event2.detail);
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function handleHistorySelect(event2) {
+    const sessionId = event2.detail;
+    const tabIndex = get2(tabs).findIndex((t) => t.id === get2(activeTabId));
+    if (tabIndex !== -1) {
+      mutate(tabs, get2(tabs)[tabIndex].sessionId = sessionId);
+      const session = plugin().settings.sessions.find((s) => s.id === sessionId);
+      if (session) {
+        mutate(tabs, get2(tabs)[tabIndex].title = session.title || "Chat");
+      }
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function handleHistoryDelete(event2) {
+    const idToDelete = event2.detail;
+    plugin(plugin().settings.sessions = plugin().settings.sessions.filter((s) => s.id !== idToDelete), true);
+    plugin().saveSettings();
+    plugin(plugin().settings = { ...plugin().settings }, true);
+    const tabIndex = get2(tabs).findIndex((t) => t.id === get2(activeTabId));
+    if (tabIndex !== -1 && get2(tabs)[tabIndex].sessionId === idToDelete) {
+      mutate(tabs, get2(tabs)[tabIndex].sessionId = null);
+      mutate(tabs, get2(tabs)[tabIndex].title = "New Chat");
+      set(tabs, [...get2(tabs)]);
+    }
+  }
+  function openSettings() {
+    const app = plugin().app;
+    const setting = app.setting;
+    if (setting) {
+      setting.open();
+      setting.openTabById(plugin().manifest.id);
+    }
+  }
+  legacy_pre_effect(() => (deep_read_state(plugin()), get2(tabs), get2(activeTabId)), () => {
+    if (plugin().settings) {
+      plugin(plugin().settings.tabs = get2(tabs), true);
+      plugin(plugin().settings.activeTabId = get2(activeTabId), true);
+      plugin().saveSettings();
+    }
+  });
+  legacy_pre_effect(() => deep_read_state(plugin()), () => {
+    set(sessionsList, (plugin().settings?.sessions || []).filter((s) => s.updatedAt >= Date.now() - TWENTY_FOUR_HOURS));
+  });
+  legacy_pre_effect(() => (get2(tabs), get2(activeTabId)), () => {
+    set(activeTab, get2(tabs).find((t) => t.id === get2(activeTabId)));
+  });
+  legacy_pre_effect(() => get2(activeTab), () => {
+    set(currentSessionId, get2(activeTab)?.sessionId || "");
+  });
+  legacy_pre_effect(() => get2(tabs), () => {
+    set(sortedTabs, [...get2(tabs)].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
+    }));
+  });
+  legacy_pre_effect_reset();
+  var $$exports = {
+    addSelectionContext,
+    addFileContext,
+    addFolderContext,
+    focusChatInput
+  };
+  init();
+  var div = root9();
+  var div_1 = child(div);
+  var div_2 = child(div_1);
+  var div_3 = sibling(child(div_2), 2);
+  var button = child(div_3);
+  var button_1 = sibling(button, 2);
+  reset(div_3);
+  reset(div_2);
+  var div_4 = sibling(div_2, 2);
+  var node = child(div_4);
+  each(node, 1, () => get2(sortedTabs), (tab) => tab.id, ($$anchor2, tab) => {
+    var div_5 = root_18();
+    var node_1 = child(div_5);
+    {
+      var consequent = ($$anchor3) => {
+        var input = root_27();
+        remove_input_defaults(input);
+        autofocus(input, true);
+        bind_value(input, () => get2(renameValue), ($$value) => set(renameValue, $$value));
+        event("blur", input, commitRename);
+        event("keydown", input, handleRenameKeydown);
+        append($$anchor3, input);
+      };
+      var alternate = ($$anchor3) => {
+        var fragment = root_37();
+        var node_2 = first_child(fragment);
+        {
+          var consequent_1 = ($$anchor4) => {
+            var span = root_44();
+            append($$anchor4, span);
+          };
+          if_block(node_2, ($$render) => {
+            if (get2(tab), untrack(() => get2(tab).pinned)) $$render(consequent_1);
+          });
+        }
+        var span_1 = sibling(node_2, 2);
+        var text_1 = child(span_1, true);
+        reset(span_1);
+        template_effect(() => set_text(text_1, (get2(tab), untrack(() => get2(tab).title))));
+        append($$anchor3, fragment);
+      };
+      if_block(node_1, ($$render) => {
+        if (get2(renamingTabId), get2(tab), untrack(() => get2(renamingTabId) === get2(tab).id)) $$render(consequent);
+        else $$render(alternate, -1);
+      });
+    }
+    var node_3 = sibling(node_1, 2);
+    {
+      var consequent_2 = ($$anchor3) => {
+        var button_2 = root_54();
+        event("click", button_2, (e) => closeTab(get2(tab).id, e));
+        append($$anchor3, button_2);
+      };
+      if_block(node_3, ($$render) => {
+        if (get2(tab), untrack(() => !get2(tab).pinned)) $$render(consequent_2);
+      });
+    }
+    reset(div_5);
+    template_effect(() => {
+      set_class(
+        div_5,
+        1,
+        `tab ${(get2(activeTabId), get2(tab), untrack(() => get2(activeTabId) === get2(tab).id ? "active" : "")) ?? ""} ${(get2(tab), untrack(() => get2(tab).pinned ? "pinned" : "")) ?? ""}`,
+        "svelte-zhnfhr"
+      );
+      set_attribute2(div_5, "title", (get2(tab), untrack(() => get2(tab).pinned ? "\u{1F4CC} " + get2(tab).title + " (right-click to unpin)" : get2(tab).title + " (right-click to pin, double-click to rename)")));
+    });
+    event("click", div_5, () => set(activeTabId, get2(tab).id));
+    event("dblclick", div_5, () => startRename(get2(tab).id));
+    event("contextmenu", div_5, preventDefault((e) => togglePin(get2(tab).id, e)));
+    append($$anchor2, div_5);
+  });
+  var button_3 = sibling(node, 2);
+  reset(div_4);
+  reset(div_1);
+  var div_6 = sibling(div_1, 2);
+  var node_4 = child(div_6);
+  each(node_4, 1, () => get2(tabs), (tab) => tab.id, ($$anchor2, tab) => {
+    var div_7 = root_65();
+    var node_5 = child(div_7);
+    bind_this(
+      ChatView(node_5, {
+        get plugin() {
+          return plugin();
+        },
+        get isVaultQAMode() {
+          return isVaultQAMode;
+        },
+        get sessionId() {
+          return get2(tab), untrack(() => get2(tab).sessionId);
+        },
+        get projectId() {
+          return get2(tab), untrack(() => get2(tab).projectId);
+        },
+        get personaId() {
+          return get2(tab), untrack(() => get2(tab).personaId);
+        },
+        $$events: {
+          titleChange: (e) => handleTitleChange(get2(tab).id, e),
+          sessionChange: (e) => handleSessionChange(get2(tab).id, e),
+          projectChange: (e) => handleProjectChange(get2(tab).id, e),
+          personaChange: (e) => handlePersonaChange(get2(tab).id, e)
+        },
+        $$legacy: true
+      }),
+      ($$value, tab2) => mutate(tabRefs, get2(tabRefs)[tab2.id] = $$value),
+      (tab2) => get2(tabRefs)?.[tab2.id],
+      () => [get2(tab)]
+    );
+    reset(div_7);
+    template_effect(() => set_style(div_7, `display: ${(get2(activeTabId), get2(tab), untrack(() => get2(activeTabId) === get2(tab).id ? "flex" : "none")) ?? ""};`));
+    append($$anchor2, div_7);
+  });
+  var node_6 = sibling(node_4, 2);
+  SessionHistory(node_6, {
+    get sessions() {
+      return get2(sessionsList);
+    },
+    get currentSessionId() {
+      return get2(currentSessionId);
+    },
+    get isOpen() {
+      return get2(historyOpen);
+    },
+    set isOpen($$value) {
+      set(historyOpen, $$value);
+    },
+    $$events: { select: handleHistorySelect, delete: handleHistoryDelete },
+    $$legacy: true
+  });
+  reset(div_6);
+  reset(div);
+  event("click", button, () => set(historyOpen, !get2(historyOpen)));
+  event("click", button_1, openSettings);
+  event("click", button_3, createTab);
+  append($$anchor, div);
+  bind_prop($$props, "addSelectionContext", addSelectionContext);
+  bind_prop($$props, "addFileContext", addFileContext);
+  bind_prop($$props, "addFolderContext", addFolderContext);
+  bind_prop($$props, "focusChatInput", focusChatInput);
   return pop($$exports);
 }
 
 // src/views/AIChatView.ts
 var VIEW_TYPE_AI_CHAT = "ai-chat-view";
-var AIChatView = class extends import_obsidian3.ItemView {
+var AIChatView = class extends import_obsidian4.ItemView {
   component;
   svelteExports = null;
   plugin;
@@ -15545,7 +16126,7 @@ var AIChatView = class extends import_obsidian3.ItemView {
   async onOpen() {
     const container = this.contentEl;
     container.empty();
-    this.component = mount(ChatView, {
+    this.component = mount(ChatApp, {
       target: container,
       props: {
         plugin: this.plugin
@@ -15571,6 +16152,12 @@ var AIChatView = class extends import_obsidian3.ItemView {
       this.svelteExports.addFolderContext(folderPath, folderName);
     }
   }
+  // Public method to focus the chat input — only call on explicit user action
+  focusChatInput() {
+    if (this.svelteExports && typeof this.svelteExports.focusChatInput === "function") {
+      this.svelteExports.focusChatInput();
+    }
+  }
   async onClose() {
     if (this.component) {
       unmount(this.component);
@@ -15579,7 +16166,7 @@ var AIChatView = class extends import_obsidian3.ItemView {
 };
 
 // src/services/EditorHandler.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var EditorHandler = class {
   app;
   lastActiveEditor = null;
@@ -15589,13 +16176,13 @@ var EditorHandler = class {
   }
   // Called by main.ts on active-leaf-change
   updateActiveLeaf(leaf) {
-    if (leaf && leaf.view instanceof import_obsidian4.MarkdownView) {
+    if (leaf && leaf.view instanceof import_obsidian5.MarkdownView) {
       this.lastActiveEditor = leaf.view.editor;
       this.lastActiveFile = leaf.view.file?.basename || null;
     }
   }
   getEditor() {
-    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     if (activeView) {
       this.lastActiveEditor = activeView.editor;
       this.lastActiveFile = activeView.file?.basename || null;
@@ -15612,7 +16199,7 @@ var EditorHandler = class {
   insertText(text2, mode) {
     const editor = this.getEditor();
     if (!editor) {
-      new import_obsidian4.Notice("No active editor found to insert text");
+      new import_obsidian5.Notice("No active editor found to insert text");
       return false;
     }
     if (mode === "replace") {
@@ -15638,18 +16225,21 @@ var EditorHandler = class {
 };
 
 // src/services/ContextManager.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var ContextManager = class {
   app;
+  searchCache = /* @__PURE__ */ new Map();
+  cacheTimeout = 5e3;
+  // 5 seconds cache
   constructor(app) {
     this.app = app;
   }
   // Read file content from the vault
   async getFileContent(path3) {
     const file2 = this.app.vault.getAbstractFileByPath(path3);
-    if (file2 instanceof import_obsidian5.TFile) {
+    if (file2 instanceof import_obsidian6.TFile) {
       return await this.app.vault.read(file2);
-    } else if (file2 instanceof import_obsidian5.TFolder) {
+    } else if (file2 instanceof import_obsidian6.TFolder) {
       return this.getFolderContent(file2);
     }
     return `Error: File not found at ${path3}`;
@@ -15660,9 +16250,9 @@ var ContextManager = class {
     const files = [];
     const subfolders = [];
     for (const child2 of folder.children) {
-      if (child2 instanceof import_obsidian5.TFile) {
+      if (child2 instanceof import_obsidian6.TFile) {
         files.push(child2);
-      } else if (child2 instanceof import_obsidian5.TFolder) {
+      } else if (child2 instanceof import_obsidian6.TFolder) {
         subfolders.push(child2);
       }
     }
@@ -15743,13 +16333,21 @@ ${content}
   }
   // Search for files and folders to support @ mentions
   searchFiles(query) {
+    const cacheKey = query.toLowerCase();
+    const cached2 = this.searchCache.get(cacheKey);
+    const now = Date.now();
+    if (cached2 && now - cached2.timestamp < this.cacheTimeout) {
+      return cached2.results;
+    }
     console.log("ContextManager: searchFiles called with", query);
     const files = this.app.vault.getFiles();
     const allFolders = this.getAllFolders();
     if (!query) {
       const fileResults = files.slice(0, 15).map((f) => ({ type: "file", file: f, matchScore: 0 }));
       const folderResults = allFolders.slice(0, 5).map((f) => ({ type: "folder", file: null, folder: f, matchScore: 0 }));
-      return [...folderResults, ...fileResults];
+      const results2 = [...folderResults, ...fileResults];
+      this.searchCache.set(cacheKey, { results: results2, timestamp: now });
+      return results2;
     }
     const lowerQuery = query.toLowerCase();
     const results = [];
@@ -15771,7 +16369,9 @@ ${content}
         }
       }
     }
-    return results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
+    const finalResults = results.sort((a, b) => b.matchScore - a.matchScore).slice(0, 20);
+    this.searchCache.set(cacheKey, { results: finalResults, timestamp: now });
+    return finalResults;
   }
   // Get all folders in the vault (excluding hidden folders)
   getAllFolders() {
@@ -15782,7 +16382,7 @@ ${content}
   }
   collectFolders(folder, results) {
     for (const child2 of folder.children) {
-      if (child2 instanceof import_obsidian5.TFolder) {
+      if (child2 instanceof import_obsidian6.TFolder) {
         if (!child2.name.startsWith(".")) {
           results.push(child2);
           this.collectFolders(child2, results);
@@ -15793,15 +16393,15 @@ ${content}
 };
 
 // src/services/ToolManager.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/services/WebSearch.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var WebSearch = class {
   async search(query, maxResults = 5) {
     try {
       const url2 = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-      const response = await (0, import_obsidian6.requestUrl)({
+      const response = await (0, import_obsidian7.requestUrl)({
         url: url2,
         method: "GET",
         headers: {
@@ -15838,7 +16438,7 @@ Summary: ${snippet2}`;
 };
 
 // src/services/YouTubeTranscriber.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var YouTubeTranscriber = class {
   /**
    * Original method — kept for backward compatibility.
@@ -15869,7 +16469,7 @@ var YouTubeTranscriber = class {
       await this.fetchOEmbedMetadata(videoId, metadata, notes);
       let html2;
       try {
-        const response = await (0, import_obsidian7.requestUrl)({
+        const response = await (0, import_obsidian8.requestUrl)({
           url: `https://www.youtube.com/watch?v=${videoId}`,
           headers: {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
@@ -15910,7 +16510,7 @@ var YouTubeTranscriber = class {
    */
   async fetchOEmbedMetadata(videoId, metadata, notes) {
     try {
-      const response = await (0, import_obsidian7.requestUrl)({
+      const response = await (0, import_obsidian8.requestUrl)({
         url: `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
       });
       const data = JSON.parse(response.text);
@@ -15978,7 +16578,7 @@ var YouTubeTranscriber = class {
     const apiKey = html2.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1];
     if (apiKey) {
       try {
-        const playerRes = await (0, import_obsidian7.requestUrl)({
+        const playerRes = await (0, import_obsidian8.requestUrl)({
           url: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -16059,7 +16659,7 @@ var YouTubeTranscriber = class {
       const url2 = new URL(baseUrl);
       url2.searchParams.set("fmt", "json3");
       url2.searchParams.set("alt", "json");
-      const response = await (0, import_obsidian7.requestUrl)({ url: url2.toString() });
+      const response = await (0, import_obsidian8.requestUrl)({ url: url2.toString() });
       const data = JSON.parse(response.text);
       const events = data.events || [];
       const segments = events.filter((e) => e.segs).flatMap((e) => (e.segs || []).map((s) => s.utf8).filter(Boolean));
@@ -16074,7 +16674,7 @@ var YouTubeTranscriber = class {
    */
   async fetchXmlTranscript(baseUrl, limit) {
     try {
-      const xmlRes = await (0, import_obsidian7.requestUrl)({ url: baseUrl });
+      const xmlRes = await (0, import_obsidian8.requestUrl)({ url: baseUrl });
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlRes.text, "text/xml");
       const textNodes = Array.from(xmlDoc.getElementsByTagName("text"));
@@ -16180,7 +16780,7 @@ var YouTubeTranscriber = class {
 };
 
 // src/services/PDFService.ts
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 var PDFService = class {
   app;
   constructor(app) {
@@ -16193,7 +16793,7 @@ var PDFService = class {
   async extractText(filePath) {
     try {
       const file2 = this.app.vault.getAbstractFileByPath(filePath);
-      if (!file2 || !(file2 instanceof import_obsidian8.TFile)) {
+      if (!file2 || !(file2 instanceof import_obsidian9.TFile)) {
         return `Error: PDF file not found at ${filePath}`;
       }
       if (!file2.extension.toLowerCase().endsWith("pdf")) {
@@ -16263,20 +16863,31 @@ var PDFService = class {
 };
 
 // src/services/MemoryService.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var MEMORY_FILE = "ai-copilot-memory.json";
 var MemoryService = class {
   app;
   memories = [];
   loaded = false;
+  loadPromise = null;
+  // Prevent concurrent loads
   constructor(app) {
     this.app = app;
   }
   async load() {
-    if (this.loaded) return;
+    if (this.loaded && this.loadPromise === null) return;
+    if (this.loadPromise) {
+      await this.loadPromise;
+      return;
+    }
+    this.loadPromise = this._doLoad();
+    await this.loadPromise;
+    this.loadPromise = null;
+  }
+  async _doLoad() {
     try {
       const file2 = this.app.vault.getAbstractFileByPath(MEMORY_FILE);
-      if (file2 && file2 instanceof import_obsidian9.TFile) {
+      if (file2 && file2 instanceof import_obsidian10.TFile) {
         const raw = await this.app.vault.read(file2);
         this.memories = JSON.parse(raw);
       }
@@ -16289,7 +16900,7 @@ var MemoryService = class {
   async save() {
     const json2 = JSON.stringify(this.memories, null, 2);
     const file2 = this.app.vault.getAbstractFileByPath(MEMORY_FILE);
-    if (file2 && file2 instanceof import_obsidian9.TFile) {
+    if (file2 && file2 instanceof import_obsidian10.TFile) {
       await this.app.vault.modify(file2, json2);
     } else {
       await this.app.vault.create(MEMORY_FILE, json2);
@@ -16346,10 +16957,10 @@ ${lines}
 };
 
 // src/services/VaultQA.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/services/EmbeddingService.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var EmbeddingService = class {
   settings;
   constructor(settings) {
@@ -16375,7 +16986,7 @@ var EmbeddingService = class {
       input: text2
     };
     try {
-      const response = await (0, import_obsidian10.requestUrl)({
+      const response = await (0, import_obsidian11.requestUrl)({
         url: url2,
         method: "POST",
         headers,
@@ -16435,11 +17046,11 @@ var VaultQA = class {
   }
   async indexVault() {
     if (this.isIndexing) {
-      new import_obsidian11.Notice("Vault is already being indexed.");
+      new import_obsidian12.Notice("Vault is already being indexed.");
       return;
     }
     this.isIndexing = true;
-    new import_obsidian11.Notice("Starting Vault QA Indexing...");
+    new import_obsidian12.Notice("Starting Vault QA Indexing...");
     try {
       const files = this.app.vault.getMarkdownFiles();
       const exclusions = (this.settings.indexExclusions || "").split(",").map((e) => e.trim()).filter((e) => e);
@@ -16464,17 +17075,17 @@ var VaultQA = class {
           }
         }
       }
-      new import_obsidian11.Notice(`Vault QA indexing complete! Indexed ${this.index.length} chunks.`);
+      new import_obsidian12.Notice(`Vault QA indexing complete! Indexed ${this.index.length} chunks.`);
     } catch (e) {
       console.error("Error indexing vault:", e);
-      new import_obsidian11.Notice("Vault QA indexing failed. Check console for details.", 5e3);
+      new import_obsidian12.Notice("Vault QA indexing failed. Check console for details.", 5e3);
     } finally {
       this.isIndexing = false;
     }
   }
   async search(query, topK = 5, activeProject) {
     if (this.index.length === 0) {
-      new import_obsidian11.Notice("Vault is not indexed. Please index the vault first in settings or Chat mode.");
+      new import_obsidian12.Notice("Vault is not indexed. Please index the vault first in settings or Chat mode.");
       return [];
     }
     try {
@@ -16549,10 +17160,10 @@ var VaultQA = class {
 };
 
 // src/services/ContentExtractor.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // src/services/PodcastTranscriber.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var PodcastTranscriber = class {
   /**
    * Extract transcript and metadata from a podcast URL.
@@ -16598,7 +17209,7 @@ var PodcastTranscriber = class {
     }
     notes.push(`Show ID: ${ids.showId}, Episode ID: ${ids.episodeId || "none"}`);
     try {
-      const lookupRes = await (0, import_obsidian12.requestUrl)({
+      const lookupRes = await (0, import_obsidian13.requestUrl)({
         url: `https://itunes.apple.com/lookup?id=${ids.showId}&entity=podcast`
       });
       const lookupData = JSON.parse(lookupRes.text);
@@ -16626,7 +17237,7 @@ var PodcastTranscriber = class {
    */
   async tryRssFeed(feedUrl, episodeId, metadata, notes) {
     try {
-      const feedRes = await (0, import_obsidian12.requestUrl)({ url: feedUrl });
+      const feedRes = await (0, import_obsidian13.requestUrl)({ url: feedUrl });
       const xml = feedRes.text;
       if (!this.looksLikeRss(xml)) {
         notes.push("URL does not appear to be RSS/Atom feed");
@@ -16695,7 +17306,7 @@ var PodcastTranscriber = class {
    */
   async fetchTranscript(url2, notes) {
     try {
-      const res = await (0, import_obsidian12.requestUrl)({
+      const res = await (0, import_obsidian13.requestUrl)({
         url: this.decodeXmlEntities(url2),
         headers: { "Accept": "text/vtt,text/plain,application/json;q=0.9,*/*;q=0.8" }
       });
@@ -16743,7 +17354,7 @@ var PodcastTranscriber = class {
    */
   async scrapeApplePodcastPage(url2, metadata, notes) {
     try {
-      const res = await (0, import_obsidian12.requestUrl)({
+      const res = await (0, import_obsidian13.requestUrl)({
         url: url2,
         headers: {
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -16774,7 +17385,7 @@ var PodcastTranscriber = class {
    */
   async scrapePageMetadata(url2, metadata, notes) {
     try {
-      const res = await (0, import_obsidian12.requestUrl)({ url: url2, headers: { "User-Agent": "Mozilla/5.0" } });
+      const res = await (0, import_obsidian13.requestUrl)({ url: url2, headers: { "User-Agent": "Mozilla/5.0" } });
       const html2 = res.text;
       metadata.episodeTitle = this.extractMetaContent(html2, "og:title") || this.extractHtmlTitle(html2);
       metadata.description = (this.extractMetaContent(html2, "og:description") || "").substring(0, 500);
@@ -17015,7 +17626,7 @@ ${result.metadata.description}`);
   async extractWebpage(url2) {
     const notes = [];
     try {
-      const response = await (0, import_obsidian13.requestUrl)({
+      const response = await (0, import_obsidian14.requestUrl)({
         url: url2,
         headers: {
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
@@ -31493,7 +32104,7 @@ var MCPClientService = class {
 };
 
 // src/services/SkillService.ts
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var fs2 = __toESM(require("fs"));
 var path2 = __toESM(require("path"));
 var SkillService = class {
@@ -31680,7 +32291,7 @@ ${truncated}
 };
 
 // src/services/PersonaSoulService.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var SOUL_DIR = ".ai-copilot/personas";
 var PersonaSoulService = class {
   app;
@@ -31689,13 +32300,13 @@ var PersonaSoulService = class {
   }
   // ── Path helpers ──────────────────────────────────────────
   personaDir(personaId) {
-    return (0, import_obsidian15.normalizePath)(`${SOUL_DIR}/${personaId}`);
+    return (0, import_obsidian16.normalizePath)(`${SOUL_DIR}/${personaId}`);
   }
   soulPath(personaId) {
-    return (0, import_obsidian15.normalizePath)(`${this.personaDir(personaId)}/soul.md`);
+    return (0, import_obsidian16.normalizePath)(`${this.personaDir(personaId)}/soul.md`);
   }
   memoryPath(personaId) {
-    return (0, import_obsidian15.normalizePath)(`${this.personaDir(personaId)}/memory.md`);
+    return (0, import_obsidian16.normalizePath)(`${this.personaDir(personaId)}/memory.md`);
   }
   // ── Folder creation ──────────────────────────────────────
   async ensureDir(dirPath) {
@@ -31703,7 +32314,7 @@ var PersonaSoulService = class {
     let current = "";
     for (const part of parts) {
       current = current ? `${current}/${part}` : part;
-      const normalized = (0, import_obsidian15.normalizePath)(current);
+      const normalized = (0, import_obsidian16.normalizePath)(current);
       const existing = this.app.vault.getAbstractFileByPath(normalized);
       if (!existing) {
         await this.app.vault.createFolder(normalized);
@@ -31714,7 +32325,7 @@ var PersonaSoulService = class {
   async loadSoul(personaId) {
     const path3 = this.soulPath(personaId);
     const file2 = this.app.vault.getAbstractFileByPath(path3);
-    if (file2 && file2 instanceof import_obsidian15.TFile) {
+    if (file2 && file2 instanceof import_obsidian16.TFile) {
       return await this.app.vault.read(file2);
     }
     return "";
@@ -31723,7 +32334,7 @@ var PersonaSoulService = class {
     const path3 = this.soulPath(personaId);
     await this.ensureDir(this.personaDir(personaId));
     const file2 = this.app.vault.getAbstractFileByPath(path3);
-    if (file2 && file2 instanceof import_obsidian15.TFile) {
+    if (file2 && file2 instanceof import_obsidian16.TFile) {
       await this.app.vault.modify(file2, content);
     } else {
       await this.app.vault.create(path3, content);
@@ -31744,7 +32355,7 @@ var PersonaSoulService = class {
   async loadMemory(personaId) {
     const path3 = this.memoryPath(personaId);
     const file2 = this.app.vault.getAbstractFileByPath(path3);
-    if (file2 && file2 instanceof import_obsidian15.TFile) {
+    if (file2 && file2 instanceof import_obsidian16.TFile) {
       return await this.app.vault.read(file2);
     }
     return "";
@@ -31758,7 +32369,7 @@ var PersonaSoulService = class {
     await this.ensureDir(this.personaDir(personaId));
     let existing = "";
     const file2 = this.app.vault.getAbstractFileByPath(path3);
-    if (file2 && file2 instanceof import_obsidian15.TFile) {
+    if (file2 && file2 instanceof import_obsidian16.TFile) {
       existing = await this.app.vault.read(file2);
     }
     if (existing.toLowerCase().includes(content.toLowerCase().trim())) {
@@ -31787,7 +32398,7 @@ var PersonaSoulService = class {
       const headingIndex = existing.indexOf(heading);
       const afterHeading = headingIndex + heading.length;
       const updated = existing.slice(0, afterHeading) + "\n" + entry + existing.slice(afterHeading);
-      if (file2 && file2 instanceof import_obsidian15.TFile) {
+      if (file2 && file2 instanceof import_obsidian16.TFile) {
         await this.app.vault.modify(file2, updated);
       } else {
         await this.app.vault.create(path3, updated);
@@ -31797,7 +32408,7 @@ var PersonaSoulService = class {
 ${heading}
 ${entry}
 `;
-      if (file2 && file2 instanceof import_obsidian15.TFile) {
+      if (file2 && file2 instanceof import_obsidian16.TFile) {
         await this.app.vault.modify(file2, updated);
       } else {
         await this.app.vault.create(path3, updated);
@@ -31910,7 +32521,7 @@ ${toolInstructions}`
 };
 
 // src/services/ToolManager.ts
-var ToolManager = class {
+var ToolManager = class _ToolManager {
   app;
   tools = [];
   webSearch;
@@ -31925,6 +32536,8 @@ var ToolManager = class {
   personaSoulService;
   activePersonaId = "default";
   settings;
+  // Static tool definitions - created once and reused
+  static toolDefinitions = null;
   constructor(app, memoryService, vaultQA, mcpClientService, aiProvider, skillService, personaSoulService, settings) {
     this.app = app;
     this.webSearch = new WebSearch();
@@ -31953,6 +32566,10 @@ var ToolManager = class {
     this.activePersonaId = personaId;
   }
   registerTools() {
+    if (_ToolManager.toolDefinitions && this.tools.length === 0) {
+      this.tools = [..._ToolManager.toolDefinitions];
+      return;
+    }
     this.tools.push({
       name: "create_note",
       description: "Creates a new markdown note at the specified path. If content is provided, it writes it to the file.",
@@ -31966,7 +32583,7 @@ var ToolManager = class {
       },
       execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian17.normalizePath)(path3);
           const finalPath = normalizedPath.endsWith(".md") ? normalizedPath : `${normalizedPath}.md`;
           const existing = this.app.vault.getAbstractFileByPath(finalPath);
           if (existing) {
@@ -31993,9 +32610,9 @@ var ToolManager = class {
       },
       execute: async ({ path: path3, content }) => {
         try {
-          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian17.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
-          if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
+          if (!file2 || !(file2 instanceof import_obsidian17.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
           }
           await this.app.vault.append(file2, `
@@ -32018,9 +32635,9 @@ ${content}`);
       },
       execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
+          const normalizedPath = (0, import_obsidian17.normalizePath)(path3);
           const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
-          if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
+          if (!file2 || !(file2 instanceof import_obsidian17.TFile)) {
             return `Error: File not found at ${normalizedPath}`;
           }
           const content = await this.app.vault.read(file2);
@@ -32042,12 +32659,12 @@ ${content}`);
       },
       execute: async ({ path: path3 }) => {
         try {
-          const normalizedPath = path3 === "/" ? "/" : (0, import_obsidian16.normalizePath)(path3);
+          const normalizedPath = path3 === "/" ? "/" : (0, import_obsidian17.normalizePath)(path3);
           const folder = this.app.vault.getAbstractFileByPath(normalizedPath);
           if (!folder && normalizedPath === "/") {
             return this.listFiles(this.app.vault.getRoot());
           }
-          if (!folder || !(folder instanceof import_obsidian16.TFolder)) {
+          if (!folder || !(folder instanceof import_obsidian17.TFolder)) {
             return `Error: Folder not found at ${normalizedPath}`;
           }
           return this.listFiles(folder);
@@ -32108,9 +32725,9 @@ ${content}`);
         const autoApply = this.settings?.autoApplyEdits ?? false;
         if (autoApply) {
           try {
-            const normalizedPath = (0, import_obsidian16.normalizePath)(path3);
+            const normalizedPath = (0, import_obsidian17.normalizePath)(path3);
             const file2 = this.app.vault.getAbstractFileByPath(normalizedPath);
-            if (!file2 || !(file2 instanceof import_obsidian16.TFile)) {
+            if (!file2 || !(file2 instanceof import_obsidian17.TFile)) {
               return `Error: File not found at ${normalizedPath}`;
             }
             const content = await this.app.vault.read(file2);
@@ -32412,8 +33029,8 @@ Follow the instructions in this skill to complete the task. Use your available t
 
 ${summary}`;
           const sanitizedTitle = title.replace(/[\\/:*?"<>|]/g, "-").substring(0, 100);
-          const folderPath = folder ? (0, import_obsidian16.normalizePath)(folder) : "";
-          const filePath = folderPath ? (0, import_obsidian16.normalizePath)(`${folderPath}/${sanitizedTitle}.md`) : (0, import_obsidian16.normalizePath)(`${sanitizedTitle}.md`);
+          const folderPath = folder ? (0, import_obsidian17.normalizePath)(folder) : "";
+          const filePath = folderPath ? (0, import_obsidian17.normalizePath)(`${folderPath}/${sanitizedTitle}.md`) : (0, import_obsidian17.normalizePath)(`${sanitizedTitle}.md`);
           await this.ensureFolders(filePath);
           const existing = this.app.vault.getAbstractFileByPath(filePath);
           if (existing) {
@@ -32426,6 +33043,9 @@ ${summary}`;
         }
       }
     });
+    if (!_ToolManager.toolDefinitions) {
+      _ToolManager.toolDefinitions = [...this.tools];
+    }
   }
   buildMetaContext(extracted) {
     const parts = [];
@@ -32449,7 +33069,7 @@ ${parts.join("\n")}` : "";
   }
   listFiles(folder) {
     const files = folder.children.map((child2) => {
-      const type = child2 instanceof import_obsidian16.TFolder ? "Folder" : "File";
+      const type = child2 instanceof import_obsidian17.TFolder ? "Folder" : "File";
       return `- [${type}] ${child2.name}`;
     }).join("\n");
     return files || "Empty folder";
@@ -32513,7 +33133,7 @@ ${parts.join("\n")}` : "";
 };
 
 // src/services/RelevantNotes.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 var RelevantNotes = class {
   app;
   vaultQA;
@@ -32530,7 +33150,7 @@ var RelevantNotes = class {
     if (!this.vaultQA.isIndexed) return [];
     try {
       const file2 = this.app.vault.getAbstractFileByPath(filePath);
-      if (!file2 || !(file2 instanceof import_obsidian17.TFile)) return [];
+      if (!file2 || !(file2 instanceof import_obsidian18.TFile)) return [];
       const content = await this.app.vault.cachedRead(file2);
       if (!content || content.trim().length < 20) return [];
       const snippet2 = content.substring(0, 500);
@@ -32553,52 +33173,50 @@ var RelevantNotes = class {
 };
 
 // src/settings/SettingsView.svelte
-var import_obsidian18 = require("obsidian");
-var root_18 = from_html(`<option> </option>`);
-var root_27 = from_html(`<option> </option>`);
-var root_37 = from_html(`<option> </option>`);
-var root_44 = from_html(`<input type="text" placeholder="or type custom model name" style="margin-top: 6px; width: 100%;" class="svelte-1av9wh"/>`);
-var root_55 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">API Key</div> <div class="setting-item-description svelte-1av9wh">Your secret API key</div></div> <div class="setting-item-control svelte-1av9wh"><input type="password" placeholder="sk-..." class="svelte-1av9wh"/></div></div>`);
-var root_65 = from_html(`<div> </div>`);
-var root_83 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
-var root_93 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
-var root_10 = from_html(`<button class="icon-btn svelte-1av9wh" title="Deactivate">\u274C</button>`);
-var root_11 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Folders (Comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Tags (Comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override System Prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override Model</label> <input type="text" placeholder="Optional (e.g. gpt-5-mini)" class="svelte-1av9wh"/></div></div>`);
-var root_74 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root_132 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
-var root_142 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
-var root_152 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" placeholder="Optional description" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">System Prompt</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
-var root_122 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root_172 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command Name</label> <input type="text" placeholder="e.g. Expand, Translate to French" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Prompt Template</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
-var root_162 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root_19 = from_html(`<span class="default-badge svelte-1av9wh" style="background: var(--text-muted);">Disabled</span>`);
-var root_20 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
-var root_21 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (Space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment Variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working Directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
-var root_182 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron"> </span></div></div> <!></div>`);
-var root_232 = from_html(`<input type="text" placeholder="\u{1F50D} Search skills..." style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;" class="svelte-1av9wh"/>`);
-var root_242 = from_html(`<div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;"> </div>`);
-var root_262 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#f59e0b;">Mandatory</span>`);
-var root_272 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#22c55e;">Enabled</span>`);
-var root_28 = from_html(`<span class="default-badge svelte-1av9wh" style="background:var(--text-muted);">Disabled</span>`);
-var root_29 = from_html(`<button class="icon-btn svelte-1av9wh"> </button>`);
-var root_252 = from_html(`<div class="persona-card svelte-1av9wh"><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh" style="flex:1;"><span class="name-text"> </span> <!> <!></div> <div class="persona-actions svelte-1av9wh"><label class="skill-toggle"><input type="checkbox" class="svelte-1av9wh"/></label> <!></div></div> <div style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"> </div></div>`);
-var root_222 = from_html(`<!> <!> <!>`, 1);
-var root10 = from_html(`<div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <!></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh" style="align-items: center;"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Apply Edits</div> <div class="setting-item-description svelte-1av9wh">When enabled, AI edits to notes are applied directly without requiring
-        manual approval. You can still revert changes.</div></div> <div class="setting-item-control svelte-1av9wh" style="align-items: flex-end;"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Vault QA & Embeddings</div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
-        mxbai-embed-large)</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="text-embedding-3-small" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh" style="align-items: center;"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Index Vault</div> <div class="setting-item-description svelte-1av9wh">Automatically index notes on startup or change</div></div> <div class="setting-item-control svelte-1av9wh" style="align-items: flex-end;"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Index Exclusions</div> <div class="setting-item-description svelte-1av9wh">Comma-separated list of folders or paths to exclude from indexing</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="node_modules, .git, templates" class="svelte-1av9wh"/></div></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Projects</div> <div class="setting-description svelte-1av9wh">Define scoped contexts. Manage project-level folders, tags, and system
-    prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Project</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Personas</div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Persona</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Custom Actions</div> <div class="setting-description svelte-1av9wh">Create custom commands that operate on your selected text. Use <code></code> in your prompt to refer to the highlighted text. They will appear in the Obsidian
-    Command Palette. Let the prompt guide the behavior.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add Custom Action</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">MCP Servers</div> <div class="setting-description svelte-1av9wh">Connect to local Model Context Protocol (MCP) servers to give the AI access
-    to external data and tools.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add MCP Server</button></div> <div class="setting-section-title svelte-1av9wh" style="margin-top:24px;">Skills</div> <div class="setting-description svelte-1av9wh">Manage AI skills discovered from your skills folder. Enable or disable
+var import_obsidian19 = require("obsidian");
+var root_19 = from_html(`<option> </option>`);
+var root_28 = from_html(`<option> </option>`);
+var root_38 = from_html(`<option> </option>`);
+var root_45 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">API Key</div> <div class="setting-item-description svelte-1av9wh">Your secret API key</div></div> <div class="setting-item-control svelte-1av9wh"><input type="password" placeholder="sk-..." class="svelte-1av9wh"/></div></div>`);
+var root_55 = from_html(`<div> </div>`);
+var root_75 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
+var root_83 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
+var root_93 = from_html(`<button class="icon-btn svelte-1av9wh" title="Deactivate">\u274C</button>`);
+var root_10 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Folders (Comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include Tags (Comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override System Prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override Model</label> <input type="text" placeholder="Optional (e.g. gpt-5-mini)" class="svelte-1av9wh"/></div></div>`);
+var root_66 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_122 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
+var root_132 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
+var root_142 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" placeholder="Optional description" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">System Prompt</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
+var root_11 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_162 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command Name</label> <input type="text" placeholder="e.g. Expand, Translate to French" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Prompt Template</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
+var root_152 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_182 = from_html(`<span class="default-badge svelte-1av9wh" style="background: var(--text-muted);">Disabled</span>`);
+var root_192 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
+var root_20 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (Space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment Variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working Directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
+var root_172 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_222 = from_html(`<input type="text" placeholder="\u{1F50D} Search skills..." style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;"/>`);
+var root_232 = from_html(`<div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;"> </div>`);
+var root_252 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#f59e0b;">Mandatory</span>`);
+var root_262 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#22c55e;">Enabled</span>`);
+var root_272 = from_html(`<span class="default-badge svelte-1av9wh" style="background:var(--text-muted);">Disabled</span>`);
+var root_282 = from_html(`<button class="icon-btn svelte-1av9wh"> </button>`);
+var root_242 = from_html(`<div class="persona-card svelte-1av9wh"><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh" style="flex:1;"><span class="name-text"> </span> <!> <!></div> <div class="persona-actions svelte-1av9wh"><label class="skill-toggle svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></label> <!></div></div> <div style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"> </div></div>`);
+var root_21 = from_html(`<!> <!> <!>`, 1);
+var root10 = from_html(`<div class="settings-padding-wrapper svelte-1av9wh"><div class="settings-view svelte-1av9wh"><div class="setting-section-title svelte-1av9wh">Model Configuration</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI Provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <input type="text" placeholder="or type custom model name" class="svelte-1av9wh"/></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Apply Edits</div> <div class="setting-item-description svelte-1av9wh">Apply AI edits directly without manual approval.</div></div> <div class="setting-item-control svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection Test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-section-title svelte-1av9wh">Vault QA & Embeddings</div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding Model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
+        mxbai-embed-large)</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="text-embedding-3-small" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-Index Vault</div> <div class="setting-item-description svelte-1av9wh">Automatically index notes on startup or change</div></div> <div class="setting-item-control svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Index Exclusions</div> <div class="setting-item-description svelte-1av9wh">Comma-separated list of folders or paths to exclude from indexing</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="node_modules, .git, templates" class="svelte-1av9wh"/></div></div> <div class="setting-section-title svelte-1av9wh">Projects</div> <div class="setting-description svelte-1av9wh">Define scoped contexts. Manage project-level folders, tags, and system
+    prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Project</button></div> <div class="setting-section-title svelte-1av9wh">Personas</div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add New Persona</button></div> <div class="setting-section-title svelte-1av9wh">Custom Actions</div> <div class="setting-description svelte-1av9wh">Create custom commands that operate on your selected text. Use <code></code> in your prompt to refer to the highlighted text. They will appear in the Obsidian
+    Command Palette. Let the prompt guide the behavior.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add Custom Action</button></div> <div class="setting-section-title svelte-1av9wh">MCP Servers</div> <div class="setting-description svelte-1av9wh">Connect to local Model Context Protocol (MCP) servers to give the AI access
+    to external data and tools.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add MCP Server</button></div> <div class="setting-section-title svelte-1av9wh">Skills</div> <div class="setting-description svelte-1av9wh">Manage AI skills discovered from your skills folder. Enable or disable
     individual skills, and mark skills as mandatory to ensure they are always
     consulted first.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Skills Path</div> <div class="setting-item-description svelte-1av9wh">Absolute path to the folder containing skill subfolders (each with a
-        SKILL.md)</div></div> <div class="setting-item-control svelte-1av9wh" style="display:flex; gap:6px; align-items:flex-start;"><input type="text" placeholder="/path/to/skills_hub" style="flex:1;" class="svelte-1av9wh"/> <button class="test-btn svelte-1av9wh" style="white-space:nowrap;"> </button></div></div> <div class="personas-container svelte-1av9wh"><button class="add-btn svelte-1av9wh" style="width:100%; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span> </span> <span style="font-size:0.8em; color:var(--text-muted);"> </span></button> <!></div></div>`);
-var $$css10 = {
+        SKILL.md)</div></div> <div class="setting-item-control svelte-1av9wh" style="display:flex; gap:6px; align-items:flex-start;"><input type="text" placeholder="/path/to/skills_hub" style="flex:1;" class="svelte-1av9wh"/> <button class="test-btn svelte-1av9wh" style="white-space:nowrap;"> </button></div></div> <div class="personas-container svelte-1av9wh"><button class="add-btn svelte-1av9wh" style="width:100%; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span> </span> <span style="font-size:0.8em; color:var(--text-muted);"> </span></button> <!></div></div></div>`);
+var $$css11 = {
   hash: "svelte-1av9wh",
-  code: '.settings-view.svelte-1av9wh {padding-top:10px;}.setting-section-title.svelte-1av9wh {font-size:1.1em;font-weight:700;color:var(--text-normal);margin-bottom:4px;padding-bottom:6px;border-bottom:2px solid var(--interactive-accent);}.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:12px;font-size:0.9em;}.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:14px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:var(--font-ui-medium);font-weight:600;color:var(--text-normal);}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:var(--font-ui-small);line-height:1.5;margin-top:4px;}.setting-item-control.svelte-1av9wh {flex-shrink:0;min-width:220px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:100%;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:6px 10px;font-size:var(--font-ui-small);}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px var(--background-modifier-border-focus);}\n\n  /* Test connection */.test-control.svelte-1av9wh {align-items:flex-start;}.test-btn.svelte-1av9wh {padding:6px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:var(--font-ui-small);transition:background-color 0.2s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.6;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:8px;padding:6px 10px;border-radius:4px;font-size:var(--font-ui-small);background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* Personas */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:10px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;display:flex;align-items:center;gap:10px;}.default-badge.svelte-1av9wh {font-size:0.7em;background:var(--interactive-accent);color:var(--text-on-accent);padding:2px 6px;border-radius:4px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:8px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.6;font-size:1.1em;padding:2px;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.persona-editor.svelte-1av9wh {padding:15px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:12px;}.form-group.svelte-1av9wh {display:flex;flex-direction:column;gap:4px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.85em;color:var(--text-muted);}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {width:100%;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:8px;box-sizing:border-box;}textarea.svelte-1av9wh {font-family:var(--font-monospace);font-size:var(--font-ui-smaller);resize:vertical;line-height:1.5;}textarea.svelte-1av9wh:focus,\n  input.svelte-1av9wh:focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px var(--background-modifier-border-focus);}.add-btn.svelte-1av9wh {margin-top:10px;padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;align-self:flex-start;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}'
+  code: '.settings-padding-wrapper.svelte-1av9wh {padding:16px 20px 32px;margin:0 auto;box-sizing:border-box;width:100%;}.settings-view.svelte-1av9wh {box-sizing:border-box;max-width:var(--settings-max-width, 100%);margin:0 auto;}\n\n  /* \u2500\u2500 Section Titles \u2500\u2500 */.setting-section-title.svelte-1av9wh {font-size:1.05em;font-weight:700;color:var(--text-normal);margin:24px 0 4px;padding-bottom:6px;border-bottom:2px solid var(--interactive-accent);}.setting-section-title.svelte-1av9wh:first-child {margin-top:0;}.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:10px;font-size:0.85em;line-height:1.5;}\n\n  /* \u2500\u2500 Setting Rows \u2500\u2500 */.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:0.9em;font-weight:600;color:var(--text-normal);line-height:1.3;}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:0.8em;line-height:1.4;margin-top:2px;}\n\n  /* \u2500\u2500 Controls (right side) \u2500\u2500 */.setting-item-control.svelte-1av9wh {flex-shrink:0;width:320px;min-width:200px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:320px;max-width:320px;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;font-size:0.85em;box-sizing:border-box;transition:border-color 0.15s;align-self:flex-end;}.setting-item-control.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:18px;height:18px;cursor:pointer;accent-color:var(--interactive-accent);align-self:flex-end;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* \u2500\u2500 Test Connection \u2500\u2500 */.test-control.svelte-1av9wh {align-items:flex-end;}.test-btn.svelte-1av9wh {padding:5px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;transition:background-color 0.15s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.5;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:6px;padding:5px 8px;border-radius:4px;font-size:0.8em;background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;max-width:320px;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* \u2500\u2500 Cards (Projects, Personas, Actions, MCP, Skills) \u2500\u2500 */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:6px;margin-bottom:4px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;transition:border-color 0.15s;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);transition:background-color 0.1s;}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;font-size:0.9em;display:flex;align-items:center;gap:8px;}.default-badge.svelte-1av9wh {font-size:0.65em;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 6px;border-radius:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.3px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:6px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.5;font-size:1em;padding:2px;transition:opacity 0.12s;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.chevron.svelte-1av9wh {font-size:0.75em;color:var(--text-muted);margin-left:2px;}\n\n  /* \u2500\u2500 Editors inside cards \u2500\u2500 */.persona-editor.svelte-1av9wh {padding:12px 14px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:10px;background:var(--background-primary-alt, var(--background-secondary));}.form-group.svelte-1av9wh {display:flex;align-items:baseline;gap:10px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.8em;color:var(--text-muted);font-weight:500;min-width:100px;flex-shrink:0;text-align:right;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {flex:1;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;box-sizing:border-box;font-size:0.85em;transition:border-color 0.15s;}.form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {font-family:var(--font-monospace);font-size:0.8em;resize:vertical;line-height:1.5;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh):focus,\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh):focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* Skill toggle */.skill-toggle.svelte-1av9wh {display:flex;align-items:center;cursor:pointer;}.skill-toggle.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:16px;height:16px;cursor:pointer;accent-color:var(--interactive-accent);}\n\n  /* \u2500\u2500 Add Button \u2500\u2500 */.add-btn.svelte-1av9wh {margin-top:6px;padding:6px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;align-self:flex-start;transition:background-color 0.15s;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}'
 };
 function SettingsView($$anchor, $$props) {
   push($$props, false);
-  append_styles($$anchor, $$css10);
+  append_styles($$anchor, $$css11);
   const currentModels = mutable_source();
   const currentProviderLabel = mutable_source();
   const filteredSkills = mutable_source();
@@ -32623,7 +33241,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     const models = PROVIDER_MODELS[settings().provider] ?? [];
@@ -32633,7 +33251,7 @@ function SettingsView($$anchor, $$props) {
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
     }
@@ -32674,7 +33292,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     set(editingPersonaId, newPersona.id);
@@ -32686,24 +33304,24 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
-    if (get(editingPersonaId) === id) set(editingPersonaId, null);
+    if (get2(editingPersonaId) === id) set(editingPersonaId, null);
     if (settings().defaultPersonaId === id && settings().personas.length > 0) {
       settings(settings().defaultPersonaId = settings().personas[0].id, true), invalidate_inner_signals(() => {
         onProviderChange;
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
     }
     saveSettings()();
   }
   function selectPersona(id) {
-    set(editingPersonaId, get(editingPersonaId) === id ? null : id);
+    set(editingPersonaId, get2(editingPersonaId) === id ? null : id);
   }
   function setDefault(id) {
     settings(settings().defaultPersonaId = id, true), invalidate_inner_signals(() => {
@@ -32711,7 +33329,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     const p = settings().personas.find((p2) => p2.id === id);
@@ -32720,7 +33338,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     saveSettings()();
@@ -32731,7 +33349,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     const newAction = {
@@ -32744,7 +33362,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     set(editingCustomActionId, newAction.id);
@@ -32756,14 +33374,14 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
-    if (get(editingCustomActionId) === id) set(editingCustomActionId, null);
+    if (get2(editingCustomActionId) === id) set(editingCustomActionId, null);
     saveSettings()();
   }
   function selectCustomAction(id) {
-    set(editingCustomActionId, get(editingCustomActionId) === id ? null : id);
+    set(editingCustomActionId, get2(editingCustomActionId) === id ? null : id);
   }
   function addProject() {
     if (!settings().projects) settings(settings().projects = [], true), invalidate_inner_signals(() => {
@@ -32771,7 +33389,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     const newProject = {
@@ -32789,7 +33407,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     set(editingProjectId, newProject.id);
@@ -32802,22 +33420,22 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
-    if (get(editingProjectId) === id) set(editingProjectId, null);
+    if (get2(editingProjectId) === id) set(editingProjectId, null);
     if (settings().activeProjectId === id) settings(settings().activeProjectId = null, true), invalidate_inner_signals(() => {
       onProviderChange;
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     saveSettings()();
   }
   function selectProject(id) {
-    set(editingProjectId, get(editingProjectId) === id ? null : id);
+    set(editingProjectId, get2(editingProjectId) === id ? null : id);
   }
   function addMcpServer() {
     if (!settings().mcpServers) settings(settings().mcpServers = [], true), invalidate_inner_signals(() => {
@@ -32825,7 +33443,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     const newServer = {
@@ -32841,7 +33459,7 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
     set(editingMcpServerId, newServer.id);
@@ -32854,15 +33472,15 @@ function SettingsView($$anchor, $$props) {
       ALL_PROVIDERS;
       PROVIDER_LABELS;
       onModelChange;
-      get(currentModels);
+      get2(currentModels);
       handleChange;
     });
-    if (get(editingMcpServerId) === id) set(editingMcpServerId, null);
+    if (get2(editingMcpServerId) === id) set(editingMcpServerId, null);
     saveSettings()();
     plugin().reconnectMCPServers();
   }
   function selectMcpServer(id) {
-    set(editingMcpServerId, get(editingMcpServerId) === id ? null : id);
+    set(editingMcpServerId, get2(editingMcpServerId) === id ? null : id);
   }
   function toggleMcpServer(id) {
     const server = settings().mcpServers.find((s) => s.id === id);
@@ -32873,7 +33491,7 @@ function SettingsView($$anchor, $$props) {
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
       saveSettings()();
@@ -32930,10 +33548,10 @@ function SettingsView($$anchor, $$props) {
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
-      for (const skill of get(discoveredSkills)) {
+      for (const skill of get2(discoveredSkills)) {
         const existing = settings().skillConfigs.find((c) => c.folderPath === skill.folderPath);
         if (!existing) {
           settings(
@@ -32952,18 +33570,18 @@ function SettingsView($$anchor, $$props) {
             ALL_PROVIDERS;
             PROVIDER_LABELS;
             onModelChange;
-            get(currentModels);
+            get2(currentModels);
             handleChange;
           });
         }
       }
-      const discoveredPaths = new Set(get(discoveredSkills).map((s) => s.folderPath));
+      const discoveredPaths = new Set(get2(discoveredSkills).map((s) => s.folderPath));
       settings(settings().skillConfigs = settings().skillConfigs.filter((c) => discoveredPaths.has(c.folderPath)), true), invalidate_inner_signals(() => {
         onProviderChange;
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
       await saveSettings()();
@@ -32986,7 +33604,7 @@ function SettingsView($$anchor, $$props) {
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
       saveSettings()();
@@ -33001,7 +33619,7 @@ function SettingsView($$anchor, $$props) {
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       });
       saveSettings()();
@@ -33013,49 +33631,50 @@ function SettingsView($$anchor, $$props) {
   legacy_pre_effect(() => (PROVIDER_LABELS, deep_read_state(settings())), () => {
     set(currentProviderLabel, PROVIDER_LABELS[settings().provider] ?? settings().provider);
   });
-  legacy_pre_effect(() => (get(skillSearchQuery), get(discoveredSkills)), () => {
-    set(filteredSkills, get(skillSearchQuery) ? get(discoveredSkills).filter((s) => s.name.toLowerCase().includes(get(skillSearchQuery).toLowerCase()) || s.description.toLowerCase().includes(get(skillSearchQuery).toLowerCase())) : get(discoveredSkills));
+  legacy_pre_effect(() => (get2(skillSearchQuery), get2(discoveredSkills)), () => {
+    set(filteredSkills, get2(skillSearchQuery) ? get2(discoveredSkills).filter((s) => s.name.toLowerCase().includes(get2(skillSearchQuery).toLowerCase()) || s.description.toLowerCase().includes(get2(skillSearchQuery).toLowerCase())) : get2(discoveredSkills));
   });
   legacy_pre_effect_reset();
   init();
   var div = root10();
-  var div_1 = sibling(child(div), 2);
+  var div_1 = child(div);
   var div_2 = sibling(child(div_1), 2);
-  var select = child(div_2);
+  var div_3 = sibling(child(div_2), 2);
+  var select = child(div_3);
   each(select, 5, () => ALL_PROVIDERS, index, ($$anchor2, p) => {
-    var option = root_18();
+    var option = root_19();
     var text2 = child(option, true);
     reset(option);
     var option_value = {};
     template_effect(() => {
-      set_text(text2, (deep_read_state(PROVIDER_LABELS), get(p), untrack(() => PROVIDER_LABELS[get(p)])));
-      if (option_value !== (option_value = get(p))) {
-        option.value = (option.__value = get(p)) ?? "";
+      set_text(text2, (deep_read_state(PROVIDER_LABELS), get2(p), untrack(() => PROVIDER_LABELS[get2(p)])));
+      if (option_value !== (option_value = get2(p))) {
+        option.value = (option.__value = get2(p)) ?? "";
       }
     });
     append($$anchor2, option);
   });
   reset(select);
+  reset(div_3);
   reset(div_2);
-  reset(div_1);
-  var div_3 = sibling(div_1, 2);
-  var div_4 = child(div_3);
-  var div_5 = sibling(child(div_4), 2);
-  var text_1 = child(div_5);
+  var div_4 = sibling(div_2, 2);
+  var div_5 = child(div_4);
+  var div_6 = sibling(child(div_5), 2);
+  var text_1 = child(div_6);
+  reset(div_6);
   reset(div_5);
-  reset(div_4);
-  var div_6 = sibling(div_4, 2);
-  var select_1 = child(div_6);
+  var div_7 = sibling(div_5, 2);
+  var select_1 = child(div_7);
   var node = child(select_1);
-  each(node, 1, () => get(currentModels), index, ($$anchor2, m) => {
-    var option_1 = root_27();
+  each(node, 1, () => get2(currentModels), index, ($$anchor2, m) => {
+    var option_1 = root_28();
     var text_2 = child(option_1, true);
     reset(option_1);
     var option_1_value = {};
     template_effect(() => {
-      set_text(text_2, get(m));
-      if (option_1_value !== (option_1_value = get(m))) {
-        option_1.value = (option_1.__value = get(m)) ?? "";
+      set_text(text_2, get2(m));
+      if (option_1_value !== (option_1_value = get2(m))) {
+        option_1.value = (option_1.__value = get2(m)) ?? "";
       }
     });
     append($$anchor2, option_1);
@@ -33063,7 +33682,7 @@ function SettingsView($$anchor, $$props) {
   var node_1 = sibling(node);
   {
     var consequent = ($$anchor2) => {
-      var option_2 = root_37();
+      var option_2 = root_38();
       var text_3 = child(option_2);
       reset(option_2);
       var option_2_value = {};
@@ -33075,163 +33694,145 @@ function SettingsView($$anchor, $$props) {
       });
       append($$anchor2, option_2);
     };
-    var d = user_derived(() => (get(currentModels), deep_read_state(settings()), untrack(() => !get(currentModels).includes(settings().model) && settings().model)));
+    var d = user_derived(() => (get2(currentModels), deep_read_state(settings()), untrack(() => !get2(currentModels).includes(settings().model) && settings().model)));
     if_block(node_1, ($$render) => {
-      if (get(d)) $$render(consequent);
+      if (get2(d)) $$render(consequent);
     });
   }
   reset(select_1);
-  var node_2 = sibling(select_1, 2);
+  var input = sibling(select_1, 2);
+  remove_input_defaults(input);
+  reset(div_7);
+  reset(div_4);
+  var node_2 = sibling(div_4, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var input = root_44();
-      remove_input_defaults(input);
-      bind_value(input, () => settings().model, ($$value) => (settings(settings().model = $$value, true), invalidate_inner_signals(() => {
-        onProviderChange;
-        ALL_PROVIDERS;
-        PROVIDER_LABELS;
-        onModelChange;
-        get(currentModels);
-        handleChange;
-      })));
-      event("change", input, handleChange);
-      append($$anchor2, input);
-    };
-    if_block(node_2, ($$render) => {
-      if (deep_read_state(settings()), untrack(() => settings().provider === "ollama")) $$render(consequent_1);
-    });
-  }
-  reset(div_6);
-  reset(div_3);
-  var node_3 = sibling(div_3, 2);
-  {
-    var consequent_2 = ($$anchor2) => {
-      var div_7 = root_55();
-      var div_8 = sibling(child(div_7), 2);
-      var input_1 = child(div_8);
+      var div_8 = root_45();
+      var div_9 = sibling(child(div_8), 2);
+      var input_1 = child(div_9);
       remove_input_defaults(input_1);
+      reset(div_9);
       reset(div_8);
-      reset(div_7);
       bind_value(input_1, () => settings().apiKey, ($$value) => (settings(settings().apiKey = $$value, true), invalidate_inner_signals(() => {
         onProviderChange;
         ALL_PROVIDERS;
         PROVIDER_LABELS;
         onModelChange;
-        get(currentModels);
+        get2(currentModels);
         handleChange;
       })));
       event("change", input_1, handleChange);
-      append($$anchor2, div_7);
+      append($$anchor2, div_8);
     };
-    if_block(node_3, ($$render) => {
-      if (deep_read_state(settings()), untrack(() => settings().provider !== "ollama")) $$render(consequent_2);
+    if_block(node_2, ($$render) => {
+      if (deep_read_state(settings()), untrack(() => settings().provider !== "ollama")) $$render(consequent_1);
     });
   }
-  var div_9 = sibling(node_3, 2);
-  var div_10 = sibling(child(div_9), 2);
-  var input_2 = child(div_10);
+  var div_10 = sibling(node_2, 2);
+  var div_11 = sibling(child(div_10), 2);
+  var input_2 = child(div_11);
   remove_input_defaults(input_2);
-  reset(div_10);
-  reset(div_9);
-  var div_11 = sibling(div_9, 2);
-  var div_12 = sibling(child(div_11), 2);
-  var input_3 = child(div_12);
-  remove_input_defaults(input_3);
-  reset(div_12);
   reset(div_11);
-  var div_13 = sibling(div_11, 2);
-  var div_14 = sibling(child(div_13), 2);
-  var button = child(div_14);
+  reset(div_10);
+  var div_12 = sibling(div_10, 2);
+  var div_13 = sibling(child(div_12), 2);
+  var input_3 = child(div_13);
+  remove_input_defaults(input_3);
+  reset(div_13);
+  reset(div_12);
+  var div_14 = sibling(div_12, 2);
+  var div_15 = sibling(child(div_14), 2);
+  var button = child(div_15);
   let classes;
   var text_4 = child(button, true);
   reset(button);
-  var node_4 = sibling(button, 2);
+  var node_3 = sibling(button, 2);
   {
-    var consequent_3 = ($$anchor2) => {
-      var div_15 = root_65();
+    var consequent_2 = ($$anchor2) => {
+      var div_16 = root_55();
       let classes_1;
-      var text_5 = child(div_15);
-      reset(div_15);
+      var text_5 = child(div_16);
+      reset(div_16);
       template_effect(() => {
-        classes_1 = set_class(div_15, 1, "test-result svelte-1av9wh", null, classes_1, {
-          ok: get(testStatus) === "ok",
-          error: get(testStatus) === "error"
+        classes_1 = set_class(div_16, 1, "test-result svelte-1av9wh", null, classes_1, {
+          ok: get2(testStatus) === "ok",
+          error: get2(testStatus) === "error"
         });
-        set_text(text_5, `${get(testStatus) === "ok" ? "\u2705 " : get(testStatus) === "error" ? "\u274C " : ""}${get(testMessage) ?? ""}`);
+        set_text(text_5, `${get2(testStatus) === "ok" ? "\u2705 " : get2(testStatus) === "error" ? "\u274C " : ""}${get2(testMessage) ?? ""}`);
       });
-      append($$anchor2, div_15);
+      append($$anchor2, div_16);
     };
-    if_block(node_4, ($$render) => {
-      if (get(testStatus) !== "idle") $$render(consequent_3);
+    if_block(node_3, ($$render) => {
+      if (get2(testStatus) !== "idle") $$render(consequent_2);
     });
   }
+  reset(div_15);
   reset(div_14);
-  reset(div_13);
-  var div_16 = sibling(div_13, 6);
-  var div_17 = sibling(child(div_16), 2);
-  var select_2 = child(div_17);
+  var div_17 = sibling(div_14, 6);
+  var div_18 = sibling(child(div_17), 2);
+  var select_2 = child(div_18);
   var option_3 = child(select_2);
   option_3.value = option_3.__value = "openai";
   var option_4 = sibling(option_3);
   option_4.value = option_4.__value = "ollama";
   reset(select_2);
-  reset(div_17);
-  reset(div_16);
-  var div_18 = sibling(div_16, 2);
-  var div_19 = sibling(child(div_18), 2);
-  var input_4 = child(div_19);
-  remove_input_defaults(input_4);
-  reset(div_19);
   reset(div_18);
-  var div_20 = sibling(div_18, 2);
-  var div_21 = sibling(child(div_20), 2);
-  var input_5 = child(div_21);
-  remove_input_defaults(input_5);
-  reset(div_21);
+  reset(div_17);
+  var div_19 = sibling(div_17, 2);
+  var div_20 = sibling(child(div_19), 2);
+  var input_4 = child(div_20);
+  remove_input_defaults(input_4);
   reset(div_20);
-  var div_22 = sibling(div_20, 2);
-  var div_23 = sibling(child(div_22), 2);
-  var input_6 = child(div_23);
-  remove_input_defaults(input_6);
-  reset(div_23);
+  reset(div_19);
+  var div_21 = sibling(div_19, 2);
+  var div_22 = sibling(child(div_21), 2);
+  var input_5 = child(div_22);
+  remove_input_defaults(input_5);
   reset(div_22);
-  var div_24 = sibling(div_22, 6);
-  var node_5 = child(div_24);
+  reset(div_21);
+  var div_23 = sibling(div_21, 2);
+  var div_24 = sibling(child(div_23), 2);
+  var input_6 = child(div_24);
+  remove_input_defaults(input_6);
+  reset(div_24);
+  reset(div_23);
+  var div_25 = sibling(div_23, 6);
+  var node_4 = child(div_25);
   each(
-    node_5,
+    node_4,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().projects || [])),
     (project) => project.id,
     ($$anchor2, project, $$index_2) => {
-      var div_25 = root_74();
-      var div_26 = child(div_25);
+      var div_26 = root_66();
       var div_27 = child(div_26);
-      var span = child(div_27);
+      var div_28 = child(div_27);
+      var span = child(div_28);
       var text_6 = child(span, true);
       reset(span);
-      var node_6 = sibling(span, 2);
+      var node_5 = sibling(span, 2);
       {
-        var consequent_4 = ($$anchor3) => {
-          var span_1 = root_83();
+        var consequent_3 = ($$anchor3) => {
+          var span_1 = root_75();
           append($$anchor3, span_1);
         };
-        if_block(node_6, ($$render) => {
-          if (deep_read_state(settings()), get(project), untrack(() => settings().activeProjectId === get(project).id)) $$render(consequent_4);
+        if_block(node_5, ($$render) => {
+          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId === get2(project).id)) $$render(consequent_3);
         });
       }
-      reset(div_27);
-      var div_28 = sibling(div_27, 2);
-      var node_7 = child(div_28);
+      reset(div_28);
+      var div_29 = sibling(div_28, 2);
+      var node_6 = child(div_29);
       {
-        var consequent_5 = ($$anchor3) => {
-          var button_1 = root_93();
+        var consequent_4 = ($$anchor3) => {
+          var button_1 = root_83();
           event("click", button_1, stopPropagation(() => {
-            settings(settings().activeProjectId = get(project).id, true), invalidate_inner_signals(() => {
+            settings(settings().activeProjectId = get2(project).id, true), invalidate_inner_signals(() => {
               onProviderChange;
               ALL_PROVIDERS;
               PROVIDER_LABELS;
               onModelChange;
-              get(currentModels);
+              get2(currentModels);
               handleChange;
             });
             saveSettings()();
@@ -33239,376 +33840,376 @@ function SettingsView($$anchor, $$props) {
           append($$anchor3, button_1);
         };
         var alternate = ($$anchor3) => {
-          var button_2 = root_10();
+          var button_2 = root_93();
           event("click", button_2, stopPropagation(() => {
             settings(settings().activeProjectId = null, true), invalidate_inner_signals(() => {
               onProviderChange;
               ALL_PROVIDERS;
               PROVIDER_LABELS;
               onModelChange;
-              get(currentModels);
+              get2(currentModels);
               handleChange;
             });
             saveSettings()();
           }));
           append($$anchor3, button_2);
         };
-        if_block(node_7, ($$render) => {
-          if (deep_read_state(settings()), get(project), untrack(() => settings().activeProjectId !== get(project).id)) $$render(consequent_5);
-          else $$render(alternate, false);
+        if_block(node_6, ($$render) => {
+          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId !== get2(project).id)) $$render(consequent_4);
+          else $$render(alternate, -1);
         });
       }
-      var button_3 = sibling(node_7, 2);
+      var button_3 = sibling(node_6, 2);
       var span_2 = sibling(button_3, 2);
       var text_7 = child(span_2, true);
       reset(span_2);
-      reset(div_28);
-      reset(div_26);
-      var node_8 = sibling(div_26, 2);
+      reset(div_29);
+      reset(div_27);
+      var node_7 = sibling(div_27, 2);
       {
-        var consequent_6 = ($$anchor3) => {
-          var div_29 = root_11();
-          var div_30 = child(div_29);
-          var input_7 = sibling(child(div_30), 2);
+        var consequent_5 = ($$anchor3) => {
+          var div_30 = root_10();
+          var div_31 = child(div_30);
+          var input_7 = sibling(child(div_31), 2);
           remove_input_defaults(input_7);
-          reset(div_30);
-          var div_31 = sibling(div_30, 2);
-          var input_8 = sibling(child(div_31), 2);
-          remove_input_defaults(input_8);
           reset(div_31);
           var div_32 = sibling(div_31, 2);
-          var input_9 = sibling(child(div_32), 2);
-          remove_input_defaults(input_9);
+          var input_8 = sibling(child(div_32), 2);
+          remove_input_defaults(input_8);
           reset(div_32);
           var div_33 = sibling(div_32, 2);
-          var input_10 = sibling(child(div_33), 2);
-          remove_input_defaults(input_10);
+          var input_9 = sibling(child(div_33), 2);
+          remove_input_defaults(input_9);
           reset(div_33);
           var div_34 = sibling(div_33, 2);
-          var textarea = sibling(child(div_34), 2);
-          remove_textarea_child(textarea);
+          var input_10 = sibling(child(div_34), 2);
+          remove_input_defaults(input_10);
           reset(div_34);
           var div_35 = sibling(div_34, 2);
-          var input_11 = sibling(child(div_35), 2);
-          remove_input_defaults(input_11);
+          var textarea = sibling(child(div_35), 2);
+          remove_textarea_child(textarea);
           reset(div_35);
-          reset(div_29);
-          bind_value(input_7, () => get(project).name, ($$value) => (get(project).name = $$value, invalidate_inner_signals(() => settings())));
+          var div_36 = sibling(div_35, 2);
+          var input_11 = sibling(child(div_36), 2);
+          remove_input_defaults(input_11);
+          reset(div_36);
+          reset(div_30);
+          bind_value(input_7, () => get2(project).name, ($$value) => (get2(project).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_7, handleChange);
-          bind_value(input_8, () => get(project).description, ($$value) => (get(project).description = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_8, () => get2(project).description, ($$value) => (get2(project).description = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_8, handleChange);
-          bind_value(input_9, () => get(project).includeFolders, ($$value) => (get(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_9, () => get2(project).includeFolders, ($$value) => (get2(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_9, handleChange);
-          bind_value(input_10, () => get(project).includeTags, ($$value) => (get(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_10, () => get2(project).includeTags, ($$value) => (get2(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_10, handleChange);
-          bind_value(textarea, () => get(project).systemPrompt, ($$value) => (get(project).systemPrompt = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(textarea, () => get2(project).systemPrompt, ($$value) => (get2(project).systemPrompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea, handleChange);
-          bind_value(input_11, () => get(project).defaultModel, ($$value) => (get(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_11, () => get2(project).defaultModel, ($$value) => (get2(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_11, handleChange);
-          append($$anchor3, div_29);
+          append($$anchor3, div_30);
         };
-        if_block(node_8, ($$render) => {
-          if (get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id)) $$render(consequent_6);
+        if_block(node_7, ($$render) => {
+          if (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id)) $$render(consequent_5);
         });
       }
-      reset(div_25);
+      reset(div_26);
       template_effect(() => {
         set_class(
-          div_25,
+          div_26,
           1,
-          `persona-card ${(get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id ? "active" : "")) ?? ""}`,
+          `persona-card ${(get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_6, (get(project), untrack(() => get(project).name)));
-        set_text(text_7, (get(editingProjectId), get(project), untrack(() => get(editingProjectId) === get(project).id ? "\u25BC" : "\u25B6")));
+        set_text(text_6, (get2(project), untrack(() => get2(project).name)));
+        set_text(text_7, (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id ? "\u25BC" : "\u25B6")));
       });
-      event("click", button_3, stopPropagation(() => deleteProject(get(project).id)));
-      event("click", div_26, () => selectProject(get(project).id));
-      append($$anchor2, div_25);
+      event("click", button_3, stopPropagation(() => deleteProject(get2(project).id)));
+      event("click", div_27, () => selectProject(get2(project).id));
+      append($$anchor2, div_26);
     }
   );
-  var button_4 = sibling(node_5, 2);
-  reset(div_24);
-  var div_36 = sibling(div_24, 6);
-  var node_9 = child(div_36);
+  var button_4 = sibling(node_4, 2);
+  reset(div_25);
+  var div_37 = sibling(div_25, 6);
+  var node_8 = child(div_37);
   each(
-    node_9,
+    node_8,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().personas)),
     (persona) => persona.id,
     ($$anchor2, persona, $$index_3) => {
-      var div_37 = root_122();
-      var div_38 = child(div_37);
+      var div_38 = root_11();
       var div_39 = child(div_38);
-      var span_3 = child(div_39);
+      var div_40 = child(div_39);
+      var span_3 = child(div_40);
       var text_8 = child(span_3, true);
       reset(span_3);
-      var node_10 = sibling(span_3, 2);
+      var node_9 = sibling(span_3, 2);
       {
-        var consequent_7 = ($$anchor3) => {
-          var span_4 = root_132();
+        var consequent_6 = ($$anchor3) => {
+          var span_4 = root_122();
           append($$anchor3, span_4);
         };
-        if_block(node_10, ($$render) => {
-          if (deep_read_state(settings()), get(persona), untrack(() => settings().defaultPersonaId === get(persona).id)) $$render(consequent_7);
+        if_block(node_9, ($$render) => {
+          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId === get2(persona).id)) $$render(consequent_6);
         });
       }
-      reset(div_39);
-      var div_40 = sibling(div_39, 2);
-      var node_11 = child(div_40);
+      reset(div_40);
+      var div_41 = sibling(div_40, 2);
+      var node_10 = child(div_41);
       {
-        var consequent_8 = ($$anchor3) => {
-          var button_5 = root_142();
-          event("click", button_5, stopPropagation(() => setDefault(get(persona).id)));
+        var consequent_7 = ($$anchor3) => {
+          var button_5 = root_132();
+          event("click", button_5, stopPropagation(() => setDefault(get2(persona).id)));
           append($$anchor3, button_5);
         };
-        if_block(node_11, ($$render) => {
-          if (deep_read_state(settings()), get(persona), untrack(() => settings().defaultPersonaId !== get(persona).id)) $$render(consequent_8);
+        if_block(node_10, ($$render) => {
+          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId !== get2(persona).id)) $$render(consequent_7);
         });
       }
-      var button_6 = sibling(node_11, 2);
+      var button_6 = sibling(node_10, 2);
       var span_5 = sibling(button_6, 2);
       var text_9 = child(span_5, true);
       reset(span_5);
-      reset(div_40);
-      reset(div_38);
-      var node_12 = sibling(div_38, 2);
+      reset(div_41);
+      reset(div_39);
+      var node_11 = sibling(div_39, 2);
       {
-        var consequent_9 = ($$anchor3) => {
-          var div_41 = root_152();
-          var div_42 = child(div_41);
-          var input_12 = sibling(child(div_42), 2);
+        var consequent_8 = ($$anchor3) => {
+          var div_42 = root_142();
+          var div_43 = child(div_42);
+          var input_12 = sibling(child(div_43), 2);
           remove_input_defaults(input_12);
-          reset(div_42);
-          var div_43 = sibling(div_42, 2);
-          var input_13 = sibling(child(div_43), 2);
-          remove_input_defaults(input_13);
           reset(div_43);
           var div_44 = sibling(div_43, 2);
-          var textarea_1 = sibling(child(div_44), 2);
-          remove_textarea_child(textarea_1);
+          var input_13 = sibling(child(div_44), 2);
+          remove_input_defaults(input_13);
           reset(div_44);
-          reset(div_41);
-          bind_value(input_12, () => get(persona).name, ($$value) => (get(persona).name = $$value, invalidate_inner_signals(() => settings())));
+          var div_45 = sibling(div_44, 2);
+          var textarea_1 = sibling(child(div_45), 2);
+          remove_textarea_child(textarea_1);
+          reset(div_45);
+          reset(div_42);
+          bind_value(input_12, () => get2(persona).name, ($$value) => (get2(persona).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_12, handleChange);
-          bind_value(input_13, () => get(persona).description, ($$value) => (get(persona).description = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_13, () => get2(persona).description, ($$value) => (get2(persona).description = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_13, handleChange);
-          bind_value(textarea_1, () => get(persona).prompt, ($$value) => (get(persona).prompt = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(textarea_1, () => get2(persona).prompt, ($$value) => (get2(persona).prompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_1, handleChange);
-          append($$anchor3, div_41);
+          append($$anchor3, div_42);
         };
-        if_block(node_12, ($$render) => {
-          if (get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id)) $$render(consequent_9);
+        if_block(node_11, ($$render) => {
+          if (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id)) $$render(consequent_8);
         });
       }
-      reset(div_37);
+      reset(div_38);
       template_effect(() => {
         set_class(
-          div_37,
+          div_38,
           1,
-          `persona-card ${(get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id ? "active" : "")) ?? ""}`,
+          `persona-card ${(get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_8, (get(persona), untrack(() => get(persona).name)));
-        set_text(text_9, (get(editingPersonaId), get(persona), untrack(() => get(editingPersonaId) === get(persona).id ? "\u25BC" : "\u25B6")));
+        set_text(text_8, (get2(persona), untrack(() => get2(persona).name)));
+        set_text(text_9, (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id ? "\u25BC" : "\u25B6")));
       });
-      event("click", button_6, stopPropagation(() => deletePersona(get(persona).id)));
-      event("click", div_38, () => selectPersona(get(persona).id));
-      append($$anchor2, div_37);
+      event("click", button_6, stopPropagation(() => deletePersona(get2(persona).id)));
+      event("click", div_39, () => selectPersona(get2(persona).id));
+      append($$anchor2, div_38);
     }
   );
-  var button_7 = sibling(node_9, 2);
-  reset(div_36);
-  var div_45 = sibling(div_36, 4);
-  var code = sibling(child(div_45));
+  var button_7 = sibling(node_8, 2);
+  reset(div_37);
+  var div_46 = sibling(div_37, 4);
+  var code = sibling(child(div_46));
   code.textContent = "{{selection}}";
   next();
-  reset(div_45);
-  var div_46 = sibling(div_45, 2);
-  var node_13 = child(div_46);
+  reset(div_46);
+  var div_47 = sibling(div_46, 2);
+  var node_12 = child(div_47);
   each(
-    node_13,
+    node_12,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().customActions || [])),
     (action2) => action2.id,
     ($$anchor2, action2, $$index_4) => {
-      var div_47 = root_162();
-      var div_48 = child(div_47);
+      var div_48 = root_152();
       var div_49 = child(div_48);
-      var span_6 = child(div_49);
+      var div_50 = child(div_49);
+      var span_6 = child(div_50);
       var text_10 = child(span_6, true);
       reset(span_6);
-      reset(div_49);
-      var div_50 = sibling(div_49, 2);
-      var button_8 = child(div_50);
+      reset(div_50);
+      var div_51 = sibling(div_50, 2);
+      var button_8 = child(div_51);
       var span_7 = sibling(button_8, 2);
       var text_11 = child(span_7, true);
       reset(span_7);
-      reset(div_50);
-      reset(div_48);
-      var node_14 = sibling(div_48, 2);
+      reset(div_51);
+      reset(div_49);
+      var node_13 = sibling(div_49, 2);
       {
-        var consequent_10 = ($$anchor3) => {
-          var div_51 = root_172();
-          var div_52 = child(div_51);
-          var input_14 = sibling(child(div_52), 2);
+        var consequent_9 = ($$anchor3) => {
+          var div_52 = root_162();
+          var div_53 = child(div_52);
+          var input_14 = sibling(child(div_53), 2);
           remove_input_defaults(input_14);
-          reset(div_52);
-          var div_53 = sibling(div_52, 2);
-          var textarea_2 = sibling(child(div_53), 2);
+          reset(div_53);
+          var div_54 = sibling(div_53, 2);
+          var textarea_2 = sibling(child(div_54), 2);
           remove_textarea_child(textarea_2);
           set_attribute2(textarea_2, "placeholder", "Translate the following text into French:\\n\\n{{selection}}");
-          reset(div_53);
-          reset(div_51);
-          bind_value(input_14, () => get(action2).name, ($$value) => (get(action2).name = $$value, invalidate_inner_signals(() => settings())));
+          reset(div_54);
+          reset(div_52);
+          bind_value(input_14, () => get2(action2).name, ($$value) => (get2(action2).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_14, handleChange);
-          bind_value(textarea_2, () => get(action2).promptTemplate, ($$value) => (get(action2).promptTemplate = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(textarea_2, () => get2(action2).promptTemplate, ($$value) => (get2(action2).promptTemplate = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_2, handleChange);
-          append($$anchor3, div_51);
+          append($$anchor3, div_52);
         };
-        if_block(node_14, ($$render) => {
-          if (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id)) $$render(consequent_10);
+        if_block(node_13, ($$render) => {
+          if (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id)) $$render(consequent_9);
         });
       }
-      reset(div_47);
+      reset(div_48);
       template_effect(() => {
         set_class(
-          div_47,
+          div_48,
           1,
-          `persona-card ${(get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "active" : "")) ?? ""}`,
+          `persona-card ${(get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_10, (get(action2), untrack(() => get(action2).name)));
-        set_text(text_11, (get(editingCustomActionId), get(action2), untrack(() => get(editingCustomActionId) === get(action2).id ? "\u25BC" : "\u25B6")));
+        set_text(text_10, (get2(action2), untrack(() => get2(action2).name)));
+        set_text(text_11, (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id ? "\u25BC" : "\u25B6")));
       });
-      event("click", button_8, stopPropagation(() => deleteCustomAction(get(action2).id)));
-      event("click", div_48, () => selectCustomAction(get(action2).id));
-      append($$anchor2, div_47);
+      event("click", button_8, stopPropagation(() => deleteCustomAction(get2(action2).id)));
+      event("click", div_49, () => selectCustomAction(get2(action2).id));
+      append($$anchor2, div_48);
     }
   );
-  var button_9 = sibling(node_13, 2);
-  reset(div_46);
-  var div_54 = sibling(div_46, 6);
-  var node_15 = child(div_54);
+  var button_9 = sibling(node_12, 2);
+  reset(div_47);
+  var div_55 = sibling(div_47, 6);
+  var node_14 = child(div_55);
   each(
-    node_15,
+    node_14,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().mcpServers || [])),
     (server) => server.id,
     ($$anchor2, server, $$index_5) => {
-      var div_55 = root_182();
-      var div_56 = child(div_55);
+      var div_56 = root_172();
       var div_57 = child(div_56);
-      var span_8 = child(div_57);
+      var div_58 = child(div_57);
+      var span_8 = child(div_58);
       var text_12 = child(span_8, true);
       reset(span_8);
-      var node_16 = sibling(span_8, 2);
+      var node_15 = sibling(span_8, 2);
       {
-        var consequent_11 = ($$anchor3) => {
-          var span_9 = root_19();
+        var consequent_10 = ($$anchor3) => {
+          var span_9 = root_182();
           append($$anchor3, span_9);
         };
         var alternate_1 = ($$anchor3) => {
-          var span_10 = root_20();
+          var span_10 = root_192();
           append($$anchor3, span_10);
         };
-        if_block(node_16, ($$render) => {
-          if (get(server), untrack(() => !get(server).enabled)) $$render(consequent_11);
-          else $$render(alternate_1, false);
+        if_block(node_15, ($$render) => {
+          if (get2(server), untrack(() => !get2(server).enabled)) $$render(consequent_10);
+          else $$render(alternate_1, -1);
         });
       }
-      reset(div_57);
-      var div_58 = sibling(div_57, 2);
-      var button_10 = child(div_58);
+      reset(div_58);
+      var div_59 = sibling(div_58, 2);
+      var button_10 = child(div_59);
       var text_13 = child(button_10, true);
       reset(button_10);
       var button_11 = sibling(button_10, 2);
       var span_11 = sibling(button_11, 2);
       var text_14 = child(span_11, true);
       reset(span_11);
-      reset(div_58);
-      reset(div_56);
-      var node_17 = sibling(div_56, 2);
+      reset(div_59);
+      reset(div_57);
+      var node_16 = sibling(div_57, 2);
       {
-        var consequent_12 = ($$anchor3) => {
-          var div_59 = root_21();
-          var div_60 = child(div_59);
-          var input_15 = sibling(child(div_60), 2);
+        var consequent_11 = ($$anchor3) => {
+          var div_60 = root_20();
+          var div_61 = child(div_60);
+          var input_15 = sibling(child(div_61), 2);
           remove_input_defaults(input_15);
-          reset(div_60);
-          var div_61 = sibling(div_60, 2);
-          var input_16 = sibling(child(div_61), 2);
-          remove_input_defaults(input_16);
           reset(div_61);
           var div_62 = sibling(div_61, 2);
-          var input_17 = sibling(child(div_62), 2);
-          remove_input_defaults(input_17);
+          var input_16 = sibling(child(div_62), 2);
+          remove_input_defaults(input_16);
           reset(div_62);
           var div_63 = sibling(div_62, 2);
-          var textarea_3 = sibling(child(div_63), 2);
-          remove_textarea_child(textarea_3);
+          var input_17 = sibling(child(div_63), 2);
+          remove_input_defaults(input_17);
           reset(div_63);
           var div_64 = sibling(div_63, 2);
-          var input_18 = sibling(child(div_64), 2);
-          remove_input_defaults(input_18);
+          var textarea_3 = sibling(child(div_64), 2);
+          remove_textarea_child(textarea_3);
           reset(div_64);
-          reset(div_59);
+          var div_65 = sibling(div_64, 2);
+          var input_18 = sibling(child(div_65), 2);
+          remove_input_defaults(input_18);
+          reset(div_65);
+          reset(div_60);
           template_effect(
             ($0, $1) => {
               set_value(input_17, $0);
               set_value(textarea_3, $1);
             },
             [
-              () => (get(server), untrack(() => getArgsString(get(server).args))),
-              () => (get(server), untrack(() => getEnvString(get(server).env)))
+              () => (get2(server), untrack(() => getArgsString(get2(server).args))),
+              () => (get2(server), untrack(() => getEnvString(get2(server).env)))
             ]
           );
-          bind_value(input_15, () => get(server).name, ($$value) => (get(server).name = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_15, () => get2(server).name, ($$value) => (get2(server).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_15, handleChange);
-          bind_value(input_16, () => get(server).command, ($$value) => (get(server).command = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_16, () => get2(server).command, ($$value) => (get2(server).command = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_16, handleChange);
-          event("change", input_17, (e) => setArgsString(get(server), e.currentTarget.value));
-          event("change", textarea_3, (e) => setEnvString(get(server), e.currentTarget.value));
-          bind_value(input_18, () => get(server).cwd, ($$value) => (get(server).cwd = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_17, (e) => setArgsString(get2(server), e.currentTarget.value));
+          event("change", textarea_3, (e) => setEnvString(get2(server), e.currentTarget.value));
+          bind_value(input_18, () => get2(server).cwd, ($$value) => (get2(server).cwd = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_18, handleChange);
-          append($$anchor3, div_59);
+          append($$anchor3, div_60);
         };
-        if_block(node_17, ($$render) => {
-          if (get(editingMcpServerId), get(server), untrack(() => get(editingMcpServerId) === get(server).id)) $$render(consequent_12);
+        if_block(node_16, ($$render) => {
+          if (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id)) $$render(consequent_11);
         });
       }
-      reset(div_55);
+      reset(div_56);
       template_effect(() => {
         set_class(
-          div_55,
+          div_56,
           1,
-          `persona-card ${(get(editingMcpServerId), get(server), untrack(() => get(editingMcpServerId) === get(server).id ? "active" : "")) ?? ""}`,
+          `persona-card ${(get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_12, (get(server), untrack(() => get(server).name)));
-        set_attribute2(button_10, "title", (get(server), untrack(() => get(server).enabled ? "Disable Server" : "Enable Server")));
-        set_text(text_13, (get(server), untrack(() => get(server).enabled ? "\u{1F50C}" : "\u{1F50C}")));
-        set_text(text_14, (get(editingMcpServerId), get(server), untrack(() => get(editingMcpServerId) === get(server).id ? "\u25BC" : "\u25B6")));
+        set_text(text_12, (get2(server), untrack(() => get2(server).name)));
+        set_attribute2(button_10, "title", (get2(server), untrack(() => get2(server).enabled ? "Disable Server" : "Enable Server")));
+        set_text(text_13, (get2(server), untrack(() => get2(server).enabled ? "\u{1F50C}" : "\u{1F50C}")));
+        set_text(text_14, (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id ? "\u25BC" : "\u25B6")));
       });
-      event("click", button_10, stopPropagation(() => toggleMcpServer(get(server).id)));
-      event("click", button_11, stopPropagation(() => deleteMcpServer(get(server).id)));
-      event("click", div_56, () => selectMcpServer(get(server).id));
-      append($$anchor2, div_55);
+      event("click", button_10, stopPropagation(() => toggleMcpServer(get2(server).id)));
+      event("click", button_11, stopPropagation(() => deleteMcpServer(get2(server).id)));
+      event("click", div_57, () => selectMcpServer(get2(server).id));
+      append($$anchor2, div_56);
     }
   );
-  var button_12 = sibling(node_15, 2);
-  reset(div_54);
-  var div_65 = sibling(div_54, 6);
-  var div_66 = sibling(child(div_65), 2);
-  var input_19 = child(div_66);
+  var button_12 = sibling(node_14, 2);
+  reset(div_55);
+  var div_66 = sibling(div_55, 6);
+  var div_67 = sibling(child(div_66), 2);
+  var input_19 = child(div_67);
   remove_input_defaults(input_19);
   var button_13 = sibling(input_19, 2);
   var text_15 = child(button_13, true);
   reset(button_13);
+  reset(div_67);
   reset(div_66);
-  reset(div_65);
-  var div_67 = sibling(div_65, 2);
-  var button_14 = child(div_67);
+  var div_68 = sibling(div_66, 2);
+  var button_14 = child(div_68);
   var span_12 = child(button_14);
   var text_16 = child(span_12);
   reset(span_12);
@@ -33616,125 +34217,126 @@ function SettingsView($$anchor, $$props) {
   var text_17 = child(span_13);
   reset(span_13);
   reset(button_14);
-  var node_18 = sibling(button_14, 2);
+  var node_17 = sibling(button_14, 2);
   {
-    var consequent_18 = ($$anchor2) => {
-      var fragment = root_222();
-      var node_19 = first_child(fragment);
+    var consequent_17 = ($$anchor2) => {
+      var fragment = root_21();
+      var node_18 = first_child(fragment);
       {
-        var consequent_13 = ($$anchor3) => {
-          var input_20 = root_232();
+        var consequent_12 = ($$anchor3) => {
+          var input_20 = root_222();
           remove_input_defaults(input_20);
-          bind_value(input_20, () => get(skillSearchQuery), ($$value) => set(skillSearchQuery, $$value));
+          bind_value(input_20, () => get2(skillSearchQuery), ($$value) => set(skillSearchQuery, $$value));
           append($$anchor3, input_20);
         };
+        if_block(node_18, ($$render) => {
+          if (get2(discoveredSkills), untrack(() => get2(discoveredSkills).length > 5)) $$render(consequent_12);
+        });
+      }
+      var node_19 = sibling(node_18, 2);
+      {
+        var consequent_13 = ($$anchor3) => {
+          var div_69 = root_232();
+          var text_18 = child(div_69, true);
+          reset(div_69);
+          template_effect(() => set_text(text_18, get2(skillsLoading) ? "Loading skills..." : get2(skillSearchQuery) ? "No skills match your search." : "No skills found. Check your skills path and click Refresh."));
+          append($$anchor3, div_69);
+        };
         if_block(node_19, ($$render) => {
-          if (get(discoveredSkills), untrack(() => get(discoveredSkills).length > 5)) $$render(consequent_13);
+          if (get2(filteredSkills), untrack(() => get2(filteredSkills).length === 0)) $$render(consequent_13);
         });
       }
       var node_20 = sibling(node_19, 2);
-      {
-        var consequent_14 = ($$anchor3) => {
-          var div_68 = root_242();
-          var text_18 = child(div_68, true);
-          reset(div_68);
-          template_effect(() => set_text(text_18, get(skillsLoading) ? "Loading skills..." : get(skillSearchQuery) ? "No skills match your search." : "No skills found. Check your skills path and click Refresh."));
-          append($$anchor3, div_68);
-        };
-        if_block(node_20, ($$render) => {
-          if (get(filteredSkills), untrack(() => get(filteredSkills).length === 0)) $$render(consequent_14);
-        });
-      }
-      var node_21 = sibling(node_20, 2);
-      each(node_21, 1, () => get(filteredSkills), (skill) => skill.folderPath, ($$anchor3, skill) => {
-        const cfg = derived_safe_equal(() => (get(skill), untrack(() => getSkillConfig(get(skill).folderPath))));
-        var div_69 = root_252();
-        var div_70 = child(div_69);
+      each(node_20, 1, () => get2(filteredSkills), (skill) => skill.folderPath, ($$anchor3, skill) => {
+        const cfg = derived_safe_equal(() => (get2(skill), untrack(() => getSkillConfig(get2(skill).folderPath))));
+        var div_70 = root_242();
         var div_71 = child(div_70);
-        var span_14 = child(div_71);
+        var div_72 = child(div_71);
+        var span_14 = child(div_72);
         var text_19 = child(span_14, true);
         reset(span_14);
-        var node_22 = sibling(span_14, 2);
+        var node_21 = sibling(span_14, 2);
         {
-          var consequent_15 = ($$anchor4) => {
-            var span_15 = root_262();
+          var consequent_14 = ($$anchor4) => {
+            var span_15 = root_252();
             append($$anchor4, span_15);
           };
-          if_block(node_22, ($$render) => {
-            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled && get(cfg)?.mandatory)) $$render(consequent_15);
+          if_block(node_21, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled && get2(cfg)?.mandatory)) $$render(consequent_14);
           });
         }
-        var node_23 = sibling(node_22, 2);
+        var node_22 = sibling(node_21, 2);
         {
-          var consequent_16 = ($$anchor4) => {
-            var span_16 = root_272();
+          var consequent_15 = ($$anchor4) => {
+            var span_16 = root_262();
             append($$anchor4, span_16);
           };
           var alternate_2 = ($$anchor4) => {
-            var span_17 = root_28();
+            var span_17 = root_272();
             append($$anchor4, span_17);
           };
-          if_block(node_23, ($$render) => {
-            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)) $$render(consequent_16);
-            else $$render(alternate_2, false);
-          });
-        }
-        reset(div_71);
-        var div_72 = sibling(div_71, 2);
-        var label = child(div_72);
-        var input_21 = child(label);
-        remove_input_defaults(input_21);
-        reset(label);
-        var node_24 = sibling(label, 2);
-        {
-          var consequent_17 = ($$anchor4) => {
-            var button_15 = root_29();
-            var text_20 = child(button_15, true);
-            reset(button_15);
-            template_effect(() => {
-              set_attribute2(button_15, "title", (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "Remove mandatory" : "Make mandatory")));
-              set_style(button_15, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "opacity:1;" : "")));
-              set_text(text_20, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.mandatory ? "\u2B50" : "\u2606")));
-            });
-            event("click", button_15, stopPropagation(() => toggleSkillMandatory(get(skill).folderPath)));
-            append($$anchor4, button_15);
-          };
-          if_block(node_24, ($$render) => {
-            if (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)) $$render(consequent_17);
+          if_block(node_22, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_15);
+            else $$render(alternate_2, -1);
           });
         }
         reset(div_72);
-        reset(div_70);
-        var div_73 = sibling(div_70, 2);
-        var text_21 = child(div_73, true);
+        var div_73 = sibling(div_72, 2);
+        var label = child(div_73);
+        var input_21 = child(label);
+        remove_input_defaults(input_21);
+        reset(label);
+        var node_23 = sibling(label, 2);
+        {
+          var consequent_16 = ($$anchor4) => {
+            var button_15 = root_282();
+            var text_20 = child(button_15, true);
+            reset(button_15);
+            template_effect(() => {
+              set_attribute2(button_15, "title", (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "Remove mandatory" : "Make mandatory")));
+              set_style(button_15, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "opacity:1;" : "")));
+              set_text(text_20, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "\u2B50" : "\u2606")));
+            });
+            event("click", button_15, stopPropagation(() => toggleSkillMandatory(get2(skill).folderPath)));
+            append($$anchor4, button_15);
+          };
+          if_block(node_23, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_16);
+          });
+        }
         reset(div_73);
-        reset(div_69);
+        reset(div_71);
+        var div_74 = sibling(div_71, 2);
+        var text_21 = child(div_74, true);
+        reset(div_74);
+        reset(div_70);
         template_effect(() => {
-          set_text(text_19, (get(skill), untrack(() => get(skill).name)));
-          set_attribute2(label, "title", (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled ? "Disable skill" : "Enable skill")));
-          set_checked(input_21, (deep_read_state(get(cfg)), untrack(() => get(cfg)?.enabled)));
-          set_text(text_21, (get(skill), untrack(() => get(skill).description)));
+          set_text(text_19, (get2(skill), untrack(() => get2(skill).name)));
+          set_attribute2(label, "title", (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled ? "Disable skill" : "Enable skill")));
+          set_checked(input_21, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)));
+          set_text(text_21, (get2(skill), untrack(() => get2(skill).description)));
         });
-        event("change", input_21, () => toggleSkillEnabled(get(skill).folderPath));
-        append($$anchor3, div_69);
+        event("change", input_21, () => toggleSkillEnabled(get2(skill).folderPath));
+        append($$anchor3, div_70);
       });
       append($$anchor2, fragment);
     };
-    if_block(node_18, ($$render) => {
-      if (get(skillsExpanded)) $$render(consequent_18);
+    if_block(node_17, ($$render) => {
+      if (get2(skillsExpanded)) $$render(consequent_17);
     });
   }
-  reset(div_67);
+  reset(div_68);
+  reset(div_1);
   reset(div);
   template_effect(
     ($0, $1) => {
-      set_text(text_1, `Choose a model from ${get(currentProviderLabel) ?? ""}`);
-      classes = set_class(button, 1, "test-btn svelte-1av9wh", null, classes, { loading: get(testStatus) === "loading" });
-      button.disabled = get(testStatus) === "loading";
-      set_text(text_4, get(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
-      button_13.disabled = get(skillsLoading);
-      set_text(text_15, get(skillsLoading) ? "Scanning\u2026" : "\u{1F504} Refresh");
-      set_text(text_16, `${get(skillsExpanded) ? "\u25BC" : "\u25B6"} Skills (${(get(discoveredSkills), untrack(() => get(discoveredSkills).length)) ?? ""})`);
+      set_text(text_1, `Choose a model from ${get2(currentProviderLabel) ?? ""}`);
+      classes = set_class(button, 1, "test-btn svelte-1av9wh", null, classes, { loading: get2(testStatus) === "loading" });
+      button.disabled = get2(testStatus) === "loading";
+      set_text(text_4, get2(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
+      button_13.disabled = get2(skillsLoading);
+      set_text(text_15, get2(skillsLoading) ? "Scanning\u2026" : "\u{1F504} Refresh");
+      set_text(text_16, `${get2(skillsExpanded) ? "\u25BC" : "\u25B6"} Skills (${(get2(discoveredSkills), untrack(() => get2(discoveredSkills).length)) ?? ""})`);
       set_text(text_17, `${$0 ?? ""} enabled \xB7
         ${$1 ?? ""} mandatory`);
     },
@@ -33748,7 +34350,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", select, onProviderChange);
@@ -33757,16 +34359,25 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", select_1, onModelChange);
+  bind_value(input, () => settings().model, ($$value) => (settings(settings().model = $$value, true), invalidate_inner_signals(() => {
+    onProviderChange;
+    ALL_PROVIDERS;
+    PROVIDER_LABELS;
+    onModelChange;
+    get2(currentModels);
+    handleChange;
+  })));
+  event("change", input, handleChange);
   bind_value(input_2, () => settings().baseUrl, ($$value) => (settings(settings().baseUrl = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_2, handleChange);
@@ -33775,7 +34386,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_3, handleChange);
@@ -33785,7 +34396,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", select_2, handleChange);
@@ -33794,7 +34405,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_4, handleChange);
@@ -33803,7 +34414,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_5, handleChange);
@@ -33812,7 +34423,7 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_6, handleChange);
@@ -33825,18 +34436,18 @@ function SettingsView($$anchor, $$props) {
     ALL_PROVIDERS;
     PROVIDER_LABELS;
     onModelChange;
-    get(currentModels);
+    get2(currentModels);
     handleChange;
   })));
   event("change", input_19, handleChange);
   event("click", button_13, refreshSkills);
-  event("click", button_14, () => set(skillsExpanded, !get(skillsExpanded)));
+  event("click", button_14, () => set(skillsExpanded, !get2(skillsExpanded)));
   append($$anchor, div);
   pop();
 }
 
 // main.ts
-var AICopilotPlugin = class extends import_obsidian19.Plugin {
+var AICopilotPlugin = class extends import_obsidian20.Plugin {
   settings;
   aiProvider;
   editorHandler;
@@ -33850,7 +34461,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
   personaSoulService;
   async onload() {
     console.log("\u{1F680} AI Copilot v1.3.0 LOADED");
-    new import_obsidian19.Notice("\u{1F680} AI Copilot v1.3.0 LOADED");
+    new import_obsidian20.Notice("\u{1F680} AI Copilot v1.3.0 LOADED");
     this.addStatusBarItem().setText("AI Copilot v1.3.0");
     console.log("Docs GPT: Loading plugin...");
     await this.loadSettings();
@@ -33889,7 +34500,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
               const chatView = leaves[0].view;
               setTimeout(() => {
                 chatView.addSelectionContext(selection, filePath);
-                new import_obsidian19.Notice("\u{1F4CB} Selection added to AI Chat");
+                new import_obsidian20.Notice("\u{1F4CB} Selection added to AI Chat");
               }, 100);
             }
           });
@@ -33928,7 +34539,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
     );
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, fileOrFolder) => {
-        const isFolder = fileOrFolder instanceof import_obsidian19.TFolder;
+        const isFolder = fileOrFolder instanceof import_obsidian20.TFolder;
         const label = isFolder ? "Send folder to AI Copilot" : "Send to AI Copilot";
         menu.addItem((item) => {
           item.setTitle(label).setIcon("bot").onClick(async () => {
@@ -33939,10 +34550,10 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
               setTimeout(() => {
                 if (isFolder) {
                   chatView.addFolderContext(fileOrFolder.path, fileOrFolder.name);
-                  new import_obsidian19.Notice(`\u{1F4C1} Folder "${fileOrFolder.name}" added to AI Chat`);
-                } else if (fileOrFolder instanceof import_obsidian19.TFile) {
+                  new import_obsidian20.Notice(`\u{1F4C1} Folder "${fileOrFolder.name}" added to AI Chat`);
+                } else if (fileOrFolder instanceof import_obsidian20.TFile) {
                   chatView.addFileContext(fileOrFolder.path, fileOrFolder.basename);
-                  new import_obsidian19.Notice(`\u{1F4C4} "${fileOrFolder.basename}" added to AI Chat`);
+                  new import_obsidian20.Notice(`\u{1F4C4} "${fileOrFolder.basename}" added to AI Chat`);
                 }
               }, 100);
             }
@@ -33964,7 +34575,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
           const chatView = leaves[0].view;
           setTimeout(() => {
             chatView.addSelectionContext(selection, filePath);
-            new import_obsidian19.Notice("\u{1F4CB} Selection added to AI Chat");
+            new import_obsidian20.Notice("\u{1F4CB} Selection added to AI Chat");
           }, 100);
         }
       }
@@ -33996,7 +34607,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
       name: "Summarize Selection",
       editorCallback: async (editor, ctx) => {
         if (!this.aiProvider) {
-          new import_obsidian19.Notice("AI Provider not configured.");
+          new import_obsidian20.Notice("AI Provider not configured.");
           return;
         }
         const selection = editor.getSelection();
@@ -34008,7 +34619,7 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
 > ${summary}
 `);
           } catch (error2) {
-            new import_obsidian19.Notice(`Error: ${error2.message}`);
+            new import_obsidian20.Notice(`Error: ${error2.message}`);
           }
         }
       }
@@ -34026,17 +34637,17 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
       editorCallback: async (editor, ctx) => {
         const selection = editor.getSelection();
         if (!selection) {
-          new import_obsidian19.Notice("Please select some text first.");
+          new import_obsidian20.Notice("Please select some text first.");
           return;
         }
-        const filePath = ctx instanceof import_obsidian19.MarkdownView && ctx.file ? ctx.file.basename : "unknown";
+        const filePath = ctx instanceof import_obsidian20.MarkdownView && ctx.file ? ctx.file.basename : "unknown";
         await this.activateView();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AI_CHAT);
         if (leaves.length > 0) {
           const chatView = leaves[0].view;
           setTimeout(() => {
             chatView.addSelectionContext(selection, filePath);
-            new import_obsidian19.Notice(`\u{1F4CB} Selection added to AI Chat`);
+            new import_obsidian20.Notice(`\u{1F4CB} Selection added to AI Chat`);
           }, 100);
         }
       }
@@ -34061,16 +34672,16 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
   }
   async runQuickAction(editor, text2, instruction) {
     if (!this.aiProvider) {
-      new import_obsidian19.Notice("AI Provider not configured.");
+      new import_obsidian20.Notice("AI Provider not configured.");
       return;
     }
     try {
-      new import_obsidian19.Notice("AI Copilot: Processing...");
+      new import_obsidian20.Notice("AI Copilot: Processing...");
       const result = await this.aiProvider.executeAction(text2, instruction);
       editor.replaceSelection(result);
-      new import_obsidian19.Notice("AI Copilot: Done!");
+      new import_obsidian20.Notice("AI Copilot: Done!");
     } catch (error2) {
-      new import_obsidian19.Notice(`Error: ${error2.message}`);
+      new import_obsidian20.Notice(`Error: ${error2.message}`);
     }
   }
   addTextTransformCommand(id, name, systemInstruction, actionType = "replace", requiresSelection = true) {
@@ -34079,16 +34690,16 @@ var AICopilotPlugin = class extends import_obsidian19.Plugin {
       name,
       editorCallback: async (editor, ctx) => {
         if (!this.aiProvider) {
-          new import_obsidian19.Notice("AI Provider not configured.");
+          new import_obsidian20.Notice("AI Provider not configured.");
           return;
         }
         const selection = editor.getSelection();
         if (requiresSelection && !selection) {
-          new import_obsidian19.Notice(`Please select some text to run "${name}"`);
+          new import_obsidian20.Notice(`Please select some text to run "${name}"`);
           return;
         }
         try {
-          new import_obsidian19.Notice(`AI Copilot: ${name}...`);
+          new import_obsidian20.Notice(`AI Copilot: ${name}...`);
           let contextText = selection;
           if (!requiresSelection && !selection) {
             const cursor = editor.getCursor();
@@ -34113,9 +34724,9 @@ ${result}`, newCursor);
 
 ${result}`, cursor);
           }
-          new import_obsidian19.Notice(`AI Copilot: ${name} completed.`);
+          new import_obsidian20.Notice(`AI Copilot: ${name} completed.`);
         } catch (error2) {
-          new import_obsidian19.Notice(`Error: ${error2.message}`);
+          new import_obsidian20.Notice(`Error: ${error2.message}`);
         }
       }
     });
@@ -34134,6 +34745,14 @@ ${result}`, cursor);
         workspace.revealLeaf(leaf);
       }
     }
+    if (leaf) {
+      setTimeout(() => {
+        const chatView = leaf.view;
+        if (chatView && typeof chatView.focusChatInput === "function") {
+          chatView.focusChatInput();
+        }
+      }, 150);
+    }
   }
   async onunload() {
     console.log("Docs GPT: Unloading plugin");
@@ -34150,7 +34769,7 @@ ${result}`, cursor);
       this.aiProvider = this.getAIProvider();
       this.toolManager.setAIProvider(this.aiProvider);
     } catch (e) {
-      new import_obsidian19.Notice(e.message);
+      new import_obsidian20.Notice(e.message);
     }
   }
   /** Reconnect MCP servers — call this only when MCP config changes, not on every save */
@@ -34172,7 +34791,7 @@ ${result}`, cursor);
     }
   }
 };
-var AICopilotSettingTab = class extends import_obsidian19.PluginSettingTab {
+var AICopilotSettingTab = class extends import_obsidian20.PluginSettingTab {
   plugin;
   component;
   constructor(app, plugin) {

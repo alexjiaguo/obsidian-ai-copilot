@@ -4,13 +4,13 @@
 
   export let sessions: ChatSession[] = [];
   export let currentSessionId: string;
+  export let isOpen: boolean = false;
 
   const dispatch = createEventDispatcher();
-  let isOpen = false;
 
   $: sortedSessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
 
-  function toggle() {
+  export function toggle() {
     isOpen = !isOpen;
   }
 
@@ -25,141 +25,133 @@
     e.stopPropagation();
     dispatch("delete", id);
   }
-
-  function close(e: MouseEvent) {
-    if (isOpen) isOpen = false;
-  }
 </script>
 
-<div class="session-selector">
-  <button
-    class="selector-btn"
-    class:active={isOpen}
-    on:click|stopPropagation={toggle}
-    title="Chat History"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="lucide lucide-history"
-      ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
-        d="M3 3v5h5"
-      /><path d="M12 7v5l4 2" /></svg
-    >
-  </button>
-
-  {#if isOpen}
-    <div class="dropdown-menu">
+{#if isOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="drawer-backdrop" on:click={() => isOpen = false}></div>
+  <div class="history-drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Chat History</span>
+      <button class="drawer-close" on:click={() => isOpen = false} aria-label="Close history">✕</button>
+    </div>
+    <div class="drawer-list">
       {#each sortedSessions as session}
-        <button
-          class="dropdown-item"
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="session-item"
           class:current={session.id === currentSessionId}
           on:click={() => select(session.id)}
           title={session.title}
         >
           <div class="session-info">
             <span class="item-name">{session.title || "New Chat"}</span>
-            <span class="item-date"
-              >{new Date(session.updatedAt).toLocaleDateString()}</span
-            >
+            <span class="item-date">{new Date(session.updatedAt).toLocaleDateString()}</span>
           </div>
-          <div
-            class="delete-btn"
-            on:click={(e) => deleteSession(session.id, e)}
-            title="Delete Session"
-            aria-label="Delete Session"
-          >
-            ✕
-          </div>
-        </button>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span class="delete-btn" on:click={(e) => deleteSession(session.id, e)} title="Delete session">✕</span>
+        </div>
       {/each}
       {#if sortedSessions.length === 0}
-        <div class="dropdown-item empty">No history found</div>
+        <div class="empty-state">No history yet</div>
       {/if}
     </div>
-  {/if}
-</div>
-
-<svelte:window on:click={close} />
+  </div>
+{/if}
 
 <style>
-  .session-selector {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
+  .drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 999;
   }
 
-  .selector-btn {
+  .history-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 80%;
+    background-color: var(--background-primary);
+    border-left: 1px solid var(--background-modifier-border);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.2s ease-out;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+  }
+
+  .drawer-title {
+    font-weight: 600;
+    font-size: var(--font-ui-small);
+  }
+
+  .drawer-close {
     background: transparent;
     border: none;
+    color: var(--text-muted);
+    cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-muted);
-    font-size: var(--font-ui-smaller);
-    transition:
-      color 0.2s,
-      background-color 0.2s;
+    font-size: 12px;
   }
-
-  .selector-btn:hover,
-  .selector-btn.active {
+  .drawer-close:hover {
     color: var(--text-normal);
     background-color: var(--background-modifier-hover);
   }
 
-  .dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 4px;
-    background-color: var(--background-primary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    min-width: 260px;
-    padding: 4px;
-    max-height: 350px;
+  .drawer-list {
+    flex: 1;
     overflow-y: auto;
+    padding: 4px;
   }
 
-  .dropdown-item {
+  .session-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
     text-align: left;
-    padding: 8px 12px;
+    padding: 8px 10px;
     background: transparent;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     color: var(--text-normal);
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 1px;
   }
 
-  .dropdown-item:hover {
+  .session-item:hover {
     background-color: var(--background-modifier-hover);
   }
 
-  .dropdown-item.current {
+  .session-item.current {
     background-color: var(--interactive-accent);
     color: var(--text-on-accent);
   }
 
-  .dropdown-item.current .item-date,
-  .dropdown-item.current .delete-btn {
+  .session-item.current .item-date,
+  .session-item.current .delete-btn {
     color: var(--text-on-accent);
     opacity: 0.8;
   }
@@ -174,30 +166,28 @@
   .item-name {
     font-weight: 500;
     font-size: var(--font-ui-smaller);
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .item-date {
-    font-size: 0.8em;
+    font-size: 0.75em;
     color: var(--text-muted);
   }
 
-  .empty {
-    justify-content: center;
+  .empty-state {
+    text-align: center;
+    padding: 24px;
     color: var(--text-muted);
-    cursor: default;
-  }
-  .empty:hover {
-    background-color: transparent;
+    font-size: var(--font-ui-smaller);
   }
 
   .delete-btn {
     background: transparent;
     border: none;
-    padding: 4px;
+    padding: 3px;
     border-radius: 4px;
     color: var(--text-muted);
     cursor: pointer;
@@ -205,13 +195,11 @@
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition:
-      opacity 0.2s,
-      background-color 0.2s,
-      color 0.2s;
+    font-size: 11px;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
   }
 
-  .dropdown-item:hover .delete-btn {
+  .session-item:hover .delete-btn {
     opacity: 1;
   }
 

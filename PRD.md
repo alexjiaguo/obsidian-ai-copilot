@@ -5,8 +5,7 @@ The Obsidian AI Copilot is a plugin designed to bring Notion AI-like capabilitie
 
 ## 2. Problem Statement
 Obsidian users often have vast amounts of information but struggle to:
-- Quickly summarize long notes.
-- Transform existing content (e.g., change tone, fix grammar).
+- Quickly summarize or refine their writing (e.g., expand, shorten, change tone, fix grammar).
 - Brainstorm new ideas within the context of their current note.
 - Find specific information across their entire vault through natural language queries.
 - Maintain a productive flow without switching between Obsidian and a browser-based AI.
@@ -43,8 +42,12 @@ Obsidian users often have vast amounts of information but struggle to:
 - **Indexing**: Efficiently index vault content (locally or via embeddings API).
 - **Natural Language Query**: Ask questions like "What did I learn about quantum physics last month?" and get an answer with source citations (links to notes).
 
-### 5.4 Context Mentions & AI Tools
-- **Context Mentions**: Users can directly reference (`@`) files, folders, or specific headings to inject their content into the AI's prompt.
+### 5.4 Context & Multi-Session Management
+- **Multiple Tabs**: Support for concurrent chat sessions in different tabs.
+- **Per-Tab Context & Persona**: Each tab maintains its own active 'Project' and 'Persona' selection.
+- **Global History**: Slide-out drawer to view and restore chat history from the past 24 hours.
+- **Context Mentions**: Selection, file, and folder context injection via `@`.
+- **Global Vault Q&A**: Ability to toggle vault indexing mode across the entire app.
 - **AI Actions/Tools**: The AI is equipped with tools to interact with the vault autonomously (e.g., reading files, appending to notes, listing directories, and creating new notes).
 - **Agentic Skills**: The AI can dynamically discover and activate extensive multi-step skills written as markdown files (via `list_skills` and `use_skill` capabilities) to handle complex workflows.
 
@@ -106,10 +109,14 @@ These are Notion AI capabilities that are not currently planned for Obsidian AI 
 
 ### 11.3 Features Already Implemented
 - Basic editor selection actions (Summarize, Fix Grammar).
+- **Auto-Apply Edits**: AI can apply edits directly into the active editor file without manual copy-pasting.
 - Multiple AI providers support (OpenAI, Anthropic, Gemini, Groq, Ollama).
-- AI Sidebar Chat interface.
+- AI Sidebar Chat interface with **Multi-Tab Architecture** (create, rename, and pinpoint sessions).
+- **Per-ab Context**: Each tab has its own active project context and persona.
 - Context mentions (`@` files) and fuzzy searching.
-- Vault-wide Q&A (RAG / Vector Indexing).
+- Vault-wide Q&A (RAG / Vector Indexing) with a global UI toggle.
+- **Global Session History**: slide-out drawer to restore previous recent chats into active tabs.
+- Dedicated UI plugin settings with polished forms and model selection.
 
 ## 12. Acceptance Criteria
 - User can trigger AI actions on selected text.

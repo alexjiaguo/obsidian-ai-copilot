@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onDestroy } from "svelte";
   import { onMount } from "svelte";
   import SuggestionList from "./SuggestionList.svelte";
 
@@ -13,6 +13,10 @@
 
   const dispatch = createEventDispatcher();
   let textarea: HTMLTextAreaElement;
+
+  // Debounce timer for search
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const SEARCH_DEBOUNCE_MS = 150;
 
   // Suggestion state
   let showSuggestions = false;
@@ -57,7 +61,7 @@
       mentionStartIndex = lastBracket;
       currentTrigger = "[[";
       showSuggestions = true;
-      suggestions = await onSearch(query);
+      debouncedSearch(query);
       suggestionIndex = 0;
       return;
     }
@@ -106,15 +110,32 @@
       mentionStartIndex = lastAt;
       currentTrigger = "@";
       showSuggestions = true;
-      suggestions = await onSearch(query);
+      debouncedSearch(query);
       suggestionIndex = 0;
       return;
     }
 
-    // Close if condition fails
+    // Close suggestions if trigger conditions no longer met
     showSuggestions = false;
     currentTrigger = null;
   }
+
+  // Debounced search to reduce vault scanning
+  function debouncedSearch(query: string) {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    searchDebounceTimer = setTimeout(async () => {
+      suggestions = await onSearch(query);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  // Cleanup on destroy
+  onDestroy(() => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+  });
 
   function handleKeydown(event: KeyboardEvent) {
     if (showSuggestions && suggestions.length > 0) {
@@ -200,13 +221,14 @@
     });
   }
 
+  // Public method — parent calls this when user explicitly opens the copilot
+  export function focusInput() {
+    if (textarea) textarea.focus();
+  }
+
   $: if (value === "") resize();
   onMount(() => {
     resize();
-    // Ensure textarea is focusable on mount
-    if (textarea) {
-      textarea.focus();
-    }
   });
 
   let fileInput: HTMLInputElement;

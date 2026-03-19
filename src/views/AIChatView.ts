@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { mount, unmount } from 'svelte';
-import ChatView from './ChatView.svelte';
+import ChatApp from './ChatApp.svelte';
 
 export const VIEW_TYPE_AI_CHAT = 'ai-chat-view';
 
@@ -30,7 +30,7 @@ export class AIChatView extends ItemView {
         const container = this.contentEl;
         container.empty();
         
-        this.component = mount(ChatView, {
+        this.component = mount(ChatApp, {
             target: container,
             props: {
                 plugin: this.plugin
@@ -59,6 +59,13 @@ export class AIChatView extends ItemView {
     addFolderContext(folderPath: string, folderName: string) {
         if (this.svelteExports && typeof this.svelteExports.addFolderContext === 'function') {
             this.svelteExports.addFolderContext(folderPath, folderName);
+        }
+    }
+
+    // Public method to focus the chat input — only call on explicit user action
+    focusChatInput() {
+        if (this.svelteExports && typeof this.svelteExports.focusChatInput === 'function') {
+            this.svelteExports.focusChatInput();
         }
     }
 

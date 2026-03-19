@@ -1,21 +1,24 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import { Notice } from "obsidian";
   import ChatInput from "../components/ChatInput.svelte";
   import MessageBubble from "../components/MessageBubble.svelte";
   import ContextPill from "../components/ContextPill.svelte";
-  import ModelSelector from "../components/ModelSelector.svelte";
+
   import PersonaSelector from "../components/PersonaSelector.svelte";
-  import SessionHistory from "../components/SessionHistory.svelte";
+  import ProjectSelector from "../components/ProjectSelector.svelte";
   import ComposerDiff from "../components/ComposerDiff.svelte";
-  import { DEFAULT_PERSONAS, PROVIDER_MODELS } from "../settings/Settings";
-  import type {
-    ProviderType,
-    ChatSession,
-    ChatMessage,
-  } from "../settings/Settings";
+  import { DEFAULT_PERSONAS } from "../settings/Settings";
+  import type { ChatSession, ChatMessage } from "../settings/Settings";
 
   export let plugin: any;
+  export let sessionId: string | null = null;
+  export let projectId: string | null = null;
+  export let personaId: string = 'default';
+  export let isVaultQAMode: boolean = false;
+  
+  import { createEventDispatcher } from 'svelte';
+  const dispatch = createEventDispatcher();
 
   // Public method for external context injection (e.g., from command palette)
   export function addSelectionContext(text: string, filePath: string) {
@@ -63,6 +66,15 @@
     ];
   }
 
+  let chatInputRef: ChatInput;
+
+  // Public method — called from AIChatView.ts when user explicitly opens copilot
+  export function focusChatInput() {
+    if (chatInputRef && typeof chatInputRef.focusInput === 'function') {
+      chatInputRef.focusInput();
+    }
+  }
+
   let query = "";
   let messages: ChatMessage[] = [];
   let isLoading = false;
@@ -70,7 +82,13 @@
 
   // Current Session State
   let currentSessionId: string = "";
-  let isVaultQAMode: boolean = false;
+  let messageQueue: {
+    text: string;
+    context: any[];
+    displayContent: string;
+    qaSources: string[];
+    systemBase: string;
+  }[] = [];
   let selectedContext: {
     type: "file" | "folder" | "selection" | "image" | "heading";
     text: string;
@@ -81,17 +99,21 @@
     content?: string; // for uploaded local files
   }[] = [];
   let currentModel = "gpt-5-mini";
-  let selectedPersonaId = "default";
+  let selectedPersonaId = personaId || "default";
+
+  // Store event callback reference for cleanup
+  let activeLeafChangeCallback: (() => void) | null = null;
+  let _mounted = false;
+  let _prevSessionId: string | null = sessionId;
 
   onMount(async () => {
     if (plugin.settings) {
       currentModel = plugin.settings.model || "gpt-5-mini";
-      selectedPersonaId = plugin.settings.defaultPersonaId || "default";
-      isVaultQAMode = plugin.settings.isVaultQAMode || false;
+      selectedPersonaId = personaId || plugin.settings.defaultPersonaId || "default";
 
-      // Load or Create Session
-      if (plugin.settings.activeSessionId) {
-        loadSession(plugin.settings.activeSessionId);
+      // Load or Create Session specific to this Tab
+      if (sessionId) {
+        loadSession(sessionId);
       } else {
         createNewSession();
       }
@@ -100,7 +122,27 @@
     // Check for active file context periodically or on focus
     checkActiveFile();
     // Register event for active leaf change to update context immediately
-    plugin.app.workspace.on("active-leaf-change", () => checkActiveFile());
+    activeLeafChangeCallback = () => checkActiveFile();
+    plugin.app.workspace.on("active-leaf-change", activeLeafChangeCallback);
+    _mounted = true;
+  });
+
+  // React to sessionId prop changes (e.g. from history drawer)
+  $: if (_mounted && sessionId !== _prevSessionId) {
+    _prevSessionId = sessionId;
+    if (sessionId) {
+      loadSession(sessionId);
+    } else {
+      createNewSession();
+    }
+  }
+
+  // Cleanup event listeners on component destroy
+  onDestroy(() => {
+    if (activeLeafChangeCallback) {
+      plugin.app.workspace.off("active-leaf-change", activeLeafChangeCallback);
+      activeLeafChangeCallback = null;
+    }
   });
 
   async function checkActiveFile() {
@@ -113,33 +155,15 @@
     const session = plugin.settings.sessions.find((s: any) => s.id === id);
     if (session) {
       currentSessionId = session.id;
+      sessionId = session.id;
       messages = session.messages;
-      plugin.settings.activeSessionId = session.id;
-      plugin.saveSettings();
+      dispatch("sessionChange", session.id);
+      dispatch("titleChange", session.title || "New Chat");
     } else {
       createNewSession();
     }
   }
 
-  function handleSessionDelete(event: CustomEvent<string>) {
-    const idToDelete = event.detail;
-    let sessions = plugin.settings.sessions;
-    sessions = sessions.filter((s: ChatSession) => s.id !== idToDelete);
-    plugin.settings.sessions = sessions;
-    plugin.saveSettings();
-
-    // Trigger reactivity for the session list
-    plugin.settings = { ...plugin.settings };
-
-    if (idToDelete === currentSessionId) {
-      if (sessions.length > 0) {
-        const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
-        loadSession(sorted[0].id);
-      } else {
-        createNewSession();
-      }
-    }
-  }
 
   function createNewSession() {
     const newSession: ChatSession = {
@@ -152,10 +176,12 @@
     };
 
     plugin.settings.sessions = [...plugin.settings.sessions, newSession];
-    plugin.settings.activeSessionId = newSession.id;
     currentSessionId = newSession.id;
+    sessionId = newSession.id;
     messages = newSession.messages;
     plugin.saveSettings();
+    dispatch("sessionChange", newSession.id);
+    dispatch("titleChange", newSession.title);
 
     // Trigger reactivity for the session list
     plugin.settings = { ...plugin.settings };
@@ -166,9 +192,10 @@
       (s: any) => s.id === currentSessionId,
     );
     if (session && session.title === "New Chat") {
-      session.title =
-        firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+      const newTitle = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? "..." : "");
+      session.title = newTitle;
       plugin.saveSettings();
+      dispatch("titleChange", newTitle);
     }
   }
 
@@ -192,26 +219,10 @@
     }
   }
 
-  // Reactive: session list
-  $: activeProjectId = plugin.settings?.activeProjectId || null;
-  $: sessionsList = (plugin.settings?.sessions || []).filter(
-    (s: ChatSession) => (s.projectId || null) === activeProjectId,
-  );
-
-  // Reactive: models list from provider
-  $: currentModels = plugin.settings
-    ? (PROVIDER_MODELS[plugin.settings.provider as ProviderType] ?? [
-        currentModel,
-      ])
-    : [currentModel];
-
-  function handleModelChange(model: string) {
-    currentModel = model;
-    if (plugin.settings) {
-      plugin.settings.model = model;
-      plugin.saveSettings?.();
-    }
-  }
+  // Reactive: use per-tab projectId for API calls
+  $: activeProject = plugin.settings?.projects?.find(
+    (p: any) => p.id === projectId
+  ) || null;
 
   // ... checkSelection ...
 
@@ -298,7 +309,7 @@
   }
 
   async function sendMessage() {
-    if ((!query.trim() && selectedContext.length === 0) || isLoading) return;
+    if (!query.trim() && selectedContext.length === 0) return;
 
     // Separate text and images
     const textContexts = selectedContext.filter((c) => c.type !== "image");
@@ -315,18 +326,16 @@
           await plugin.contextManager.resolveContexts(vaultContexts);
       }
       if (inlineContexts.length > 0) {
-        contextText += inlineContexts
-          .map((c: any) => `\n\n--- ${c.text} ---\n${c.content}`)
-          .join("");
+        const inlineParts = inlineContexts.map(
+          (c: any) => `\n\n--- ${c.text} ---\n${c.content}`
+        );
+        contextText += inlineParts.join("");
       }
     }
 
     // Vault QA Mode specific context
     let qaSources: string[] = [];
     if (isVaultQAMode && plugin.vaultQA && plugin.vaultQA.isIndexed) {
-      const activeProject = plugin.settings.projects?.find(
-        (p: any) => p.id === plugin.settings.activeProjectId,
-      );
       const results = await plugin.vaultQA.search(query, 5, activeProject);
       if (results && results.length > 0) {
         contextText += `\n\n=== RELEVANT VAULT CONTEXT ===\n`;
@@ -355,19 +364,49 @@
         ? `\n[Attached ${imageContexts.length} images]`
         : "");
 
-    saveMessageToHistory("user", displayContent);
+    messageQueue = [
+      ...messageQueue,
+      {
+        text: fullPromptText,
+        context: [...imageContexts],
+        displayContent: displayContent,
+        qaSources: qaSources,
+        systemBase: systemBase,
+      },
+    ];
 
     // Update Title if it's the first message
-    if (messages.length === 1) {
+    if (messages.length === 0 && messageQueue.length === 1) {
       updateSessionTitle(query);
     }
 
     query = "";
+    selectedContext = [];
 
     // Auto-scroll to bottom immediately so the user sees their message
     await tick();
     scrollToBottom();
+
+    if (!isLoading) {
+      processQueue();
+    }
+  }
+
+  async function processQueue() {
+    if (isLoading || messageQueue.length === 0) return;
+
     isLoading = true;
+    const nextMessage = messageQueue.shift();
+    messageQueue = [...messageQueue];
+
+    if (!nextMessage) {
+      isLoading = false;
+      return;
+    }
+
+    saveMessageToHistory("user", nextMessage.displayContent);
+    await tick();
+    scrollToBottom();
 
     try {
       let currentMessages: any[] = [];
@@ -377,9 +416,6 @@
         plugin.settings.personas.find((p: any) => p.id === selectedPersonaId) ||
         DEFAULT_PERSONAS[0];
 
-      const activeProject = plugin.settings.projects?.find(
-        (p: any) => p.id === plugin.settings.activeProjectId,
-      );
       let baseSystemPrompt = persona.prompt;
       if (activeProject && activeProject.systemPrompt) {
         baseSystemPrompt = activeProject.systemPrompt;
@@ -400,7 +436,7 @@
       if (plugin.skillService) {
         try {
           skillContext = await plugin.skillService.buildSkillContext(
-            fullPromptText,
+            nextMessage.text,
             plugin.settings,
           );
           if (skillContext) {
@@ -430,7 +466,7 @@
       }
 
       const actualModel =
-        activeProject && activeProject.defaultModel
+        activeProject?.defaultModel
           ? activeProject.defaultModel
           : currentModel;
 
@@ -440,26 +476,27 @@
         soulPreamble +
         memoryPreamble +
         skillContext +
-        (systemBase ? `\n\nContext:\n${systemBase}` : "");
+        (nextMessage.systemBase
+          ? `\n\nContext:\n${nextMessage.systemBase}`
+          : "");
 
       currentMessages.push({ role: "system", content: finalSystemPrompt });
 
       // Inject prior conversation history (all messages except the one we just pushed)
       // messages already includes the user message we just saved, so take all but the last
-      const priorMessages = messages.slice(0, messages.length - 1);
-      for (const msg of priorMessages) {
-        if (msg.role === "user" || msg.role === "assistant") {
-          currentMessages.push({ role: msg.role, content: msg.content });
-        }
-      }
+      const priorMessages = messages
+        .slice(0, messages.length - 1)
+        .filter((msg) => msg.role === "user" || msg.role === "assistant")
+        .map((msg) => ({ role: msg.role, content: msg.content }));
+      currentMessages.push(...priorMessages);
 
       // Construct Initial Message Payload
-      if (imageContexts.length > 0) {
+      if (nextMessage.context.length > 0) {
         const contentParts = [];
-        if (fullPromptText.trim()) {
-          contentParts.push({ type: "text", text: fullPromptText });
+        if (nextMessage.text.trim()) {
+          contentParts.push({ type: "text", text: nextMessage.text });
         }
-        for (const img of imageContexts) {
+        for (const img of nextMessage.context) {
           contentParts.push({
             type: "image_url",
             image_url: { url: img.data },
@@ -467,7 +504,7 @@
         }
         currentMessages.push({ role: "user", content: contentParts });
       } else {
-        currentMessages.push({ role: "user", content: fullPromptText });
+        currentMessages.push({ role: "user", content: nextMessage.text });
       }
 
       // Tool Loop
@@ -497,10 +534,6 @@
 
           // 2. Execute Tools
           for (const tool of response.tool_calls) {
-            // Show "Thinking/Working" in UI (Temporary, don't save to history yet or maybe save as 'assistant' with tool usage?)
-            // For now, we won't push these to persistent history to keep it clean, or we just push transiently to local variable
-            // But to keep UI consistently updated with 'messages', we might need a separate 'displayMessages' derived state.
-            // For simplicity in this MVP, we will NOT save tool intermediate steps to persistent history, just show them.
             messages = [
               ...messages,
               {
@@ -579,8 +612,8 @@
       }
 
       // Append Sources if in Vault QA mode
-      if (isVaultQAMode && qaSources.length > 0 && finalContent) {
-        finalContent += `\n\n**Sources:**\n${qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
+      if (isVaultQAMode && nextMessage.qaSources.length > 0 && finalContent) {
+        finalContent += `\n\n**Sources:**\n${nextMessage.qaSources.map((s: any) => `- [[${s}]]`).join("\n")}`;
       }
 
       // Save Final Response
@@ -595,6 +628,9 @@
       isLoading = false;
       await tick();
       scrollToBottom();
+      if (messageQueue.length > 0) {
+        processQueue();
+      }
     }
   }
 
@@ -624,29 +660,7 @@
     new Notice("Copied to clipboard");
   }
 
-  async function toggleVaultQAMode() {
-    isVaultQAMode = !isVaultQAMode;
-    if (plugin.settings) {
-      plugin.settings.isVaultQAMode = isVaultQAMode;
-      plugin.saveSettings();
-    }
 
-    new Notice(isVaultQAMode ? "Vault QA Mode: ON" : "Vault QA Mode: OFF");
-
-    try {
-      if (
-        isVaultQAMode &&
-        plugin.settings?.autoIndexVault &&
-        plugin.vaultQA &&
-        !plugin.vaultQA.isIndexed
-      ) {
-        await plugin.vaultQA.indexVault();
-      }
-    } catch (e: any) {
-      console.error("Error toggling Vault QA:", e);
-      new Notice("Error: " + e.message);
-    }
-  }
   async function performDiffAction(
     message: ChatMessage,
     action: "accept" | "reject" | "revert",
@@ -711,6 +725,7 @@
   }
 
   function handleEditMessage(index: number) {
+    messageQueue = [];
     const msg = messages[index];
     if (msg?.role === "user") {
       query = msg.content;
@@ -729,6 +744,7 @@
   }
 
   async function handleRegenerate(index: number) {
+    messageQueue = [];
     const assistantMsg = messages[index];
     if (assistantMsg?.role !== "assistant") return;
 
@@ -762,74 +778,19 @@
 
 <div class="ai-copilot-container">
   <div class="header">
-    <div class="title">
-      AI Copilot <span
-        style="font-size:9px;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 5px;border-radius:4px;margin-left:4px;"
-        >v1.3</span
-      >
-    </div>
     <div class="controls">
-      <SessionHistory
-        sessions={sessionsList}
-        {currentSessionId}
-        on:select={(e) => loadSession(e.detail)}
-        on:delete={handleSessionDelete}
+      <ProjectSelector
+        selectedProjectId={projectId}
+        projects={plugin.settings?.projects || []}
+        on:change={(e) => {
+          projectId = e.detail;
+          dispatch('projectChange', e.detail);
+        }}
       />
-      <button
-        class="new-chat-btn {isVaultQAMode ? 'active' : ''}"
-        on:click={() => toggleVaultQAMode()}
-        title="Toggle Vault QA Mode"
-        style={isVaultQAMode
-          ? "color: var(--interactive-accent); background: var(--background-modifier-active-hover);"
-          : ""}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="lucide lucide-database"
-        >
-          <ellipse cx="12" cy="5" rx="9" ry="3" />
-          <path d="M3 5V19A9 3 0 0 0 21 19V5" />
-          <path d="M3 12A9 3 0 0 0 21 12" />
-        </svg>
-      </button>
-      <button
-        class="new-chat-btn"
-        on:click={createNewSession}
-        aria-label="New Chat"
-        title="New Chat"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="lucide lucide-plus-circle"
-          ><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path
-            d="M12 8v8"
-          /></svg
-        >
-      </button>
       <PersonaSelector
         bind:selectedPersonaId
         personas={plugin.settings?.personas || DEFAULT_PERSONAS}
-      />
-      <ModelSelector
-        bind:selectedModel={currentModel}
-        models={currentModels}
-        on:change={(e) => handleModelChange(e.detail)}
+        on:change={(e) => dispatch('personaChange', e.detail)}
       />
     </div>
   </div>
@@ -876,6 +837,14 @@
         />
       {/if}
     {/each}
+    {#each messageQueue as queuedMsg}
+      <MessageBubble
+        role="user"
+        content={queuedMsg.displayContent + "\n\n*(Queued...)*"}
+        isStreaming={false}
+        app={plugin.app}
+      />
+    {/each}
   </div>
 
   <div class="input-area">
@@ -898,6 +867,7 @@
     {/if}
 
     <ChatInput
+      bind:this={chatInputRef}
       bind:value={query}
       on:submit={sendMessage}
       on:add-context={(e) => handleAddContext(e.detail)}
@@ -920,18 +890,13 @@
   }
 
   .header {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    position: relative;
-    z-index: 10;
-  }
-
-  .title {
-    font-weight: 600;
-    font-size: var(--font-ui-medium);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
   }
 
   .chat-history {
@@ -1003,18 +968,7 @@
     align-items: center;
   }
 
-  .new-chat-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-  }
-  .new-chat-btn:hover {
-    color: var(--text-normal);
-  }
+
 
   .active-file-indicator {
     font-size: 10px;

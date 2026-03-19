@@ -417,6 +417,16 @@ export default class AICopilotPlugin extends Plugin {
 				workspace.revealLeaf(leaf);
 			}
 		}
+
+		// Focus the chat input after a short delay to ensure the view is mounted
+		if (leaf) {
+			setTimeout(() => {
+				const chatView = leaf!.view as AIChatView;
+				if (chatView && typeof chatView.focusChatInput === 'function') {
+					chatView.focusChatInput();
+				}
+			}, 150);
+		}
 	}
 
 	async onunload() {

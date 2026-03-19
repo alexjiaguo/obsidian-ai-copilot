@@ -13,13 +13,28 @@ export class MemoryService {
     private app: App;
     private memories: MemoryEntry[] = [];
     private loaded = false;
+    private loadPromise: Promise<void> | null = null; // Prevent concurrent loads
 
     constructor(app: App) {
         this.app = app;
     }
 
     async load(): Promise<void> {
-        if (this.loaded) return;
+        // Return early if already loaded
+        if (this.loaded && this.loadPromise === null) return;
+
+        // Prevent concurrent loads
+        if (this.loadPromise) {
+            await this.loadPromise;
+            return;
+        }
+
+        this.loadPromise = this._doLoad();
+        await this.loadPromise;
+        this.loadPromise = null;
+    }
+
+    private async _doLoad(): Promise<void> {
         try {
             const file = this.app.vault.getAbstractFileByPath(MEMORY_FILE);
             if (file && file instanceof TFile) {
