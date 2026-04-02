@@ -58,25 +58,31 @@ if (prod) {
 		console.error("Build failed!");
 		process.exit(1);
 	}
-	console.log("Build complete. Deploying to vault...");
+	console.log("Build complete.");
 
-	// Deploy to vault — use shell redirect to bypass macOS iCloud sandbox
-	// (Node's fs.copyFileSync and fs.writeFileSync both trigger EPERM
-	//  due to com.apple.macl extended attributes on iCloud Drive files)
-	try {
-		if (!fs.existsSync(vaultPath)) {
-			fs.mkdirSync(vaultPath, { recursive: true });
-		}
-		for (const file of ['main.js', 'manifest.json', 'styles.css']) {
-			if (fs.existsSync(file)) {
-				const dest = path.join(vaultPath, file);
-				execSync(`cat "${file}" > "${dest}"`);
-				console.log(`  Deployed ${file} → vault`);
+	// Deploy to vault (skip in CI environments)
+	if (!process.env.CI) {
+		console.log("Deploying to vault...");
+		// Use shell redirect to bypass macOS iCloud sandbox
+		// (Node's fs.copyFileSync and fs.writeFileSync both trigger EPERM
+		//  due to com.apple.macl extended attributes on iCloud Drive files)
+		try {
+			if (!fs.existsSync(vaultPath)) {
+				fs.mkdirSync(vaultPath, { recursive: true });
 			}
+			for (const file of ['main.js', 'manifest.json', 'styles.css']) {
+				if (fs.existsSync(file)) {
+					const dest = path.join(vaultPath, file);
+					execSync(`cat "${file}" > "${dest}"`);
+					console.log(`  Deployed ${file} → vault`);
+				}
+			}
+			console.log(`Successfully deployed to ${vaultPath}`);
+		} catch (err) {
+			console.error(`Failed to deploy: ${err.message}`);
 		}
-		console.log(`Successfully deployed to ${vaultPath}`);
-	} catch (err) {
-		console.error(`Failed to deploy: ${err.message}`);
+	} else {
+		console.log("CI detected — skipping vault deploy.");
 	}
 	process.exit(0);
 } else {
