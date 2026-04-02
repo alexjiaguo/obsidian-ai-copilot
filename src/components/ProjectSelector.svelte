@@ -6,40 +6,86 @@
 
   const dispatch = createEventDispatcher();
   let selectEl: HTMLSelectElement;
+  let isCreating = false;
+  let newProjectName = "";
 
   function handleChange(e: Event) {
     const val = (e.target as HTMLSelectElement).value;
-    const finalVal = val === "null" || val === "" ? null : val;
-    selectedProjectId = finalVal;
-    dispatch("change", finalVal);
+    if (val === "new_project") {
+      isCreating = true;
+      // Reset the select back to its previous value visually in case they cancel
+      if (selectEl) {
+        selectEl.value = selectedProjectId || "null";
+      }
+    } else {
+      const finalVal = val === "null" || val === "" ? null : val;
+      selectedProjectId = finalVal;
+      dispatch("change", finalVal);
+    }
+  }
+
+  function confirmCreate() {
+    if (newProjectName.trim()) {
+      dispatch("create", newProjectName.trim());
+    }
+    isCreating = false;
+    newProjectName = "";
+  }
+
+  function cancelCreate() {
+    isCreating = false;
+    newProjectName = "";
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmCreate();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelCreate();
+    }
   }
 </script>
 
 <div class="project-selector">
-  <select
-    bind:this={selectEl}
-    value={selectedProjectId || "null"}
-    on:change={handleChange}
-    class="project-input"
-    title={selectedProjectId ? projects.find(p => p.id === selectedProjectId)?.name || "Select Project" : "No Project (Global)"}
-  >
-    <option value="null">No Project (Global)</option>
-    {#each projects as project}
-      <option value={project.id}>{project.name}</option>
-    {/each}
-  </select>
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg
-  >
+  {#if isCreating}
+    <!-- svelte-ignore a11y_autofocus -->
+    <input
+      type="text"
+      class="project-create-input"
+      placeholder="Project name..."
+      bind:value={newProjectName}
+      on:keydown={handleKeydown}
+      on:blur={cancelCreate}
+      autofocus
+    />
+  {:else}
+    <select
+      bind:this={selectEl}
+      value={selectedProjectId || "null"}
+      on:change={handleChange}
+      class="project-input"
+      title={selectedProjectId ? projects.find(p => p.id === selectedProjectId)?.name || "Select Project" : "No Project (Global)"}
+    >
+      <option value="null">No Project (Global)</option>
+      {#each projects as project}
+        <option value={project.id}>{project.name}</option>
+      {/each}
+      <option value="new_project">➕ Create New Project...</option>
+    </select>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+  {/if}
 </div>
 
 <style>
@@ -49,7 +95,7 @@
     align-items: center;
   }
 
-  select {
+  select, .project-create-input {
     appearance: none;
     -webkit-appearance: none;
     background: var(--background-modifier-hover);
@@ -71,13 +117,18 @@
     outline: none;
   }
 
-  select:hover {
+  .project-create-input {
+    cursor: text;
+    padding: 4px 10px; /* Adjust padding as there is no chevron */
+  }
+
+  select:hover, .project-create-input:hover {
     color: var(--text-normal);
     background-color: var(--background-secondary);
     border-color: var(--interactive-accent);
   }
 
-  select:focus {
+  select:focus, .project-create-input:focus {
     color: var(--text-normal);
     border-color: var(--interactive-accent);
     box-shadow: 0 0 0 2px var(--background-modifier-border-focus);

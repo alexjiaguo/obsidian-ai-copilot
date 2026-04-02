@@ -1,8 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { MCPServerConfig } from "../settings/Settings";
-import * as fs from "fs";
-import * as path from "path";
+import { readFileSync, accessSync, constants as fsConstants } from "fs";
+import { isAbsolute, dirname, resolve, join } from "path";
 
 // Polyfill: MCP SDK uses setTimeout(...).unref() which is a Node.js API.
 // Obsidian runs in Electron's renderer where setTimeout returns a number.
@@ -23,7 +23,7 @@ const _origSetTimeout = globalThis.setTimeout;
 function parseDotEnv(filePath: string): Record<string, string> {
   const result: Record<string, string> = {};
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = readFileSync(filePath, 'utf-8');
     for (const line of content.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) continue;
@@ -81,7 +81,7 @@ function getAugmentedEnv(extraEnv: Record<string, string> = {}): Record<string, 
  */
 function resolveCommand(cmd: string): string {
   // Already absolute — nothing to do
-  if (path.isAbsolute(cmd)) return cmd;
+  if (isAbsolute(cmd)) return cmd;
 
   const home = process.env.HOME || '/Users/' + (process.env.USER || 'user');
   const searchDirs = [
@@ -94,9 +94,9 @@ function resolveCommand(cmd: string): string {
     '/bin',
   ];
   for (const dir of searchDirs) {
-    const candidate = path.join(dir, cmd);
+    const candidate = join(dir, cmd);
     try {
-      fs.accessSync(candidate, fs.constants.X_OK);
+      accessSync(candidate, fsConstants.X_OK);
       return candidate;
     } catch {
       // not found here, try next
@@ -122,7 +122,7 @@ export class MCPClientService {
     if (!config.enabled) return;
     
     try {
-      console.log(`[MCP] Connecting to server ${config.name}...`);
+      console.debug(`[MCP] Connecting to server ${config.name}...`);
 
       // Sanitize args: strip trailing/leading commas and whitespace from each arg.
       // Users sometimes enter args as "arg1, arg2, arg3" which gets stored with trailing commas.
@@ -133,11 +133,11 @@ export class MCPClientService {
       // Auto-detect server directory from venv command path
       // e.g. /path/to/project/.venv/bin/python → /path/to/project/
       let serverDir = config.cwd || '';
-      if (!serverDir && config.command && path.isAbsolute(config.command)) {
+      if (!serverDir && config.command && isAbsolute(config.command)) {
         const venvMatch = config.command.match(/^(.+?)\/(\.?venv)\/bin\//);
         if (venvMatch) {
           serverDir = venvMatch[1];
-          console.log(`[MCP] Auto-detected server dir: ${serverDir}`);
+          console.debug(`[MCP] Auto-detected server dir: ${serverDir}`);
         }
       }
 
@@ -145,12 +145,12 @@ export class MCPClientService {
       let hasEnvFile = false;
       if (serverDir) {
         try {
-          const dotEnvPath = path.join(serverDir, '.env');
-          fs.accessSync(dotEnvPath, fs.constants.R_OK);
+          const dotEnvPath = join(serverDir, '.env');
+          accessSync(dotEnvPath, fsConstants.R_OK);
           hasEnvFile = true;
-          console.log(`[MCP] Found .env file at ${dotEnvPath}`);
+          console.debug(`[MCP] Found .env file at ${dotEnvPath}`);
         } catch {
-          console.log(`[MCP] No .env file found in ${serverDir}`);
+          console.debug(`[MCP] No .env file found in ${serverDir}`);
         }
       }
 
@@ -159,7 +159,7 @@ export class MCPClientService {
       // Resolve bare command names (e.g. "npx" → "/usr/local/bin/npx")
       const resolvedCommand = resolveCommand(config.command);
       if (resolvedCommand !== config.command) {
-        console.log(`[MCP] Resolved command: ${config.command} → ${resolvedCommand}`);
+        console.debug(`[MCP] Resolved command: ${config.command} → ${resolvedCommand}`);
       }
 
       if (hasEnvFile && serverDir) {
@@ -169,7 +169,7 @@ export class MCPClientService {
         // issues with fs.readFileSync or process.env inheritance.
         const shellCmd = `cd ${JSON.stringify(serverDir)} && set -a && source .env && set +a && exec ${JSON.stringify(resolvedCommand)} ${sanitizedArgs.map(a => JSON.stringify(a)).join(' ')}`;
         
-        console.log(`[MCP] Using shell wrapper for ${config.name}`);
+        console.debug(`[MCP] Using shell wrapper for ${config.name}`);
         transportOpts = {
           command: '/bin/bash',
           args: ['-c', shellCmd],
@@ -212,7 +212,7 @@ export class MCPClientService {
       await client.connect(transport);
       this.clients.set(config.name, client);
       this.transports.set(config.name, transport);
-      console.log(`[MCP] ✓ Connected to server ${config.name}`);
+      console.debug(`[MCP] ✓ Connected to server ${config.name}`);
     } catch (error) {
       console.error(`[MCP] ✗ Failed to connect to server ${config.name}:`, error);
     }

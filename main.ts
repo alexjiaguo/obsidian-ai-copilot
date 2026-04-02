@@ -31,11 +31,11 @@ export default class AICopilotPlugin extends Plugin {
     personaSoulService!: PersonaSoulService;
 
     async onload() {
-        console.log('🚀 AI Copilot v1.3.0 LOADED');
+        console.debug('🚀 AI Copilot v1.3.0 LOADED');
         new Notice("🚀 AI Copilot v1.3.0 LOADED");
         this.addStatusBarItem().setText("AI Copilot v1.3.0");
         
-        console.log('Docs GPT: Loading plugin...');
+        console.debug('AI Copilot: Loading plugin...');
         await this.loadSettings();
 
         // Initialize Services
@@ -204,7 +204,7 @@ export default class AICopilotPlugin extends Plugin {
 			id: 'add-selection-to-chat',
 			name: 'Add selection to chat context',
 			hotkeys: [{ modifiers: ["Mod"], key: "L" }],
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
+			editorCallback: async (editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
 				const selection = editor.getSelection();
 				if (!selection) return;
 				const filePath = view.file?.basename || 'unknown';
@@ -222,7 +222,7 @@ export default class AICopilotPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-chat-quick-command',
-			name: 'Open AI Copilot Chat',
+			name: 'Open AI Copilot chat',
 			hotkeys: [{ modifiers: ["Mod"], key: "K" }],
 			callback: async () => {
 				await this.activateView();
@@ -231,7 +231,7 @@ export default class AICopilotPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'index-vault-qa',
-			name: 'Index Vault for QA',
+			name: 'Index vault for QA',
 			callback: async () => {
 				await this.vaultQA.indexVault();
 			}
@@ -246,14 +246,14 @@ export default class AICopilotPlugin extends Plugin {
 		);
 
 		// Add Ribbon Icon to open the Sidebar
-		this.addRibbonIcon('bot', 'AI Copilot Chat', (evt: MouseEvent) => {
-			this.activateView();
+		this.addRibbonIcon('bot', 'AI Copilot chat', (evt: MouseEvent) => {
+			void this.activateView();
 		});
 
 		// Command: Summarize Selection (Legacy)
 		this.addCommand({
 			id: 'summarize-selection',
-			name: 'Summarize Selection',
+			name: 'Summarize selection',
 			editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
 				if (!this.aiProvider) {
 					new Notice('AI Provider not configured.');
@@ -275,16 +275,16 @@ export default class AICopilotPlugin extends Plugin {
 		// Command to open chat directly
 		this.addCommand({
 			id: 'open-ai-chat',
-			name: 'Open AI Chat',
+			name: 'Open AI chat',
 			callback: () => {
-				this.activateView();
+				void this.activateView();
 			},
 		});
 
 		// Command to send selected text to chat
 		this.addCommand({
 			id: 'send-selection-to-chat',
-			name: 'Send Selection to Chat',
+			name: 'Send selection to chat',
 			editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
 				const selection = editor.getSelection();
 				if (!selection) {
@@ -314,13 +314,13 @@ export default class AICopilotPlugin extends Plugin {
 		});
 
 		// Register Built-in Action Commands
-		this.addTextTransformCommand('expand-selection', 'Expand Selection', 'You are an AI assistant. Expand the provided text by adding more detail, explanations, and context while preserving the original meaning.', 'replace');
-		this.addTextTransformCommand('shorten-selection', 'Shorten Selection', 'You are an AI assistant. Shorten the provided text to be much more concise, keeping only the core message.', 'replace');
-		this.addTextTransformCommand('tone-professional', 'Change Tone: Professional', 'Rewrite the provided text in a highly professional, polite, and business-appropriate tone.', 'replace');
-		this.addTextTransformCommand('tone-casual', 'Change Tone: Casual', 'Rewrite the provided text in a friendly, relaxed, and casual tone.', 'replace');
-		this.addTextTransformCommand('tone-academic', 'Change Tone: Academic', 'Rewrite the provided text in a formal academic tone suitable for a research paper or essay.', 'replace');
-		this.addTextTransformCommand('brainstorm-ideas', 'Brainstorm Ideas', 'Based on the provided text, brainstorm a list of 5-10 related ideas, bullet points, or next steps.', 'insertBelow');
-		this.addTextTransformCommand('continue-writing', 'Continue Writing', 'You are a co-writer. Continue the provided text logically and seamlessly. ONLY output the continuation, do NOT repeat any of the original text.', 'append', false);
+		this.addTextTransformCommand('expand-selection', 'Expand selection', 'You are an AI assistant. Expand the provided text by adding more detail, explanations, and context while preserving the original meaning.', 'replace');
+		this.addTextTransformCommand('shorten-selection', 'Shorten selection', 'You are an AI assistant. Shorten the provided text to be much more concise, keeping only the core message.', 'replace');
+		this.addTextTransformCommand('tone-professional', 'Change tone: Professional', 'Rewrite the provided text in a highly professional, polite, and business-appropriate tone.', 'replace');
+		this.addTextTransformCommand('tone-casual', 'Change tone: Casual', 'Rewrite the provided text in a friendly, relaxed, and casual tone.', 'replace');
+		this.addTextTransformCommand('tone-academic', 'Change tone: Academic', 'Rewrite the provided text in a formal academic tone suitable for a research paper or essay.', 'replace');
+		this.addTextTransformCommand('brainstorm-ideas', 'Brainstorm ideas', 'Based on the provided text, brainstorm a list of 5-10 related ideas, bullet points, or next steps.', 'insertBelow');
+		this.addTextTransformCommand('continue-writing', 'Continue writing', 'You are a co-writer. Continue the provided text logically and seamlessly. ONLY output the continuation, do NOT repeat any of the original text.', 'append', false);
 
 		// Register Custom Actions
 		this.settings.customActions?.forEach(action => {
@@ -430,7 +430,7 @@ export default class AICopilotPlugin extends Plugin {
 	}
 
 	async onunload() {
-		console.log('Docs GPT: Unloading plugin');
+		console.debug('AI Copilot: Unloading plugin');
 		if (this.mcpClientService) {
 			await this.mcpClientService.disconnectAll();
 		}

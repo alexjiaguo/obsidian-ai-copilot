@@ -125,7 +125,7 @@ export class ContextManager {
             return cached.results;
         }
 
-        console.log('ContextManager: searchFiles called with', query);
+        console.debug('ContextManager: searchFiles called with', query);
         const files = this.app.vault.getFiles();
         const allFolders = this.getAllFolders();
         if (!query) {

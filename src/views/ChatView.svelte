@@ -82,12 +82,14 @@
 
   // Current Session State
   let currentSessionId: string = "";
+  let quotedMessage: { index: number; content: string } | null = null;
   let messageQueue: {
     text: string;
     context: any[];
     displayContent: string;
     qaSources: string[];
     systemBase: string;
+    quotedMessage: { index: number; content: string } | null;
   }[] = [];
   let selectedContext: {
     type: "file" | "folder" | "selection" | "image" | "heading";
@@ -372,8 +374,12 @@
         displayContent: displayContent,
         qaSources: qaSources,
         systemBase: systemBase,
+        quotedMessage: quotedMessage,
       },
     ];
+
+    // Clear quote state after queuing
+    quotedMessage = null;
 
     // Update Title if it's the first message
     if (messages.length === 0 && messageQueue.length === 1) {
@@ -440,7 +446,7 @@
             plugin.settings,
           );
           if (skillContext) {
-            console.log("SkillService: Injected relevant skills into prompt");
+            console.debug("SkillService: Injected relevant skills into prompt");
           }
         } catch (e) {
           console.warn("Could not load skills:", e);
@@ -471,21 +477,32 @@
           : currentModel;
 
       // Prepend file context to system prompt if it exists (so it persists across the chat turn)
+      // Inject quoted message as high-priority context if present
+      let quoteContext = "";
+      if (nextMessage.quotedMessage) {
+        quoteContext = `\n\n=== QUOTED MESSAGE (The user is asking a follow-up question about this specific response. Treat it as the primary context.) ===\n${nextMessage.quotedMessage.content}\n=== END QUOTED MESSAGE ===`;
+      }
+
       const finalSystemPrompt =
         baseSystemPrompt +
         soulPreamble +
         memoryPreamble +
         skillContext +
+        quoteContext +
         (nextMessage.systemBase
           ? `\n\nContext:\n${nextMessage.systemBase}`
           : "");
 
       currentMessages.push({ role: "system", content: finalSystemPrompt });
 
-      // Inject prior conversation history (all messages except the one we just pushed)
-      // messages already includes the user message we just saved, so take all but the last
+      // Inject prior conversation history
+      // If quoting, only include messages up to and including the quoted message
+      // Otherwise, include all messages except the one we just pushed
+      const historyEnd = nextMessage.quotedMessage
+        ? nextMessage.quotedMessage.index + 1
+        : messages.length - 1;
       const priorMessages = messages
-        .slice(0, messages.length - 1)
+        .slice(0, historyEnd)
         .filter((msg) => msg.role === "user" || msg.role === "assistant")
         .map((msg) => ({ role: msg.role, content: msg.content }));
       currentMessages.push(...priorMessages);
@@ -651,13 +668,21 @@
     plugin.editorHandler.insertText(content, "insert");
   }
 
-  function handleReplace(content: string) {
-    plugin.editorHandler.insertText(content, "replace");
-  }
-
   function handleCopy(content: string) {
     navigator.clipboard.writeText(content);
     new Notice("Copied to clipboard");
+  }
+
+  function handleQuote(index: number, content: string) {
+    quotedMessage = { index, content };
+    // Focus the input so user can type their follow-up
+    if (chatInputRef && typeof chatInputRef.focusInput === 'function') {
+      chatInputRef.focusInput();
+    }
+  }
+
+  function clearQuote() {
+    quotedMessage = null;
   }
 
 
@@ -774,6 +799,28 @@
     query = lastUserQuery;
     await sendMessage();
   }
+
+  function handleCreateProject(e: CustomEvent<string>) {
+    const projectName = e.detail;
+    const newProject = {
+      id: crypto.randomUUID(),
+      name: projectName,
+      description: "",
+      includeFolders: "",
+      excludeFolders: "",
+      includeTags: "",
+      systemPrompt: "",
+      defaultModel: ""
+    };
+
+    plugin.settings.projects = [...(plugin.settings.projects || []), newProject];
+    plugin.saveSettings();
+    plugin.settings = { ...plugin.settings };
+
+    projectId = newProject.id;
+    dispatch('projectChange', newProject.id);
+    new Notice(`Created new project: ${projectName}`);
+  }
 </script>
 
 <div class="ai-copilot-container">
@@ -786,6 +833,7 @@
           projectId = e.detail;
           dispatch('projectChange', e.detail);
         }}
+        on:create={handleCreateProject}
       />
       <PersonaSelector
         bind:selectedPersonaId
@@ -829,11 +877,11 @@
           isStreaming={isLoading && message === messages[messages.length - 1]}
           app={plugin.app}
           on:insert={() => handleInsert(message.content)}
-          on:replace={() => handleReplace(message.content)}
           on:copy={() => handleCopy(message.content)}
           on:edit={() => handleEditMessage(i)}
           on:delete={() => handleDeleteMessage(i)}
           on:regenerate={() => handleRegenerate(i)}
+          on:quote={() => handleQuote(i, message.content)}
         />
       {/if}
     {/each}
@@ -848,6 +896,15 @@
   </div>
 
   <div class="input-area">
+    {#if quotedMessage}
+      <div class="quote-preview">
+        <div class="quote-preview-header">
+          <span class="quote-label">💬 Quoting AI response</span>
+          <button class="quote-dismiss" on:click={clearQuote} title="Remove quote">✕</button>
+        </div>
+        <div class="quote-preview-content">{quotedMessage.content}</div>
+      </div>
+    {/if}
     {#if activeContextFile}
       <div class="active-file-indicator">
         <span class="indicator-icon">📄</span>
@@ -978,5 +1035,56 @@
     align-items: center;
     gap: 4px;
     padding: 0 4px;
+  }
+
+  .quote-preview {
+    background-color: var(--background-secondary);
+    border-left: 3px solid var(--interactive-accent);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+
+  .quote-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .quote-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--interactive-accent);
+  }
+
+  .quote-dismiss {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+
+  .quote-dismiss:hover {
+    color: var(--text-normal);
+  }
+
+  .quote-preview-content {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    max-height: 3.6em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    white-space: pre-wrap;
   }
 </style>

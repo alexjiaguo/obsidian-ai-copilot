@@ -64,9 +64,35 @@ export class AIChatView extends ItemView {
 
     // Public method to focus the chat input — only call on explicit user action
     focusChatInput() {
-        if (this.svelteExports && typeof this.svelteExports.focusChatInput === 'function') {
-            this.svelteExports.focusChatInput();
-        }
+        // Direct DOM approach: find the visible textarea in the active tab.
+        // We use a polling mechanism because restored tabs (especially empty or pinned ones) 
+        // trigger session creation on mount, causing Svelte to re-render the tabs 
+        // array. This reactivity pass can temporarily detach or hide the textarea
+        // (offsetParent === null) right when this function is called.
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        const tryFocus = () => {
+            attempts++;
+            const textareas = this.contentEl.querySelectorAll('.chat-input-wrapper textarea');
+            for (const ta of Array.from(textareas)) {
+                if (ta instanceof HTMLTextAreaElement && ta.offsetParent !== null) {
+                    ta.focus();
+                    return; // Success
+                }
+            }
+            
+            if (attempts < maxAttempts) {
+                setTimeout(tryFocus, 50); // Retry until Svelte finishes rendering
+            } else {
+                // Fallback: try Svelte exports chain if DOM fails
+                if (this.svelteExports && typeof this.svelteExports.focusChatInput === 'function') {
+                    this.svelteExports.focusChatInput();
+                }
+            }
+        };
+        
+        requestAnimationFrame(tryFocus);
     }
 
     async onClose() {

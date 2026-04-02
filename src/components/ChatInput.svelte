@@ -28,7 +28,8 @@
 
   function resize() {
     if (textarea) {
-      textarea.style.height = "auto";
+      // Force a proper reflow by collapsing to 0 first, then measuring
+      textarea.style.height = "0";
       textarea.style.height = textarea.scrollHeight + "px";
     }
   }
@@ -226,7 +227,11 @@
     if (textarea) textarea.focus();
   }
 
-  $: if (value === "") resize();
+  // Re-measure height whenever value changes (covers send-clear AND programmatic edits)
+  $: if (typeof value === "string") {
+    // Use a microtask so the DOM has updated with the new bound value before measuring
+    Promise.resolve().then(() => resize());
+  }
   onMount(() => {
     resize();
   });
@@ -300,14 +305,14 @@
   <div class="chat-input-wrapper" class:disabled>
     <textarea
       bind:this={textarea}
+      bind:value={value}
       {placeholder}
       {disabled}
       on:input={handleInput}
       on:keydown={handleKeydown}
       rows="1"
       tabindex="0"
-      autocomplete="off">{value}</textarea
-    >
+      autocomplete="off"></textarea>
     <div class="actions">
       <div class="left-actions">
         <button

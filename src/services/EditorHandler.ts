@@ -14,7 +14,7 @@ export class EditorHandler {
         if (leaf && leaf.view instanceof MarkdownView) {
             this.lastActiveEditor = leaf.view.editor;
             this.lastActiveFile = leaf.view.file?.basename || null;
-            // console.log('EditorHandler: Updated active editor for', this.lastActiveFile);
+
         }
     }
 

@@ -328,12 +328,12 @@
 <div class="settings-padding-wrapper">
   <div class="settings-view">
   <!-- ── Model Configuration ── -->
-  <div class="setting-section-title">Model Configuration</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Model configuration</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
 
   <!-- Provider -->
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">AI Provider</div>
+      <div class="setting-item-name">AI provider</div>
       <div class="setting-item-description">Select your AI provider</div>
     </div>
     <div class="setting-item-control">
@@ -375,7 +375,7 @@
   {#if settings.provider !== "ollama"}
     <div class="setting-item">
       <div class="setting-item-info">
-        <div class="setting-item-name">API Key</div>
+        <div class="setting-item-name">API key</div>
         <div class="setting-item-description">Your secret API key</div>
       </div>
       <div class="setting-item-control">
@@ -410,7 +410,7 @@
   <!-- Auto-Apply Edits -->
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Auto-Apply Edits</div>
+      <div class="setting-item-name">Auto-apply edits</div>
       <div class="setting-item-description">Apply AI edits directly without manual approval.</div>
     </div>
     <div class="setting-item-control">
@@ -425,7 +425,7 @@
   <!-- Test Connection -->
   <div class="setting-item test-row">
     <div class="setting-item-info">
-      <div class="setting-item-name">Connection Test</div>
+      <div class="setting-item-name">Connection test</div>
       <div class="setting-item-description">
         Verify your API key and endpoint are working.
       </div>
@@ -456,14 +456,14 @@
   </div>
 
   <!-- ── Vault QA & Embeddings ── -->
-  <div class="setting-section-title">Vault QA & Embeddings</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Vault QA & embeddings</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Configure vector search settings for querying your notes.
   </div>
 
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Embedding Provider</div>
+      <div class="setting-item-name">Embedding provider</div>
       <div class="setting-item-description">
         Provider used to generate text embeddings
       </div>
@@ -478,7 +478,7 @@
 
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Embedding Model</div>
+      <div class="setting-item-name">Embedding model</div>
       <div class="setting-item-description">
         Model name for embeddings (e.g., text-embedding-3-small,
         mxbai-embed-large)
@@ -496,7 +496,7 @@
 
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Auto-Index Vault</div>
+      <div class="setting-item-name">Auto-index vault</div>
       <div class="setting-item-description">
         Automatically index notes on startup or change
       </div>
@@ -512,7 +512,7 @@
 
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Index Exclusions</div>
+      <div class="setting-item-name">Index exclusions</div>
       <div class="setting-item-description">
         Comma-separated list of folders or paths to exclude from indexing
       </div>
@@ -528,7 +528,7 @@
   </div>
 
   <!-- ── Projects ── -->
-  <div class="setting-section-title">Projects</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Projects</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Define scoped contexts. Manage project-level folders, tags, and system
     prompts.
@@ -580,7 +580,7 @@
         {#if editingProjectId === project.id}
           <div class="persona-editor">
             <div class="form-group">
-              <label>Project Name</label>
+              <label>Project name</label>
               <input
                 type="text"
                 bind:value={project.name}
@@ -596,7 +596,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Include Folders (Comma separated paths)</label>
+              <label>Include folders (comma separated paths)</label>
               <input
                 type="text"
                 bind:value={project.includeFolders}
@@ -605,7 +605,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Include Tags (Comma separated)</label>
+              <label>Include tags (comma separated)</label>
               <input
                 type="text"
                 bind:value={project.includeTags}
@@ -614,7 +614,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Override System Prompt</label>
+              <label>Override system prompt</label>
               <textarea
                 bind:value={project.systemPrompt}
                 on:change={handleChange}
@@ -623,7 +623,7 @@
               ></textarea>
             </div>
             <div class="form-group">
-              <label>Override Model</label>
+              <label>Override model</label>
               <input
                 type="text"
                 bind:value={project.defaultModel}
@@ -636,11 +636,11 @@
       </div>
     {/each}
 
-    <button class="add-btn" on:click={addProject}>+ Add New Project</button>
+    <button class="add-btn" on:click={addProject}>+ Add new project</button>
   </div>
 
   <!-- ── Personas ── -->
-  <div class="setting-section-title">Personas</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Personas</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Manage AI personalities and system prompts.
   </div>
@@ -696,7 +696,7 @@
               />
             </div>
             <div class="form-group">
-              <label>System Prompt</label>
+              <label>System prompt</label>
               <textarea
                 bind:value={persona.prompt}
                 on:change={handleChange}
@@ -708,11 +708,11 @@
       </div>
     {/each}
 
-    <button class="add-btn" on:click={addPersona}>+ Add New Persona</button>
+    <button class="add-btn" on:click={addPersona}>+ Add new persona</button>
   </div>
 
   <!-- ── Custom Actions ── -->
-  <div class="setting-section-title">Custom Actions</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Custom actions</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Create custom commands that operate on your selected text. Use <code
       >{`{{selection}}`}</code
@@ -749,7 +749,7 @@
         {#if editingCustomActionId === action.id}
           <div class="persona-editor">
             <div class="form-group">
-              <label>Command Name</label>
+              <label>Command name</label>
               <input
                 type="text"
                 bind:value={action.name}
@@ -758,7 +758,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Prompt Template</label>
+              <label>Prompt template</label>
               <textarea
                 bind:value={action.promptTemplate}
                 on:change={handleChange}
@@ -772,12 +772,12 @@
     {/each}
 
     <button class="add-btn" on:click={addCustomAction}
-      >+ Add Custom Action</button
+      >+ Add custom action</button
     >
   </div>
 
   <!-- ── MCP Servers ── -->
-  <div class="setting-section-title">MCP Servers</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">MCP servers</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Connect to local Model Context Protocol (MCP) servers to give the AI access
     to external data and tools.
@@ -841,7 +841,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Arguments (Space separated)</label>
+              <label>Arguments (space separated)</label>
               <input
                 type="text"
                 value={getArgsString(server.args)}
@@ -850,7 +850,7 @@
               />
             </div>
             <div class="form-group">
-              <label>Environment Variables (KEY=VALUE, one per line)</label>
+              <label>Environment variables (KEY=VALUE, one per line)</label>
               <textarea
                 value={getEnvString(server.env)}
                 on:change={(e) => setEnvString(server, e.currentTarget.value)}
@@ -859,7 +859,7 @@
               ></textarea>
             </div>
             <div class="form-group">
-              <label>Working Directory (optional)</label>
+              <label>Working directory (optional)</label>
               <input
                 type="text"
                 bind:value={server.cwd}
@@ -872,11 +872,11 @@
       </div>
     {/each}
 
-    <button class="add-btn" on:click={addMcpServer}>+ Add MCP Server</button>
+    <button class="add-btn" on:click={addMcpServer}>+ Add MCP server</button>
   </div>
 
   <!-- ── Skills Management ── -->
-  <div class="setting-section-title">Skills</div>
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Skills</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
     Manage AI skills discovered from your skills folder. Enable or disable
     individual skills, and mark skills as mandatory to ensure they are always
@@ -885,7 +885,7 @@
 
   <div class="setting-item">
     <div class="setting-item-info">
-      <div class="setting-item-name">Skills Path</div>
+      <div class="setting-item-name">Skills path</div>
       <div class="setting-item-description">
         Absolute path to the folder containing skill subfolders (each with a
         SKILL.md)
@@ -1021,18 +1021,7 @@
     margin: 0 auto;
   }
 
-  /* ── Section Titles ── */
-  .setting-section-title {
-    font-size: 1.05em;
-    font-weight: 700;
-    color: var(--text-normal);
-    margin: 24px 0 4px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid var(--interactive-accent);
-  }
-  .setting-section-title:first-child {
-    margin-top: 0;
-  }
+  /* ── Section Headings (Obsidian Setting.setHeading() compatible) ── */
 
   .setting-description {
     color: var(--text-muted);

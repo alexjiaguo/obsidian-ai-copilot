@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { Notice } from "obsidian";
 
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
@@ -13,6 +13,35 @@
   let activeTabId = plugin.settings?.activeTabId || tabs[0]?.id;
   let isVaultQAMode = plugin.settings?.isVaultQAMode || false;
   let historyOpen = false;
+  let appContainer: HTMLElement;
+
+  // Self-contained auto-focus: find the visible textarea in the active tab and focus it.
+  // This bypasses the Svelte 5 export/bind:this chain which is unreliable for restored tabs.
+  // Uses polling because restored pinned tabs trigger session creation on mount, causing
+  // Svelte re-renders that can temporarily detach the textarea.
+  function autoFocusActiveInput(maxAttempts = 10) {
+    let attempts = 0;
+    const tryFocus = () => {
+      attempts++;
+      if (!appContainer) {
+        if (attempts < maxAttempts) setTimeout(tryFocus, 100);
+        return;
+      }
+      const activeTabEl = appContainer.querySelector('.tab-container[style*="display: flex"]');
+      if (!activeTabEl) {
+        if (attempts < maxAttempts) setTimeout(tryFocus, 100);
+        return;
+      }
+      const textarea = activeTabEl.querySelector('.chat-input-wrapper textarea') as HTMLTextAreaElement;
+      if (textarea && textarea.offsetParent !== null) {
+        textarea.focus();
+        return; // Success
+      }
+      if (attempts < maxAttempts) setTimeout(tryFocus, 150);
+    };
+    // Start after a brief delay to let Svelte finish initial render
+    setTimeout(tryFocus, 50);
+  }
 
   // On mount: purge sessions older than 24h (keep those loaded in active tabs)
   onMount(() => {
@@ -25,8 +54,12 @@
     const purged = before - (plugin.settings.sessions?.length || 0);
     if (purged > 0) {
       plugin.saveSettings();
-      console.log(`AI Copilot: purged ${purged} sessions older than 24h`);
+      console.debug(`AI Copilot: purged ${purged} sessions older than 24h`);
     }
+
+    // Auto-focus the active tab's input after mount (handles startup/workspace restore)
+    // Use a generous delay + polling for pinned tabs that may still be rendering
+    autoFocusActiveInput(15);
   });
 
   // Tab rename state
@@ -50,6 +83,11 @@
   );
   $: activeTab = tabs.find((t: any) => t.id === activeTabId);
   $: currentSessionId = activeTab?.sessionId || '';
+
+  // Auto-focus when switching tabs
+  $: if (activeTabId && appContainer) {
+    tick().then(() => autoFocusActiveInput(5));
+  }
 
   // Sort tabs: pinned first, then unpinned
   $: sortedTabs = [...tabs].sort((a: any, b: any) => {
@@ -233,7 +271,7 @@
   }
 </script>
 
-<div class="chat-app-container">
+<div class="chat-app-container" bind:this={appContainer}>
   <div class="app-header">
     <div class="title-bar">
       <div class="title">

@@ -149,6 +149,24 @@
         {:else}
           <button
             class="action-btn"
+            on:click={() => dispatch("quote")}
+            title="Quote & follow up"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg
+            >
+          </button>
+          <button
+            class="action-btn"
             on:click={() => dispatch("insert")}
             title="Insert at cursor"
           >
@@ -164,28 +182,6 @@
               stroke-linejoin="round"
               ><path d="M12 17V3" /><path d="m6 11 6 6 6-6" /><path
                 d="M19 21H5"
-              /></svg
-            >
-          </button>
-          <button
-            class="action-btn"
-            on:click={() => dispatch("replace")}
-            title="Replace selection"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              ><path
-                d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"
-              /><polyline points="14 2 14 8 20 8" /><path
-                d="M10.42 12.61a2.1 2.1 0 1 1 2.97 2.97L7.95 21 4 22l.99-3.95 5.43-5.44Z"
               /></svg
             >
           </button>

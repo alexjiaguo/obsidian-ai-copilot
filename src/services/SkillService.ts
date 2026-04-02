@@ -1,6 +1,6 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
-import * as fs from 'fs';
-import * as path from 'path';
+import { readdirSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import type { AICopilotSettings, SkillConfig } from '../settings/Settings';
 
 interface SkillEntry {
@@ -30,23 +30,23 @@ export class SkillService {
         this.loaded = false;
 
         try {
-            const entries = fs.readdirSync(this.skillsPath, { withFileTypes: true });
+            const entries = readdirSync(this.skillsPath, { withFileTypes: true });
             
             for (const entry of entries) {
                 if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
                 
-                const skillFile = path.join(this.skillsPath, entry.name, 'SKILL.md');
-                if (!fs.existsSync(skillFile)) continue;
+                const skillFile = join(this.skillsPath, entry.name, 'SKILL.md');
+                if (!existsSync(skillFile)) continue;
 
                 try {
-                    const content = fs.readFileSync(skillFile, 'utf-8');
+                    const content = readFileSync(skillFile, 'utf-8');
                     const parsed = this.parseFrontmatter(content);
                     
                     if (parsed.name && parsed.description) {
                         this.index.push({
                             name: parsed.name,
                             description: parsed.description,
-                            folderPath: path.join(this.skillsPath, entry.name),
+                            folderPath: join(this.skillsPath, entry.name),
                             skillFilePath: skillFile
                         });
                     }
@@ -56,7 +56,7 @@ export class SkillService {
             }
             
             this.loaded = true;
-            console.log(`SkillService: Indexed ${this.index.length} skills from ${this.skillsPath}`);
+            console.debug(`SkillService: Indexed ${this.index.length} skills from ${this.skillsPath}`);
         } catch (e) {
             console.error('SkillService: Failed to scan skills folder:', e);
         }
@@ -129,7 +129,7 @@ export class SkillService {
      */
     getSkillContent(skill: SkillEntry): string {
         try {
-            return fs.readFileSync(skill.skillFilePath, 'utf-8');
+            return readFileSync(skill.skillFilePath, 'utf-8');
         } catch (e) {
             return '';
         }
