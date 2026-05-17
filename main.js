@@ -38,23 +38,224 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// src/settings/Settings.ts
+var PROVIDER_MODELS, PROVIDER_DEFAULT_URLS, PROVIDER_LABELS, ALL_PROVIDERS, DEFAULT_PERSONAS, DEFAULT_SETTINGS;
+var init_Settings = __esm({
+  "src/settings/Settings.ts"() {
+    "use strict";
+    PROVIDER_MODELS = {
+      "openai-compatible": [],
+      // user types custom model name
+      openai: [
+        "gpt-5-pro",
+        "gpt-5",
+        "gpt-5.4",
+        "gpt-5.4-pro",
+        "gpt-5.2-pro",
+        "gpt-5.2",
+        "gpt-5.1",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o3",
+        "o1",
+        "o1-preview",
+        "o1-mini",
+        "o4-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano"
+      ],
+      anthropic: [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001"
+      ],
+      ollama: [
+        "llama4",
+        "qwen3",
+        "gemma3",
+        "deepseek-r1",
+        "phi4-reasoning",
+        "glm4",
+        "mistral-small-3.2"
+      ],
+      groq: [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3-32b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "moonshotai/kimi-k2-instruct-0905"
+      ],
+      gemini: [
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-pro-preview"
+      ]
+    };
+    PROVIDER_DEFAULT_URLS = {
+      openai: "https://api.openai.com/v1",
+      "openai-compatible": "http://127.0.0.1:8000/v1",
+      anthropic: "https://api.anthropic.com/v1",
+      ollama: "http://localhost:11434/v1",
+      groq: "https://api.groq.com/openai/v1",
+      gemini: "https://generativelanguage.googleapis.com/v1beta/openai"
+    };
+    PROVIDER_LABELS = {
+      openai: "OpenAI",
+      "openai-compatible": "OpenAI-Compatible (Custom)",
+      anthropic: "Anthropic",
+      ollama: "Ollama (Local)",
+      groq: "Groq",
+      gemini: "Google Gemini"
+    };
+    ALL_PROVIDERS = ["openai", "openai-compatible", "anthropic", "ollama", "groq", "gemini"];
+    DEFAULT_PERSONAS = [
+      {
+        id: "default",
+        name: "Default Assistant",
+        description: "Standard helpful AI assistant",
+        prompt: "You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented. When the user asks you to do something, DO it \u2014 don't just explain how.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
+      },
+      {
+        id: "code-expert",
+        name: "Code Expert",
+        description: "Specialized in programming and software architecture",
+        prompt: "You are an expert software engineer and architect embedded in Obsidian. Provide concise, high-quality code solutions using modern best practices (TypeScript preferred). Be direct about code issues.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
+      },
+      {
+        id: "creative-writer",
+        name: "Creative Writer",
+        description: "Helps with brainstorming and drafting",
+        prompt: "You are a creative writer embedded in Obsidian. Help brainstorm ideas, draft content, refine prose, and develop narrative. Be imaginative and engaging. Match the user's writing style when editing their work.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
+      },
+      {
+        id: "academic",
+        name: "Academic Researcher",
+        description: "Formal and citation-focused",
+        prompt: "You are an academic research assistant embedded in Obsidian. Provide formal, well-structured, evidence-based responses. Cite sources where possible. Use precise language and clear structure.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
+      }
+    ];
+    DEFAULT_SETTINGS = {
+      apiKey: "",
+      provider: "openai",
+      model: "gpt-5-mini",
+      systemPrompt: DEFAULT_PERSONAS[0].prompt,
+      baseUrl: PROVIDER_DEFAULT_URLS.openai,
+      personas: DEFAULT_PERSONAS,
+      defaultPersonaId: "default",
+      customActions: [],
+      customPrompts: [],
+      mcpServers: [],
+      sessions: [],
+      activeSessionId: "",
+      projects: [],
+      activeProjectId: null,
+      embeddingProvider: "openai",
+      embeddingModel: "text-embedding-3-small",
+      autoIndexVault: false,
+      indexExclusions: "node_modules, .git, .obsidian",
+      qaModeThreshold: 0.75,
+      isVaultQAMode: false,
+      skillsPath: "/Users/boss/Documents/ai_skills_hub",
+      skillConfigs: [],
+      autoApplyEdits: true,
+      requestTimeoutMs: 6e4,
+      tabs: [{ id: "default-tab", title: "New Chat", sessionId: null, projectId: null, personaId: "default", pinned: false }],
+      activeTabId: "default-tab"
+    };
+  }
+});
+
+// src/utils/url.ts
+function normalizeBaseUrl(url2, provider) {
+  const trimmed = url2.trim();
+  if (!trimmed) {
+    throw new Error("URL is empty");
+  }
+  if (!/^https?:\/\//i.test(trimmed)) {
+    throw new Error("URL must start with http:// or https://");
+  }
+  let normalized = trimmed.replace(/\/+$/, "");
+  if (provider && PROVIDER_DEFAULT_URLS[provider]) {
+    try {
+      const parsed = new URL(normalized);
+      const defaultUrl = new URL(PROVIDER_DEFAULT_URLS[provider]);
+      if (parsed.hostname.toLowerCase() === defaultUrl.hostname.toLowerCase() && (parsed.pathname === "/" || parsed.pathname === "")) {
+        normalized = PROVIDER_DEFAULT_URLS[provider].replace(/\/+$/, "");
+      }
+    } catch {
+    }
+  }
+  return normalized;
+}
+function getUrlValidationError(url2) {
+  if (!url2.trim()) {
+    return "URL cannot be empty";
+  }
+  if (!/^https?:\/\//i.test(url2)) {
+    return "URL must start with http:// or https://";
+  }
+  try {
+    new URL(url2);
+  } catch {
+    return "Invalid URL format";
+  }
+  return null;
+}
+function getProviderMismatchWarning(url2, selected) {
+  try {
+    const host = new URL(url2).hostname.toLowerCase();
+    if (selected !== "anthropic" && host.includes("anthropic")) {
+      return "This looks like an Anthropic URL. Check your AI provider selection.";
+    }
+    if (selected !== "openai" && host.includes("openai") && !host.includes("groq")) {
+      return "This looks like an OpenAI URL. Check your AI provider selection.";
+    }
+    if (selected !== "groq" && host.includes("groq")) {
+      return "This looks like a Groq URL. Check your AI provider selection.";
+    }
+    if (selected !== "gemini" && host.includes("google") && host.includes("generative")) {
+      return "This looks like a Gemini URL. Check your AI provider selection.";
+    }
+  } catch {
+  }
+  return null;
+}
+var init_url = __esm({
+  "src/utils/url.ts"() {
+    "use strict";
+    init_Settings();
+  }
+});
+
 // src/services/APIService.ts
 var APIService_exports = {};
 __export(APIService_exports, {
-  OpenAIProvider: () => OpenAIProvider
+  UniversalAPIProvider: () => UniversalAPIProvider
 });
-var OpenAIProvider;
+var UniversalAPIProvider;
 var init_APIService = __esm({
   "src/services/APIService.ts"() {
     "use strict";
-    OpenAIProvider = class {
+    init_Settings();
+    init_url();
+    UniversalAPIProvider = class {
       settings;
       constructor(settings) {
         this.settings = settings;
       }
       getBaseUrl() {
-        const base = this.settings.baseUrl || "https://api.openai.com/v1";
-        return base.replace(/\/$/, "");
+        try {
+          return normalizeBaseUrl(
+            this.settings.baseUrl || PROVIDER_DEFAULT_URLS[this.settings.provider],
+            this.settings.provider
+          );
+        } catch (e) {
+          console.warn("[AI Copilot] Invalid baseUrl, using raw value:", e);
+          return (this.settings.baseUrl || PROVIDER_DEFAULT_URLS[this.settings.provider]).replace(/\/$/, "");
+        }
       }
       async callAPI(endpoint, payload, signal) {
         if (!this.settings.apiKey && this.settings.provider !== "ollama") {
@@ -73,27 +274,63 @@ var init_APIService = __esm({
           delete headers["Authorization"];
         }
         let response;
+        const timeoutMs = this.settings.requestTimeoutMs ?? 3e4;
+        console.debug(`[AI Copilot API] POST ${url2} (provider: ${this.settings.provider}, model: ${this.settings.model}, timeout: ${timeoutMs}ms)`);
+        const controller = new AbortController();
+        const timeoutId = signal ? null : setTimeout(() => controller.abort(), timeoutMs);
         try {
           response = await fetch(url2, {
             method: "POST",
             headers,
             body: JSON.stringify(payload),
-            signal
+            signal: signal || controller.signal
           });
         } catch (e) {
-          throw new Error(`Network error: ${e.message}. Check your Base URL and internet connection.`);
+          const msg = e.message || "";
+          if (e.name === "AbortError" || msg.includes("aborted") || msg.includes("timed out")) {
+            throw new Error(`Request timed out after ${timeoutMs / 1e3}s \u2192 ${url2}
+The server may be slow or unreachable. Try increasing the timeout in settings.`);
+          }
+          if (msg.includes("ECONNREFUSED") || msg.includes("connection refused")) {
+            throw new Error(`Connection refused \u2192 ${url2}
+The server is not running at this address.`);
+          }
+          if (msg.includes("ENOTFOUND") || msg.includes("getaddrinfo") || msg.includes("Failed to fetch")) {
+            throw new Error(`Cannot reach host \u2192 ${url2}
+${msg}`);
+          }
+          if (msg.includes("CORS") || msg.includes("cross-origin") || msg.includes("blocked")) {
+            throw new Error(`CORS error \u2192 ${url2}
+The API server may be blocking requests from Obsidian.`);
+          }
+          throw new Error(`Network error \u2192 ${url2}
+${msg}`);
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
         }
         const text2 = await response.text();
         let data;
         try {
           data = JSON.parse(text2);
         } catch (e) {
+          console.error(`[AI Copilot API] Non-JSON response (status ${response.status}):`, text2.slice(0, 500));
           throw new Error(`Received non-JSON response from API (status ${response.status}): ${text2.slice(0, 200)}`);
         }
         if (!response.ok) {
           const errMsg = data?.error?.message || data?.message || JSON.stringify(data);
+          console.error(`[AI Copilot API] Error response:`, data);
           throw new Error(`API Error (${response.status}): ${errMsg}`);
         }
+        console.debug(`[AI Copilot API] Response OK (status ${response.status})`, {
+          hasChoices: !!data?.choices,
+          choicesLength: data?.choices?.length,
+          hasContent: !!data?.choices?.[0]?.message?.content,
+          contentPreview: data?.choices?.[0]?.message?.content?.slice(0, 80),
+          hasToolCalls: !!data?.choices?.[0]?.message?.tool_calls,
+          finishReason: data?.choices?.[0]?.finish_reason,
+          // Anthropic format
+          anthropicContent: data?.content?.[0]?.text?.slice(0, 80)
+        });
         return data;
       }
       async generateText(prompt, options) {
@@ -119,63 +356,160 @@ var init_APIService = __esm({
           }
         }
         if (this.settings.provider === "anthropic") {
-          return this.callAnthropic(messages, options);
+          return this.callAnthropic(messages, options, tools);
         }
+        const maxTokens = options?.max_tokens ?? 4096;
         const payload = {
           model: this.settings.model || "gpt-5-mini",
           messages,
-          temperature: options?.temperature ?? 0.7,
-          max_tokens: options?.max_tokens ?? 4096
-          // Raised from 500
+          temperature: options?.temperature ?? 0.7
         };
+        if (this.settings.provider === "openai") {
+          payload.max_completion_tokens = maxTokens;
+        } else {
+          payload.max_tokens = maxTokens;
+        }
         if (tools && tools.length > 0) {
           payload.tools = tools;
           payload.tool_choice = "auto";
         }
         const data = await this.callAPI("chat/completions", payload, options?.signal);
-        const message = data.choices[0].message;
+        if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+          console.error("[AI Copilot API] Unexpected response structure \u2014 no choices array:", JSON.stringify(data).slice(0, 500));
+          throw new Error(`Unexpected API response: no 'choices' returned. Raw: ${JSON.stringify(data).slice(0, 200)}`);
+        }
+        const choice = data.choices[0];
+        if (!choice.message) {
+          console.error("[AI Copilot API] No message in first choice:", choice);
+          throw new Error(`Unexpected API response: no 'message' in choice. finish_reason: ${choice.finish_reason}`);
+        }
+        const message = choice.message;
+        const content = message.content ?? "";
+        if (!content && !message.tool_calls) {
+          console.warn("[AI Copilot API] Empty content AND no tool_calls. finish_reason:", choice.finish_reason, "Full response:", JSON.stringify(data).slice(0, 500));
+        }
         return {
-          content: message.content || "",
+          content,
           tool_calls: message.tool_calls
         };
       }
-      async callAnthropic(messages, options) {
+      async callAnthropic(messages, options, tools) {
         const systemMsg = messages.find((m) => m.role === "system");
-        const userMessages = messages.filter((m) => m.role !== "system");
-        const formattedUserMessages = userMessages.map((msg) => {
-          if (Array.isArray(msg.content)) {
-            return {
-              ...msg,
-              content: msg.content.map((part) => {
-                if (part.type === "image_url" && part.image_url?.url) {
+        const userAndAssistantMessages = messages.filter((m) => m.role !== "system");
+        const formattedMessages = [];
+        for (const msg of userAndAssistantMessages) {
+          if (msg.role === "user" || msg.role === "assistant") {
+            const contentBlocks = [];
+            if (typeof msg.content === "string" && msg.content) {
+              contentBlocks.push({ type: "text", text: msg.content });
+            } else if (Array.isArray(msg.content)) {
+              for (const part of msg.content) {
+                if (part.type === "text") {
+                  contentBlocks.push({ type: "text", text: part.text });
+                } else if (part.type === "image_url" && part.image_url?.url) {
                   const url2 = part.image_url.url;
                   const match = url2.match(/^data:(.*?);base64,(.*)$/);
                   if (match) {
-                    return {
+                    contentBlocks.push({
                       type: "image",
                       source: {
                         type: "base64",
                         media_type: match[1],
                         data: match[2]
                       }
-                    };
+                    });
                   }
+                } else if (part.type === "image") {
+                  contentBlocks.push(part);
                 }
-                return part;
-              })
-            };
+              }
+            }
+            if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
+              for (const tc of msg.tool_calls) {
+                contentBlocks.push({
+                  type: "tool_use",
+                  id: tc.id,
+                  name: tc.function?.name,
+                  input: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
+                });
+              }
+            }
+            if (contentBlocks.length === 0) {
+              contentBlocks.push({ type: "text", text: " " });
+            }
+            formattedMessages.push({
+              role: msg.role,
+              content: contentBlocks
+            });
+          } else if (msg.role === "tool") {
+            formattedMessages.push({
+              role: "user",
+              content: [{
+                type: "tool_result",
+                tool_use_id: msg.tool_call_id,
+                content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+              }]
+            });
           }
-          return msg;
-        });
+        }
+        const mergedMessages = [];
+        for (const msg of formattedMessages) {
+          if (mergedMessages.length > 0 && mergedMessages[mergedMessages.length - 1].role === msg.role) {
+            const lastMsg = mergedMessages[mergedMessages.length - 1];
+            if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
+              lastMsg.content.push(...msg.content);
+            } else if (typeof lastMsg.content === "string" && typeof msg.content === "string") {
+              lastMsg.content += "\n\n" + msg.content;
+            } else {
+              const lastArr = Array.isArray(lastMsg.content) ? lastMsg.content : [{ type: "text", text: lastMsg.content }];
+              const currArr = Array.isArray(msg.content) ? msg.content : [{ type: "text", text: msg.content }];
+              lastMsg.content = [...lastArr, ...currArr];
+            }
+          } else {
+            mergedMessages.push(msg);
+          }
+        }
         const payload = {
           model: this.settings.model || "claude-3-5-sonnet-20241022",
           max_tokens: options?.max_tokens ?? 4096,
-          messages: formattedUserMessages
+          messages: mergedMessages
         };
+        if (options?.temperature !== void 0) payload.temperature = options.temperature;
         if (systemMsg) payload.system = systemMsg.content;
+        if (tools && tools.length > 0) {
+          payload.tools = tools.map((t) => ({
+            name: t.function.name,
+            description: t.function.description,
+            input_schema: t.function.parameters || { type: "object", properties: {} }
+          }));
+        }
         const data = await this.callAPI("messages", payload, options?.signal);
+        let textContent = "";
+        const standardToolCalls = [];
+        if (data.content && Array.isArray(data.content)) {
+          for (const block2 of data.content) {
+            if (block2.type === "text") {
+              textContent += block2.text;
+            } else if (block2.type === "tool_use") {
+              standardToolCalls.push({
+                id: block2.id,
+                type: "function",
+                function: {
+                  name: block2.name,
+                  arguments: typeof block2.input === "string" ? block2.input : JSON.stringify(block2.input)
+                }
+              });
+            }
+          }
+        } else {
+          console.warn("[AI Copilot API] Anthropic returned unexpected content format:", JSON.stringify(data).slice(0, 500));
+          if (data.content?.[0]?.text) {
+            textContent = data.content[0].text;
+          }
+        }
         return {
-          content: data.content?.[0]?.text || ""
+          content: textContent,
+          ...standardToolCalls.length > 0 && { tool_calls: standardToolCalls }
         };
       }
       async summarize(text2) {
@@ -194,27 +528,74 @@ Summary:`;
         return this.generateText(messages);
       }
       async testConnection() {
+        const baseUrl = this.getBaseUrl();
+        const timeoutMs = this.settings.requestTimeoutMs ?? 6e4;
+        if (!this.settings.apiKey && this.settings.provider !== "ollama") {
+          return { ok: false, message: "API key is empty." };
+        }
         try {
-          if (!this.settings.apiKey && this.settings.provider !== "ollama") {
-            return { ok: false, message: "API key is empty." };
-          }
-          if (this.settings.provider === "anthropic") {
-            await this.callAnthropic([{ role: "user", content: "Hi" }], { max_tokens: 5 });
-            return { ok: true, message: `Connected to Anthropic (${this.settings.model})` };
-          }
-          const base = this.getBaseUrl();
-          const url2 = `${base}/models`;
-          const headers = {
-            "Authorization": `Bearer ${this.settings.apiKey}`
-          };
-          const response = await fetch(url2, { headers });
-          if (response.ok) {
-            return { ok: true, message: `Connected to ${this.settings.provider} (${this.settings.model})` };
-          }
-          await this.generateResponse("Hi", { max_tokens: 5 });
-          return { ok: true, message: `Connected to ${this.settings.provider} (${this.settings.model})` };
+          normalizeBaseUrl(
+            this.settings.baseUrl || PROVIDER_DEFAULT_URLS[this.settings.provider],
+            this.settings.provider
+          );
         } catch (e) {
-          return { ok: false, message: e.message };
+          return { ok: false, message: `Invalid Base URL: ${e.message}` };
+        }
+        if (this.settings.provider !== "anthropic") {
+          const modelsUrl = `${baseUrl}/models`;
+          const reachController = new AbortController();
+          const reachTimeout = setTimeout(() => reachController.abort(), 8e3);
+          try {
+            const headers = {};
+            if (this.settings.apiKey) headers["Authorization"] = `Bearer ${this.settings.apiKey}`;
+            const res = await fetch(modelsUrl, { signal: reachController.signal, headers });
+            if (!res.ok && res.status !== 404 && res.status !== 401 && res.status !== 403) {
+              return { ok: false, message: `Server replied with HTTP ${res.status} \u2192 ${modelsUrl}` };
+            }
+          } catch (e) {
+            const msg = e.message || "";
+            if (e.name === "AbortError") {
+              return { ok: false, message: `Server unreachable (no response in 8s) \u2192 ${modelsUrl}
+Make sure the server is running.` };
+            }
+            if (msg.includes("ECONNREFUSED") || msg.includes("connection refused")) {
+              return { ok: false, message: `Connection refused \u2192 ${modelsUrl}
+The server is not running at this address.` };
+            }
+            if (msg.includes("ENOTFOUND") || msg.includes("Failed to fetch") || msg.includes("getaddrinfo")) {
+              return { ok: false, message: `Cannot reach host \u2192 ${modelsUrl}
+Check the Base URL hostname.` };
+            }
+          } finally {
+            clearTimeout(reachTimeout);
+          }
+        }
+        const completionController = new AbortController();
+        const completionTimeout = setTimeout(() => completionController.abort(), timeoutMs);
+        try {
+          if (this.settings.provider === "anthropic") {
+            await this.callAnthropic([{ role: "user", content: "Hi" }], { max_tokens: 5, signal: completionController.signal });
+          } else {
+            await this.generateResponse("Hi", { max_tokens: 5, signal: completionController.signal });
+          }
+          return { ok: true, message: `\u2713 Connected \u2192 ${baseUrl}  (model: ${this.settings.model})` };
+        } catch (e) {
+          const msg = e.message || "";
+          if (e.name === "AbortError" || msg.includes("timed out")) {
+            return { ok: false, message: `Model response timed out after ${timeoutMs / 1e3}s \u2192 ${baseUrl}
+Try increasing the timeout in settings, or check if the model is loaded.` };
+          }
+          if (msg.includes("API Error (404)")) {
+            return { ok: false, message: `Endpoint not found (404) \u2192 ${baseUrl}/chat/completions
+Check that the Base URL includes /v1 and the server supports the OpenAI chat endpoint.` };
+          }
+          if (msg.includes("API Error (401)") || msg.includes("API Error (403)")) {
+            return { ok: false, message: `Authentication failed \u2192 ${baseUrl}
+Check your API key.` };
+          }
+          return { ok: false, message: msg };
+        } finally {
+          clearTimeout(completionTimeout);
         }
       }
     };
@@ -7494,127 +7875,7 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian20 = require("obsidian");
-
-// src/settings/Settings.ts
-var PROVIDER_MODELS = {
-  openai: [
-    "gpt-5-pro",
-    "gpt-5",
-    "gpt-5.4",
-    "gpt-5.4-pro",
-    "gpt-5.2-pro",
-    "gpt-5.2",
-    "gpt-5.1",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "o3",
-    "o1",
-    "o1-preview",
-    "o1-mini",
-    "o4-mini",
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4.1-nano"
-  ],
-  anthropic: [
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5-20251001"
-  ],
-  ollama: [
-    "llama4",
-    "qwen3",
-    "gemma3",
-    "deepseek-r1",
-    "phi4-reasoning",
-    "glm4",
-    "mistral-small-3.2"
-  ],
-  groq: [
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3-32b",
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "moonshotai/kimi-k2-instruct-0905"
-  ],
-  gemini: [
-    "gemini-3.1-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3-pro-preview"
-  ]
-};
-var PROVIDER_DEFAULT_URLS = {
-  openai: "https://api.openai.com/v1",
-  anthropic: "https://api.anthropic.com/v1",
-  ollama: "http://localhost:11434/v1",
-  groq: "https://api.groq.com/openai/v1",
-  gemini: "https://generativelanguage.googleapis.com/v1beta/openai"
-};
-var PROVIDER_LABELS = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  ollama: "Ollama (Local)",
-  groq: "Groq",
-  gemini: "Google Gemini"
-};
-var ALL_PROVIDERS = ["openai", "anthropic", "ollama", "groq", "gemini"];
-var DEFAULT_PERSONAS = [
-  {
-    id: "default",
-    name: "Default Assistant",
-    description: "Standard helpful AI assistant",
-    prompt: "You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented. When the user asks you to do something, DO it \u2014 don't just explain how.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
-  },
-  {
-    id: "code-expert",
-    name: "Code Expert",
-    description: "Specialized in programming and software architecture",
-    prompt: "You are an expert software engineer and architect embedded in Obsidian. Provide concise, high-quality code solutions using modern best practices (TypeScript preferred). Be direct about code issues.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
-  },
-  {
-    id: "creative-writer",
-    name: "Creative Writer",
-    description: "Helps with brainstorming and drafting",
-    prompt: "You are a creative writer embedded in Obsidian. Help brainstorm ideas, draft content, refine prose, and develop narrative. Be imaginative and engaging. Match the user's writing style when editing their work.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
-  },
-  {
-    id: "academic",
-    name: "Academic Researcher",
-    description: "Formal and citation-focused",
-    prompt: "You are an academic research assistant embedded in Obsidian. Provide formal, well-structured, evidence-based responses. Cite sources where possible. Use precise language and clear structure.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context \u2014 go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too."
-  }
-];
-var DEFAULT_SETTINGS = {
-  apiKey: "",
-  provider: "openai",
-  model: "gpt-5-mini",
-  systemPrompt: DEFAULT_PERSONAS[0].prompt,
-  baseUrl: PROVIDER_DEFAULT_URLS.openai,
-  personas: DEFAULT_PERSONAS,
-  defaultPersonaId: "default",
-  customActions: [],
-  customPrompts: [],
-  mcpServers: [],
-  sessions: [],
-  activeSessionId: "",
-  projects: [],
-  activeProjectId: null,
-  embeddingProvider: "openai",
-  embeddingModel: "text-embedding-3-small",
-  autoIndexVault: false,
-  indexExclusions: "node_modules, .git, .obsidian",
-  qaModeThreshold: 0.75,
-  isVaultQAMode: false,
-  skillsPath: "/Users/boss/Documents/ai_skills_hub",
-  skillConfigs: [],
-  autoApplyEdits: true,
-  tabs: [{ id: "default-tab", title: "New Chat", sessionId: null, projectId: null, personaId: "default", pinned: false }],
-  activeTabId: "default-tab"
-};
-
-// main.ts
+init_Settings();
 init_APIService();
 
 // src/views/AIChatView.ts
@@ -14894,14 +15155,15 @@ function ComposerDiff($$anchor, $$props) {
 }
 
 // src/views/ChatView.svelte
+init_Settings();
 var root_16 = from_html(`<div class="empty-state svelte-1mg2b0j"><div class="empty-icon svelte-1mg2b0j">\u2728</div> <h3>How can I help you today?</h3> <div class="suggestions svelte-1mg2b0j"><button class="svelte-1mg2b0j">Summarize this note</button></div></div>`);
 var root_64 = from_html(`<div class="quote-preview svelte-1mg2b0j"><div class="quote-preview-header svelte-1mg2b0j"><span class="quote-label svelte-1mg2b0j">\u{1F4AC} Quoting AI response</span> <button class="quote-dismiss svelte-1mg2b0j" title="Remove quote">\u2715</button></div> <div class="quote-preview-content svelte-1mg2b0j"> </div></div>`);
-var root_74 = from_html(`<div class="active-file-indicator svelte-1mg2b0j"><span class="indicator-icon">\u{1F4C4}</span> <span class="indicator-text"> </span></div>`);
+var root_74 = from_html(`<div class="context-pills svelte-1mg2b0j" style="margin-bottom: 4px;"><!></div>`);
 var root_83 = from_html(`<div class="context-pills svelte-1mg2b0j"></div>`);
 var root8 = from_html(`<div class="ai-copilot-container svelte-1mg2b0j"><div class="header svelte-1mg2b0j"><div class="controls svelte-1mg2b0j"><!> <!></div></div> <div class="chat-history svelte-1mg2b0j"><!> <!> <!></div> <div class="input-area svelte-1mg2b0j"><!> <!> <!> <!></div></div>`);
 var $$css8 = {
   hash: "svelte-1mg2b0j",
-  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);user-select:text;-webkit-user-select:text;}.header.svelte-1mg2b0j {flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--background-modifier-border);background-color:var(--background-secondary);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:75%;box-sizing:border-box;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}.active-file-indicator.svelte-1mg2b0j {font-size:10px;color:var(--text-muted);margin-bottom:6px;display:flex;align-items:center;gap:4px;padding:0 4px;}.quote-preview.svelte-1mg2b0j {background-color:var(--background-secondary);border-left:3px solid var(--interactive-accent);border-radius:4px;padding:8px 10px;margin-bottom:8px;position:relative;}.quote-preview-header.svelte-1mg2b0j {display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}.quote-label.svelte-1mg2b0j {font-size:11px;font-weight:500;color:var(--interactive-accent);}.quote-dismiss.svelte-1mg2b0j {background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;transition:color 0.15s;}.quote-dismiss.svelte-1mg2b0j:hover {color:var(--text-normal);}.quote-preview-content.svelte-1mg2b0j {font-size:12px;color:var(--text-muted);line-height:1.4;max-height:3.6em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;text-overflow:ellipsis;white-space:pre-wrap;}"
+  code: ".ai-copilot-container.svelte-1mg2b0j {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);user-select:text;-webkit-user-select:text;}.header.svelte-1mg2b0j {flex-shrink:0;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--background-modifier-border);background-color:var(--background-secondary);}.chat-history.svelte-1mg2b0j {flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;}.input-area.svelte-1mg2b0j {padding:16px;border-top:1px solid var(--background-modifier-border);}.context-pills.svelte-1mg2b0j {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}\n\n  /* ... (rest of styles) */.empty-state.svelte-1mg2b0j {display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;}.empty-icon.svelte-1mg2b0j {font-size:32px;margin-bottom:16px;}.suggestions.svelte-1mg2b0j {display:flex;flex-direction:column;gap:8px;margin-top:24px;width:75%;box-sizing:border-box;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j) {background:var(--background-secondary);border:1px solid var(--background-modifier-border);padding:8px;border-radius:6px;cursor:pointer;text-align:left;transition:background 0.2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}.suggestions.svelte-1mg2b0j button:where(.svelte-1mg2b0j):hover {background:var(--background-modifier-hover);}.controls.svelte-1mg2b0j {display:flex;gap:8px;align-items:center;}.quote-preview.svelte-1mg2b0j {background-color:var(--background-secondary);border-left:3px solid var(--interactive-accent);border-radius:4px;padding:8px 10px;margin-bottom:8px;position:relative;}.quote-preview-header.svelte-1mg2b0j {display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}.quote-label.svelte-1mg2b0j {font-size:11px;font-weight:500;color:var(--interactive-accent);}.quote-dismiss.svelte-1mg2b0j {background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;transition:color 0.15s;}.quote-dismiss.svelte-1mg2b0j:hover {color:var(--text-normal);}.quote-preview-content.svelte-1mg2b0j {font-size:12px;color:var(--text-muted);line-height:1.4;max-height:3.6em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;text-overflow:ellipsis;white-space:pre-wrap;}"
 };
 function ChatView($$anchor, $$props) {
   push($$props, false);
@@ -14949,6 +15211,8 @@ function ChatView($$anchor, $$props) {
   let messages = mutable_source([]);
   let isLoading = mutable_source(false);
   let activeContextFile = mutable_source(null);
+  let suppressActiveContext = mutable_source(false);
+  let lastActivePath = "";
   let currentSessionId = "";
   let quotedMessage = mutable_source(null);
   let messageQueue = mutable_source([]);
@@ -14981,7 +15245,16 @@ function ChatView($$anchor, $$props) {
   });
   async function checkActiveFile() {
     if (plugin().contextManager) {
-      set(activeContextFile, await plugin().contextManager.getActiveFileContent());
+      const newContext = await plugin().contextManager.getActiveContextContent();
+      if (newContext && newContext.path !== lastActivePath) {
+        lastActivePath = newContext.path;
+        set(
+          suppressActiveContext,
+          false
+          // Reset suppression when context changes
+        );
+      }
+      set(activeContextFile, newContext);
     }
   }
   function loadSession(id) {
@@ -15147,10 +15420,10 @@ ${res.text}
 
 User Question: ${get2(query)}`;
     let systemBase = "";
-    if (get2(activeContextFile) && !textContexts.some((c) => c.path === get2(activeContextFile)?.path)) {
+    if (get2(activeContextFile) && !get2(suppressActiveContext) && !textContexts.some((c) => c.path === get2(activeContextFile)?.path)) {
       systemBase += `
 
-=== CURRENT ACTIVE FILE (${get2(activeContextFile).path}) ===
+=== CURRENT ACTIVE CONTEXT (${get2(activeContextFile).path}) ===
 ${get2(activeContextFile).content}
 ==========================
 `;
@@ -15262,8 +15535,16 @@ ${nextMessage.systemBase}` : "");
       const maxSteps = 10;
       let finalContent = "";
       const tools = plugin().toolManager ? await plugin().toolManager.getToolsDefinition() : [];
+      console.debug(`[AI Copilot] Starting tool loop. Tools count: ${tools.length}, Messages count: ${currentMessages.length}`);
       while (steps < maxSteps) {
         const response = await plugin().aiProvider.generateResponse(currentMessages, { model: actualModel }, tools);
+        console.debug(`[AI Copilot] Tool loop step ${steps}:`, {
+          hasContent: !!response.content,
+          contentLength: response.content?.length,
+          contentPreview: response.content?.slice(0, 100),
+          hasToolCalls: !!(response.tool_calls && response.tool_calls.length > 0),
+          toolCallNames: response.tool_calls?.map((tc) => tc.function?.name)
+        });
         if (response.tool_calls && response.tool_calls.length > 0) {
           currentMessages.push({
             role: "assistant",
@@ -15326,13 +15607,29 @@ ${nextMessage.systemBase}` : "");
           break;
         }
       }
+      if (!finalContent && steps > 0) {
+        console.warn(`[AI Copilot] Empty finalContent after ${steps} tool steps. Retrying WITHOUT tools...`);
+        try {
+          const retryResponse = await plugin().aiProvider.generateResponse(currentMessages, { model: actualModel }, []);
+          finalContent = retryResponse.content;
+          console.debug(`[AI Copilot] Retry response:`, {
+            hasContent: !!finalContent,
+            contentLength: finalContent?.length
+          });
+        } catch (retryErr) {
+          console.error("[AI Copilot] Retry without tools also failed:", retryErr);
+        }
+      }
       if (isVaultQAMode() && nextMessage.qaSources.length > 0 && finalContent) {
         finalContent += `
 
 **Sources:**
 ${nextMessage.qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       }
-      saveMessageToHistory("assistant", finalContent || "(No response from model)");
+      if (!finalContent) {
+        console.warn("[AI Copilot] Empty finalContent after API loop. Steps taken:", steps, "Max steps:", maxSteps, "Total messages sent:", currentMessages.length);
+      }
+      saveMessageToHistory("assistant", finalContent || `(No response from model \u2014 the API returned empty content. Check the browser console for debug logs. Steps: ${steps}/${maxSteps})`);
     } catch (error2) {
       console.error("AI Chat Error:", error2);
       saveMessageToHistory("error", "Error: " + error2.message);
@@ -15664,18 +15961,28 @@ ${nextMessage.qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
   {
     var consequent_3 = ($$anchor2) => {
       var div_10 = root_74();
-      var span = sibling(child(div_10), 2);
-      var text_2 = child(span);
-      reset(span);
+      var node_8 = child(div_10);
+      {
+        let $0 = derived_safe_equal(() => (get2(activeContextFile), untrack(() => (get2(activeContextFile).type === "folder" ? "\u{1F4C1} " : "\u{1F4C4} ") + "Active: " + (get2(activeContextFile).path.split("/").pop() || get2(activeContextFile).path))));
+        let $1 = derived_safe_equal(() => (get2(activeContextFile), untrack(() => get2(activeContextFile).type || "file")));
+        ContextPill(node_8, {
+          get text() {
+            return get2($0);
+          },
+          get type() {
+            return get2($1);
+          },
+          $$events: { remove: () => set(suppressActiveContext, true) }
+        });
+      }
       reset(div_10);
-      template_effect(() => set_text(text_2, `Viewing: ${(get2(activeContextFile), untrack(() => get2(activeContextFile).path)) ?? ""}`));
       append($$anchor2, div_10);
     };
     if_block(node_7, ($$render) => {
-      if (get2(activeContextFile)) $$render(consequent_3);
+      if (get2(activeContextFile) && !get2(suppressActiveContext)) $$render(consequent_3);
     });
   }
-  var node_8 = sibling(node_7, 2);
+  var node_9 = sibling(node_7, 2);
   {
     var consequent_4 = ($$anchor2) => {
       var div_11 = root_83();
@@ -15693,13 +16000,13 @@ ${nextMessage.qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
       reset(div_11);
       append($$anchor2, div_11);
     };
-    if_block(node_8, ($$render) => {
+    if_block(node_9, ($$render) => {
       if (get2(selectedContext), untrack(() => get2(selectedContext).length > 0)) $$render(consequent_4);
     });
   }
-  var node_9 = sibling(node_8, 2);
+  var node_10 = sibling(node_9, 2);
   bind_this(
-    ChatInput(node_9, {
+    ChatInput(node_10, {
       onSearch: handleSearch,
       get editorHandler() {
         return deep_read_state(plugin()), untrack(() => plugin().editorHandler);
@@ -15839,7 +16146,7 @@ var root_65 = from_html(`<div class="tab-container svelte-zhnfhr"><!></div>`);
 var root9 = from_html(`<div class="chat-app-container svelte-zhnfhr"><div class="app-header svelte-zhnfhr"><div class="title-bar svelte-zhnfhr"><div class="title svelte-zhnfhr">AI Copilot</div> <div class="global-controls svelte-zhnfhr"><button class="header-btn svelte-zhnfhr" title="Chat History" aria-label="Chat History"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg></button> <button class="header-btn svelte-zhnfhr" title="Settings" aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button></div></div> <div class="tab-bar svelte-zhnfhr"><!> <button class="new-tab-btn svelte-zhnfhr" title="New Tab" aria-label="New Tab">+</button></div></div> <div class="tabs-content svelte-zhnfhr"><!> <!></div></div>`);
 var $$css10 = {
   hash: "svelte-zhnfhr",
-  code: ".chat-app-container.svelte-zhnfhr {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);}.app-header.svelte-zhnfhr {display:flex;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--background-modifier-border);}.title-bar.svelte-zhnfhr {padding:4px 10px;display:flex;justify-content:space-between;align-items:center;}.title.svelte-zhnfhr {font-weight:600;font-size:var(--font-ui-small);color:var(--text-normal);}.global-controls.svelte-zhnfhr {display:flex;align-items:center;gap:2px;}.header-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:4px;transition:color 0.15s;}.header-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Tab Bar \u2500\u2500\u2500 */.tab-bar.svelte-zhnfhr {display:flex;align-items:center;background-color:var(--background-secondary);padding:0 6px;overflow-x:auto;scrollbar-width:none;gap:1px;}.tab-bar.svelte-zhnfhr::-webkit-scrollbar {display:none;}.tab.svelte-zhnfhr {display:flex;align-items:center;padding:3px 8px;background-color:transparent;border-radius:4px 4px 0 0;cursor:pointer;font-size:11px;color:var(--text-muted);max-width:140px;min-width:40px;transition:background-color 0.12s, color 0.12s;line-height:1.3;gap:3px;flex-shrink:0;}.tab.svelte-zhnfhr:hover {background-color:var(--background-modifier-hover);color:var(--text-normal);}.tab.active.svelte-zhnfhr {background-color:var(--background-primary);color:var(--text-normal);font-weight:500;}.tab.pinned.svelte-zhnfhr {min-width:unset;max-width:100px;}.pin-icon.svelte-zhnfhr {font-size:9px;flex-shrink:0;}.tab-title.svelte-zhnfhr {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;}.tab-rename-input.svelte-zhnfhr {background:var(--background-primary);border:1px solid var(--interactive-accent);border-radius:2px;color:var(--text-normal);font-size:11px;padding:1px 4px;width:80px;outline:none;}.tab-close.svelte-zhnfhr {background:transparent;border:none;color:var(--text-faint);cursor:pointer;padding:0 2px;font-size:10px;line-height:1;border-radius:2px;opacity:0;transition:opacity 0.12s, color 0.12s;flex-shrink:0;}.tab.svelte-zhnfhr:hover .tab-close:where(.svelte-zhnfhr) {opacity:1;}.tab-close.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.new-tab-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:3px 6px;font-size:14px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:color 0.12s;flex-shrink:0;}.new-tab-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Content area \u2500\u2500\u2500 */.tabs-content.svelte-zhnfhr {flex:1;overflow:hidden;position:relative;}.tab-container.svelte-zhnfhr {height:100%;width:100%;flex-direction:column;}"
+  code: ".chat-app-container.svelte-zhnfhr {display:flex;flex-direction:column;height:100%;background-color:var(--background-primary);}.app-header.svelte-zhnfhr {display:flex;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--background-modifier-border);}.title-bar.svelte-zhnfhr {padding:4px 10px;display:flex;justify-content:space-between;align-items:center;}.title.svelte-zhnfhr {font-weight:600;font-size:var(--font-ui-small);color:var(--text-normal);}.global-controls.svelte-zhnfhr {display:flex;align-items:center;gap:2px;}.header-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:4px;transition:color 0.15s;}.header-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Tab Bar \u2500\u2500\u2500 */.tab-bar.svelte-zhnfhr {display:flex;align-items:center;background-color:var(--background-secondary);padding:0 6px;overflow-x:auto;scrollbar-width:none;gap:1px;}.tab-bar.svelte-zhnfhr::-webkit-scrollbar {display:none;}.tab.svelte-zhnfhr {display:flex;align-items:center;padding:3px 8px;background-color:transparent;border-radius:4px 4px 0 0;border-top:2px solid transparent; /* Reserve space for active accent */cursor:pointer;font-size:11px;color:var(--text-muted);max-width:140px;min-width:40px;transition:background-color 0.12s, color 0.12s;line-height:1.3;gap:3px;flex-shrink:0;}.tab.svelte-zhnfhr:hover {background-color:var(--background-modifier-hover);color:var(--text-normal);}.tab.active.svelte-zhnfhr {background-color:var(--background-primary);color:var(--text-normal);font-weight:600;border-top:2px solid var(--interactive-accent); /* Make active tab highly visible */}.tab.pinned.svelte-zhnfhr {min-width:unset;max-width:100px;}.pin-icon.svelte-zhnfhr {font-size:9px;flex-shrink:0;}.tab-title.svelte-zhnfhr {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-grow:1;}.tab-rename-input.svelte-zhnfhr {background:var(--background-primary);border:1px solid var(--interactive-accent);border-radius:2px;color:var(--text-normal);font-size:11px;padding:1px 4px;width:80px;outline:none;}.tab-close.svelte-zhnfhr {background:transparent;border:none;color:var(--text-faint);cursor:pointer;padding:0 2px;font-size:10px;line-height:1;border-radius:2px;opacity:0;transition:opacity 0.12s, color 0.12s;flex-shrink:0;}.tab.svelte-zhnfhr:hover .tab-close:where(.svelte-zhnfhr) {opacity:1;}.tab-close.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}.new-tab-btn.svelte-zhnfhr {background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:3px 6px;font-size:14px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:color 0.12s;flex-shrink:0;}.new-tab-btn.svelte-zhnfhr:hover {color:var(--text-normal);background-color:var(--background-modifier-hover);}\n\n  /* \u2500\u2500\u2500 Content area \u2500\u2500\u2500 */.tabs-content.svelte-zhnfhr {flex:1;overflow:hidden;position:relative;}.tab-container.svelte-zhnfhr {height:100%;width:100%;flex-direction:column;}"
 };
 function ChatApp($$anchor, $$props) {
   push($$props, false);
@@ -16045,6 +16352,7 @@ function ChatApp($$anchor, $$props) {
       }
       set(tabs, [...get2(tabs)]);
     }
+    tick().then(() => autoFocusActiveInput(10));
   }
   function handleHistoryDelete(event2) {
     const idToDelete = event2.detail;
@@ -16404,7 +16712,7 @@ var ContextManager = class {
     }
     return `Error: File not found at ${path}`;
   }
-  // Get a rich summary of a folder's contents
+  // Get a rich summary of a folder's contents (shallow read)
   getFolderContent(folder) {
     const lines = [`Folder: ${folder.path}`];
     const files = [];
@@ -16437,15 +16745,37 @@ Files (${files.length}):`);
     }
     return lines.join("\n");
   }
-  // Get active file content
-  async getActiveFileContent() {
+  // Get active context (folder if selected in file explorer, else active file)
+  async getActiveContextContent() {
+    try {
+      const fileExplorer = document.querySelector('.workspace-leaf-content[data-type="file-explorer"]');
+      if (fileExplorer) {
+        const activeEl = fileExplorer.querySelector(".is-active");
+        if (activeEl) {
+          const path = activeEl.getAttribute("data-path");
+          if (path) {
+            const abstractFile = this.app.vault.getAbstractFileByPath(path);
+            if (abstractFile instanceof import_obsidian6.TFolder) {
+              return {
+                content: this.getFolderContent(abstractFile),
+                path: abstractFile.path,
+                type: "folder"
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error finding active folder:", e);
+    }
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) return null;
     try {
       const content = await this.app.vault.read(activeFile);
       return {
         content,
-        path: activeFile.path
+        path: activeFile.path,
+        type: "file"
       };
     } catch (e) {
       console.error("Error reading active file:", e);
@@ -17121,6 +17451,7 @@ var import_obsidian12 = require("obsidian");
 
 // src/services/EmbeddingService.ts
 var import_obsidian11 = require("obsidian");
+init_url();
 var EmbeddingService = class {
   settings;
   constructor(settings) {
@@ -17128,9 +17459,9 @@ var EmbeddingService = class {
   }
   getBaseUrl() {
     if (this.settings.embeddingProvider === "ollama") {
-      return "http://localhost:11434/v1";
+      return normalizeBaseUrl(this.settings.baseUrl || "http://localhost:11434/v1");
     }
-    return "https://api.openai.com/v1";
+    return normalizeBaseUrl(this.settings.baseUrl || "https://api.openai.com/v1", "openai");
   }
   async getEmbedding(text2) {
     const baseUrl = this.getBaseUrl();
@@ -17146,12 +17477,17 @@ var EmbeddingService = class {
       input: text2
     };
     try {
-      const response = await (0, import_obsidian11.requestUrl)({
-        url: url2,
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload)
-      });
+      const response = await Promise.race([
+        (0, import_obsidian11.requestUrl)({
+          url: url2,
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        }),
+        new Promise(
+          (_, reject) => setTimeout(() => reject(new Error("Embedding request timed out after 30s")), 3e4)
+        )
+      ]);
       if (response.status !== 200) {
         throw new Error(`Embedding API error: ${response.status} ${response.text}`);
       }
@@ -33333,36 +33669,43 @@ var RelevantNotes = class {
 };
 
 // src/settings/SettingsView.svelte
+init_Settings();
 var import_obsidian19 = require("obsidian");
+init_url();
 var root_19 = from_html(`<option> </option>`);
 var root_29 = from_html(`<option> </option>`);
 var root_39 = from_html(`<option> </option>`);
 var root_45 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">API key</div> <div class="setting-item-description svelte-1av9wh">Your secret API key</div></div> <div class="setting-item-control svelte-1av9wh"><input type="password" placeholder="sk-..." class="svelte-1av9wh"/></div></div>`);
-var root_55 = from_html(`<div> </div>`);
-var root_75 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
-var root_84 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
-var root_93 = from_html(`<button class="icon-btn svelte-1av9wh" title="Deactivate">\u274C</button>`);
-var root_10 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include folders (comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include tags (comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override system prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override model</label> <input type="text" placeholder="Optional (e.g. gpt-5-mini)" class="svelte-1av9wh"/></div></div>`);
-var root_66 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
-var root_122 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
-var root_132 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
-var root_142 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" placeholder="Optional description" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">System prompt</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
-var root_11 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
-var root_162 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command name</label> <input type="text" placeholder="e.g. Expand, Translate to French" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Prompt template</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
-var root_152 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
-var root_182 = from_html(`<span class="default-badge svelte-1av9wh" style="background: var(--text-muted);">Disabled</span>`);
-var root_192 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
-var root_20 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
-var root_172 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
-var root_222 = from_html(`<input type="text" placeholder="\u{1F50D} Search skills..." style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;"/>`);
-var root_232 = from_html(`<div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;"> </div>`);
-var root_252 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#f59e0b;">Mandatory</span>`);
-var root_262 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#22c55e;">Enabled</span>`);
-var root_272 = from_html(`<span class="default-badge svelte-1av9wh" style="background:var(--text-muted);">Disabled</span>`);
-var root_282 = from_html(`<button class="icon-btn svelte-1av9wh"> </button>`);
-var root_242 = from_html(`<div class="persona-card svelte-1av9wh"><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh" style="flex:1;"><span class="name-text"> </span> <!> <!></div> <div class="persona-actions svelte-1av9wh"><label class="skill-toggle svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></label> <!></div></div> <div style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"> </div></div>`);
-var root_21 = from_html(`<!> <!> <!>`, 1);
-var root10 = from_html(`<div class="settings-padding-wrapper svelte-1av9wh"><div class="settings-view svelte-1av9wh"><div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model configuration</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <input type="text" placeholder="or type custom model name" class="svelte-1av9wh"/></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama).</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="https://api.openai.com/v1" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-apply edits</div> <div class="setting-item-description svelte-1av9wh">Apply AI edits directly without manual approval.</div></div> <div class="setting-item-control svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Vault QA & embeddings</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
+var root_55 = from_html(`<div class="url-hint svelte-1av9wh">Include <code>/v1</code> at the end, e.g. <code>http://127.0.0.1:8317/v1</code></div>`);
+var root_66 = from_html(`<div class="url-hint error svelte-1av9wh"> </div>`);
+var root_75 = from_html(`<div class="url-hint warning svelte-1av9wh"> </div>`);
+var root_84 = from_html(`<div> </div>`);
+var root_93 = from_html(`<div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Request timeout</div> <div class="setting-item-description svelte-1av9wh">How long to wait for a model response before giving up.
+        Local models can be slow on first load \u2014 increase this if you see timeout errors.</div></div> <div class="setting-item-control svelte-1av9wh" style="gap: 8px; align-items: center;"><input type="range" min="15000" max="300000" step="15000" style="width: 140px;" class="svelte-1av9wh"/> <span style="min-width: 48px; text-align: right; font-variant-numeric: tabular-nums;"> </span></div></div>`);
+var root_11 = from_html(`<span class="default-badge svelte-1av9wh">Active</span>`);
+var root_122 = from_html(`<button class="icon-btn svelte-1av9wh" title="Make Active">\u2B50</button>`);
+var root_132 = from_html(`<button class="icon-btn svelte-1av9wh" title="Deactivate">\u274C</button>`);
+var root_142 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Project name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include folders (comma separated paths)</label> <input type="text" placeholder="e.g. Work/ProjectA, Notes/Meetings" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Include tags (comma separated)</label> <input type="text" placeholder="e.g. #projectA, #urgent" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override system prompt</label> <textarea rows="4" placeholder="Optional. Leaves blank to use default persona." class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Override model</label> <input type="text" placeholder="Optional (e.g. gpt-5-mini)" class="svelte-1av9wh"/></div></div>`);
+var root_10 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_162 = from_html(`<span class="default-badge svelte-1av9wh">Default</span>`);
+var root_172 = from_html(`<button class="icon-btn svelte-1av9wh" title="Set as Default">\u2B50</button>`);
+var root_182 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Description</label> <input type="text" placeholder="Optional description" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">System prompt</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
+var root_152 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><!> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_20 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command name</label> <input type="text" placeholder="e.g. Expand, Translate to French" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Prompt template</label> <textarea rows="6" class="svelte-1av9wh"></textarea></div></div>`);
+var root_192 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_222 = from_html(`<span class="default-badge svelte-1av9wh" style="background: var(--text-muted);">Disabled</span>`);
+var root_232 = from_html(`<span class="default-badge svelte-1av9wh" style="background: #22c55e;">Active</span>`);
+var root_242 = from_html(`<div class="persona-editor svelte-1av9wh"><div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Name</label> <input type="text" placeholder="e.g. Postgres Database" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Command</label> <input type="text" placeholder="e.g. npx, node, python" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Arguments (space separated)</label> <input type="text" placeholder="-y @modelcontextprotocol/server-postgres postgresql://localhost/mydb" class="svelte-1av9wh"/></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Environment variables (KEY=VALUE, one per line)</label> <textarea rows="3" placeholder="API_KEY=your_secret_key" class="svelte-1av9wh"></textarea></div> <div class="form-group svelte-1av9wh"><label class="svelte-1av9wh">Working directory (optional)</label> <input type="text" placeholder="e.g. /Users/you/.mcp/my-server" class="svelte-1av9wh"/></div></div>`);
+var root_21 = from_html(`<div><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh"><span class="name-text"> </span> <!></div> <div class="persona-actions svelte-1av9wh"><button class="icon-btn svelte-1av9wh"> </button> <button class="icon-btn svelte-1av9wh" title="Delete">\u{1F5D1}\uFE0F</button> <span class="chevron svelte-1av9wh"> </span></div></div> <!></div>`);
+var root_262 = from_html(`<input type="text" placeholder="\u{1F50D} Search skills..." style="width:100%; margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border); background:var(--background-primary); color:var(--text-normal); font-size:0.9em;"/>`);
+var root_272 = from_html(`<div style="color:var(--text-muted); font-size:0.9em; padding:8px 0;"> </div>`);
+var root_292 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#f59e0b;">Mandatory</span>`);
+var root_30 = from_html(`<span class="default-badge svelte-1av9wh" style="background:#22c55e;">Enabled</span>`);
+var root_31 = from_html(`<span class="default-badge svelte-1av9wh" style="background:var(--text-muted);">Disabled</span>`);
+var root_322 = from_html(`<button class="icon-btn svelte-1av9wh"> </button>`);
+var root_282 = from_html(`<div class="persona-card svelte-1av9wh"><div class="persona-header svelte-1av9wh"><div class="persona-name svelte-1av9wh" style="flex:1;"><span class="name-text"> </span> <!> <!></div> <div class="persona-actions svelte-1av9wh"><label class="skill-toggle svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></label> <!></div></div> <div style="padding:4px 15px 10px; color:var(--text-muted); font-size:0.85em;"> </div></div>`);
+var root_252 = from_html(`<!> <!> <!>`, 1);
+var root10 = from_html(`<div class="settings-padding-wrapper svelte-1av9wh"><div class="settings-view svelte-1av9wh"><div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model configuration</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">AI provider</div> <div class="setting-item-description svelte-1av9wh">Select your AI provider</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Model</div> <div class="setting-item-description svelte-1av9wh"> </div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><!><!></select> <input type="text" placeholder="or type custom model name" class="svelte-1av9wh"/></div></div> <!> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Base URL</div> <div class="setting-item-description svelte-1av9wh">API endpoint URL. Change for proxies or local models (Ollama). <!> <!></div></div> <div class="setting-item-control svelte-1av9wh"><input type="text"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-apply edits</div> <div class="setting-item-description svelte-1av9wh">Apply AI edits directly without manual approval.</div></div> <div class="setting-item-control svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item test-row svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Connection test</div> <div class="setting-item-description svelte-1av9wh">Verify your API key and endpoint are working.</div></div> <div class="setting-item-control test-control svelte-1av9wh"><button> </button> <!></div></div> <!> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Vault QA & embeddings</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Configure vector search settings for querying your notes.</div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding provider</div> <div class="setting-item-description svelte-1av9wh">Provider used to generate text embeddings</div></div> <div class="setting-item-control svelte-1av9wh"><select class="svelte-1av9wh"><option>OpenAI</option><option>Ollama (Local)</option></select></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Embedding model</div> <div class="setting-item-description svelte-1av9wh">Model name for embeddings (e.g., text-embedding-3-small,
         mxbai-embed-large)</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="text-embedding-3-small" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Auto-index vault</div> <div class="setting-item-description svelte-1av9wh">Automatically index notes on startup or change</div></div> <div class="setting-item-control svelte-1av9wh"><input type="checkbox" class="svelte-1av9wh"/></div></div> <div class="setting-item svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Index exclusions</div> <div class="setting-item-description svelte-1av9wh">Comma-separated list of folders or paths to exclude from indexing</div></div> <div class="setting-item-control svelte-1av9wh"><input type="text" placeholder="node_modules, .git, templates" class="svelte-1av9wh"/></div></div> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Projects</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Define scoped contexts. Manage project-level folders, tags, and system
     prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add new project</button></div> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Personas</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Manage AI personalities and system prompts.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add new persona</button></div> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">Custom actions</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Create custom commands that operate on your selected text. Use <code></code> in your prompt to refer to the highlighted text. They will appear in the Obsidian
     Command Palette. Let the prompt guide the behavior.</div> <div class="personas-container svelte-1av9wh"><!> <button class="add-btn svelte-1av9wh">+ Add custom action</button></div> <div class="setting-item setting-item-heading svelte-1av9wh"><div class="setting-item-info svelte-1av9wh"><div class="setting-item-name svelte-1av9wh">MCP servers</div><div class="setting-item-description svelte-1av9wh"></div></div><div class="setting-item-control svelte-1av9wh"></div></div> <div class="setting-description svelte-1av9wh">Connect to local Model Context Protocol (MCP) servers to give the AI access
@@ -33372,13 +33715,15 @@ var root10 = from_html(`<div class="settings-padding-wrapper svelte-1av9wh"><div
         SKILL.md)</div></div> <div class="setting-item-control svelte-1av9wh" style="display:flex; gap:6px; align-items:flex-start;"><input type="text" placeholder="/path/to/skills_hub" style="flex:1;" class="svelte-1av9wh"/> <button class="test-btn svelte-1av9wh" style="white-space:nowrap;"> </button></div></div> <div class="personas-container svelte-1av9wh"><button class="add-btn svelte-1av9wh" style="width:100%; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;"><span> </span> <span style="font-size:0.8em; color:var(--text-muted);"> </span></button> <!></div></div></div>`);
 var $$css11 = {
   hash: "svelte-1av9wh",
-  code: '.settings-padding-wrapper.svelte-1av9wh {padding:16px 20px 32px;margin:0 auto;box-sizing:border-box;width:100%;}.settings-view.svelte-1av9wh {box-sizing:border-box;max-width:var(--settings-max-width, 100%);margin:0 auto;}\n\n  /* \u2500\u2500 Section Headings (Obsidian Setting.setHeading() compatible) \u2500\u2500 */.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:10px;font-size:0.85em;line-height:1.5;}\n\n  /* \u2500\u2500 Setting Rows \u2500\u2500 */.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:0.9em;font-weight:600;color:var(--text-normal);line-height:1.3;}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:0.8em;line-height:1.4;margin-top:2px;}\n\n  /* \u2500\u2500 Controls (right side) \u2500\u2500 */.setting-item-control.svelte-1av9wh {flex-shrink:0;width:320px;min-width:200px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:320px;max-width:320px;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;font-size:0.85em;box-sizing:border-box;transition:border-color 0.15s;align-self:flex-end;}.setting-item-control.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:18px;height:18px;cursor:pointer;accent-color:var(--interactive-accent);align-self:flex-end;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* \u2500\u2500 Test Connection \u2500\u2500 */.test-control.svelte-1av9wh {align-items:flex-end;}.test-btn.svelte-1av9wh {padding:5px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;transition:background-color 0.15s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.5;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:6px;padding:5px 8px;border-radius:4px;font-size:0.8em;background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;max-width:320px;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* \u2500\u2500 Cards (Projects, Personas, Actions, MCP, Skills) \u2500\u2500 */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:6px;margin-bottom:4px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;transition:border-color 0.15s;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);transition:background-color 0.1s;}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;font-size:0.9em;display:flex;align-items:center;gap:8px;}.default-badge.svelte-1av9wh {font-size:0.65em;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 6px;border-radius:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.3px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:6px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.5;font-size:1em;padding:2px;transition:opacity 0.12s;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.chevron.svelte-1av9wh {font-size:0.75em;color:var(--text-muted);margin-left:2px;}\n\n  /* \u2500\u2500 Editors inside cards \u2500\u2500 */.persona-editor.svelte-1av9wh {padding:12px 14px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:10px;background:var(--background-primary-alt, var(--background-secondary));}.form-group.svelte-1av9wh {display:flex;align-items:baseline;gap:10px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.8em;color:var(--text-muted);font-weight:500;min-width:100px;flex-shrink:0;text-align:right;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {flex:1;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;box-sizing:border-box;font-size:0.85em;transition:border-color 0.15s;}.form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {font-family:var(--font-monospace);font-size:0.8em;resize:vertical;line-height:1.5;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh):focus,\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh):focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* Skill toggle */.skill-toggle.svelte-1av9wh {display:flex;align-items:center;cursor:pointer;}.skill-toggle.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:16px;height:16px;cursor:pointer;accent-color:var(--interactive-accent);}\n\n  /* \u2500\u2500 Add Button \u2500\u2500 */.add-btn.svelte-1av9wh {margin-top:6px;padding:6px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;align-self:flex-start;transition:background-color 0.15s;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}'
+  code: '.settings-padding-wrapper.svelte-1av9wh {padding:16px 20px 32px;margin:0 auto;box-sizing:border-box;width:100%;}.settings-view.svelte-1av9wh {box-sizing:border-box;max-width:var(--settings-max-width, 100%);margin:0 auto;}\n\n  /* \u2500\u2500 Section Headings (Obsidian Setting.setHeading() compatible) \u2500\u2500 */.setting-description.svelte-1av9wh {color:var(--text-muted);margin-bottom:10px;font-size:0.85em;line-height:1.5;}\n\n  /* \u2500\u2500 Setting Rows \u2500\u2500 */.setting-item.svelte-1av9wh {border-top:1px solid var(--background-modifier-border);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;}.setting-item.svelte-1av9wh:first-of-type {border-top:none;}.setting-item-info.svelte-1av9wh {flex:1;min-width:0;}.setting-item-name.svelte-1av9wh {font-size:0.9em;font-weight:600;color:var(--text-normal);line-height:1.3;}.setting-item-description.svelte-1av9wh {color:var(--text-muted);font-size:0.8em;line-height:1.4;margin-top:2px;}\n\n  /* \u2500\u2500 Controls (right side) \u2500\u2500 */.setting-item-control.svelte-1av9wh {flex-shrink:0;width:320px;min-width:200px;display:flex;flex-direction:column;gap:4px;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="text"]:where(.svelte-1av9wh),\n  .setting-item-control.svelte-1av9wh input[type="password"]:where(.svelte-1av9wh) {width:320px;max-width:320px;background:var(--background-modifier-form-field);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;font-size:0.85em;box-sizing:border-box;transition:border-color 0.15s;align-self:flex-end;}.setting-item-control.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:18px;height:18px;cursor:pointer;accent-color:var(--interactive-accent);align-self:flex-end;}.setting-item-control.svelte-1av9wh select:where(.svelte-1av9wh):focus,\n  .setting-item-control.svelte-1av9wh input:where(.svelte-1av9wh):focus {outline:none;border-color:var(--interactive-accent);box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* \u2500\u2500 Test Connection \u2500\u2500 */.test-control.svelte-1av9wh {align-items:flex-end;}.test-btn.svelte-1av9wh {padding:5px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;transition:background-color 0.15s;}.test-btn.svelte-1av9wh:hover:not(:disabled) {background:var(--interactive-accent-hover);}.test-btn.svelte-1av9wh:disabled {opacity:0.5;cursor:not-allowed;}.test-result.svelte-1av9wh {margin-top:6px;padding:5px 8px;border-radius:4px;font-size:0.8em;background:var(--background-secondary);border:1px solid var(--background-modifier-border);word-break:break-word;max-width:320px;}.test-result.ok.svelte-1av9wh {border-color:#22c55e;color:#16a34a;background:#f0fdf4;}.test-result.error.svelte-1av9wh {border-color:#ef4444;color:#dc2626;background:#fef2f2;}\n\n  /* \u2500\u2500 Cards (Projects, Personas, Actions, MCP, Skills) \u2500\u2500 */.personas-container.svelte-1av9wh {display:flex;flex-direction:column;gap:6px;margin-bottom:4px;}.persona-card.svelte-1av9wh {background:var(--background-secondary);border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;transition:border-color 0.15s;}.persona-card.active.svelte-1av9wh {border-color:var(--interactive-accent);}.persona-header.svelte-1av9wh {padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--background-primary);transition:background-color 0.1s;}.persona-header.svelte-1av9wh:hover {background:var(--background-secondary-alt);}.persona-name.svelte-1av9wh {font-weight:600;font-size:0.9em;display:flex;align-items:center;gap:8px;}.default-badge.svelte-1av9wh {font-size:0.65em;background:var(--interactive-accent);color:var(--text-on-accent);padding:1px 6px;border-radius:3px;font-weight:500;text-transform:uppercase;letter-spacing:0.3px;}.persona-actions.svelte-1av9wh {display:flex;align-items:center;gap:6px;}.icon-btn.svelte-1av9wh {background:none;border:none;cursor:pointer;opacity:0.5;font-size:1em;padding:2px;transition:opacity 0.12s;}.icon-btn.svelte-1av9wh:hover {opacity:1;}.chevron.svelte-1av9wh {font-size:0.75em;color:var(--text-muted);margin-left:2px;}\n\n  /* \u2500\u2500 Editors inside cards \u2500\u2500 */.persona-editor.svelte-1av9wh {padding:12px 14px;border-top:1px solid var(--background-modifier-border);display:flex;flex-direction:column;gap:10px;background:var(--background-primary-alt, var(--background-secondary));}.form-group.svelte-1av9wh {display:flex;align-items:baseline;gap:10px;}.form-group.svelte-1av9wh label:where(.svelte-1av9wh) {font-size:0.8em;color:var(--text-muted);font-weight:500;min-width:100px;flex-shrink:0;text-align:right;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh),\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {flex:1;background:var(--background-primary);border:1px solid var(--background-modifier-border);color:var(--text-normal);border-radius:4px;padding:5px 8px;box-sizing:border-box;font-size:0.85em;transition:border-color 0.15s;}.form-group.svelte-1av9wh textarea:where(.svelte-1av9wh) {font-family:var(--font-monospace);font-size:0.8em;resize:vertical;line-height:1.5;}.form-group.svelte-1av9wh input:where(.svelte-1av9wh):focus,\n  .form-group.svelte-1av9wh textarea:where(.svelte-1av9wh):focus {border-color:var(--interactive-accent);outline:none;box-shadow:0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);}\n\n  /* Skill toggle */.skill-toggle.svelte-1av9wh {display:flex;align-items:center;cursor:pointer;}.skill-toggle.svelte-1av9wh input[type="checkbox"]:where(.svelte-1av9wh) {width:16px;height:16px;cursor:pointer;accent-color:var(--interactive-accent);}\n\n  /* \u2500\u2500 Add Button \u2500\u2500 */.add-btn.svelte-1av9wh {margin-top:6px;padding:6px 14px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:500;align-self:flex-start;transition:background-color 0.15s;}.add-btn.svelte-1av9wh:hover {background:var(--interactive-accent-hover);}.url-hint.svelte-1av9wh {margin-top:4px;font-size:0.85em;line-height:1.3;}.url-hint.error.svelte-1av9wh {color:#dc2626;}.url-hint.warning.svelte-1av9wh {color:#d97706;}.input-error.svelte-1av9wh {border-color:#dc2626 !important;}'
 };
 function SettingsView($$anchor, $$props) {
   push($$props, false);
   append_styles($$anchor, $$css11);
   const currentModels = mutable_source();
   const currentProviderLabel = mutable_source();
+  const baseUrlValidationError = mutable_source();
+  const baseUrlProviderWarning = mutable_source();
   const filteredSkills = mutable_source();
   let settings = prop($$props, "settings", 12);
   let saveSettings = prop($$props, "saveSettings", 8);
@@ -33427,8 +33772,8 @@ function SettingsView($$anchor, $$props) {
     set(testStatus, "loading");
     set(testMessage, "Testing connection...");
     try {
-      const { OpenAIProvider: OpenAIProvider2 } = await Promise.resolve().then(() => (init_APIService(), APIService_exports));
-      const provider = new OpenAIProvider2(settings());
+      const { UniversalAPIProvider: UniversalAPIProvider2 } = await Promise.resolve().then(() => (init_APIService(), APIService_exports));
+      const provider = new UniversalAPIProvider2(settings());
       const result = await provider.testConnection();
       set(testStatus, result.ok ? "ok" : "error");
       set(testMessage, result.message);
@@ -33791,6 +34136,12 @@ function SettingsView($$anchor, $$props) {
   legacy_pre_effect(() => (PROVIDER_LABELS, deep_read_state(settings())), () => {
     set(currentProviderLabel, PROVIDER_LABELS[settings().provider] ?? settings().provider);
   });
+  legacy_pre_effect(() => (getUrlValidationError, deep_read_state(settings())), () => {
+    set(baseUrlValidationError, getUrlValidationError(settings().baseUrl));
+  });
+  legacy_pre_effect(() => (getProviderMismatchWarning, deep_read_state(settings())), () => {
+    set(baseUrlProviderWarning, getProviderMismatchWarning(settings().baseUrl, settings().provider));
+  });
   legacy_pre_effect(() => (get2(skillSearchQuery), get2(discoveredSkills)), () => {
     set(filteredSkills, get2(skillSearchQuery) ? get2(discoveredSkills).filter((s) => s.name.toLowerCase().includes(get2(skillSearchQuery).toLowerCase()) || s.description.toLowerCase().includes(get2(skillSearchQuery).toLowerCase())) : get2(discoveredSkills));
   });
@@ -33889,103 +34240,169 @@ function SettingsView($$anchor, $$props) {
     });
   }
   var div_10 = sibling(node_2, 2);
-  var div_11 = sibling(child(div_10), 2);
-  var input_2 = child(div_11);
-  remove_input_defaults(input_2);
-  reset(div_11);
-  reset(div_10);
-  var div_12 = sibling(div_10, 2);
-  var div_13 = sibling(child(div_12), 2);
-  var input_3 = child(div_13);
-  remove_input_defaults(input_3);
-  reset(div_13);
-  reset(div_12);
-  var div_14 = sibling(div_12, 2);
-  var div_15 = sibling(child(div_14), 2);
-  var button = child(div_15);
-  let classes;
-  var text_4 = child(button, true);
-  reset(button);
-  var node_3 = sibling(button, 2);
+  var div_11 = child(div_10);
+  var div_12 = sibling(child(div_11), 2);
+  var node_3 = sibling(child(div_12));
   {
     var consequent_2 = ($$anchor2) => {
-      var div_16 = root_55();
-      let classes_1;
-      var text_5 = child(div_16);
-      reset(div_16);
+      var div_13 = root_55();
+      append($$anchor2, div_13);
+    };
+    if_block(node_3, ($$render) => {
+      if (deep_read_state(settings()), untrack(() => settings().provider === "openai-compatible")) $$render(consequent_2);
+    });
+  }
+  var node_4 = sibling(node_3, 2);
+  {
+    var consequent_3 = ($$anchor2) => {
+      var div_14 = root_66();
+      var text_4 = child(div_14, true);
+      reset(div_14);
+      template_effect(() => set_text(text_4, get2(baseUrlValidationError)));
+      append($$anchor2, div_14);
+    };
+    var consequent_4 = ($$anchor2) => {
+      var div_15 = root_75();
+      var text_5 = child(div_15, true);
+      reset(div_15);
+      template_effect(() => set_text(text_5, get2(baseUrlProviderWarning)));
+      append($$anchor2, div_15);
+    };
+    if_block(node_4, ($$render) => {
+      if (get2(baseUrlValidationError)) $$render(consequent_3);
+      else if (get2(baseUrlProviderWarning)) $$render(consequent_4, 1);
+    });
+  }
+  reset(div_12);
+  reset(div_11);
+  var div_16 = sibling(div_11, 2);
+  var input_2 = child(div_16);
+  remove_input_defaults(input_2);
+  let classes;
+  reset(div_16);
+  reset(div_10);
+  var div_17 = sibling(div_10, 2);
+  var div_18 = sibling(child(div_17), 2);
+  var input_3 = child(div_18);
+  remove_input_defaults(input_3);
+  reset(div_18);
+  reset(div_17);
+  var div_19 = sibling(div_17, 2);
+  var div_20 = sibling(child(div_19), 2);
+  var button = child(div_20);
+  let classes_1;
+  var text_6 = child(button, true);
+  reset(button);
+  var node_5 = sibling(button, 2);
+  {
+    var consequent_5 = ($$anchor2) => {
+      var div_21 = root_84();
+      let classes_2;
+      var text_7 = child(div_21);
+      reset(div_21);
       template_effect(() => {
-        classes_1 = set_class(div_16, 1, "test-result svelte-1av9wh", null, classes_1, {
+        classes_2 = set_class(div_21, 1, "test-result svelte-1av9wh", null, classes_2, {
           ok: get2(testStatus) === "ok",
           error: get2(testStatus) === "error"
         });
-        set_text(text_5, `${get2(testStatus) === "ok" ? "\u2705 " : get2(testStatus) === "error" ? "\u274C " : ""}${get2(testMessage) ?? ""}`);
+        set_text(text_7, `${get2(testStatus) === "ok" ? "\u2705 " : get2(testStatus) === "error" ? "\u274C " : ""}${get2(testMessage) ?? ""}`);
       });
-      append($$anchor2, div_16);
+      append($$anchor2, div_21);
     };
-    if_block(node_3, ($$render) => {
-      if (get2(testStatus) !== "idle") $$render(consequent_2);
+    if_block(node_5, ($$render) => {
+      if (get2(testStatus) !== "idle") $$render(consequent_5);
     });
   }
-  reset(div_15);
-  reset(div_14);
-  var div_17 = sibling(div_14, 6);
-  var div_18 = sibling(child(div_17), 2);
-  var select_2 = child(div_18);
+  reset(div_20);
+  reset(div_19);
+  var node_6 = sibling(div_19, 2);
+  {
+    var consequent_6 = ($$anchor2) => {
+      var div_22 = root_93();
+      var div_23 = sibling(child(div_22), 2);
+      var input_4 = child(div_23);
+      remove_input_defaults(input_4);
+      var span = sibling(input_4, 2);
+      var text_8 = child(span);
+      reset(span);
+      reset(div_23);
+      reset(div_22);
+      template_effect(($0) => set_text(text_8, `${$0 ?? ""}s`), [
+        () => (deep_read_state(settings()), untrack(() => Math.round((settings().requestTimeoutMs ?? 6e4) / 1e3)))
+      ]);
+      bind_value(input_4, () => settings().requestTimeoutMs, ($$value) => (settings(settings().requestTimeoutMs = $$value, true), invalidate_inner_signals(() => {
+        onProviderChange;
+        ALL_PROVIDERS;
+        PROVIDER_LABELS;
+        onModelChange;
+        get2(currentModels);
+        handleChange;
+      })));
+      event("change", input_4, handleChange);
+      append($$anchor2, div_22);
+    };
+    if_block(node_6, ($$render) => {
+      if (deep_read_state(settings()), untrack(() => settings().provider === "openai-compatible" || settings().provider === "ollama")) $$render(consequent_6);
+    });
+  }
+  var div_24 = sibling(node_6, 6);
+  var div_25 = sibling(child(div_24), 2);
+  var select_2 = child(div_25);
   var option_3 = child(select_2);
   option_3.value = option_3.__value = "openai";
   var option_4 = sibling(option_3);
   option_4.value = option_4.__value = "ollama";
   reset(select_2);
-  reset(div_18);
-  reset(div_17);
-  var div_19 = sibling(div_17, 2);
-  var div_20 = sibling(child(div_19), 2);
-  var input_4 = child(div_20);
-  remove_input_defaults(input_4);
-  reset(div_20);
-  reset(div_19);
-  var div_21 = sibling(div_19, 2);
-  var div_22 = sibling(child(div_21), 2);
-  var input_5 = child(div_22);
-  remove_input_defaults(input_5);
-  reset(div_22);
-  reset(div_21);
-  var div_23 = sibling(div_21, 2);
-  var div_24 = sibling(child(div_23), 2);
-  var input_6 = child(div_24);
-  remove_input_defaults(input_6);
+  reset(div_25);
   reset(div_24);
-  reset(div_23);
-  var div_25 = sibling(div_23, 6);
-  var node_4 = child(div_25);
+  var div_26 = sibling(div_24, 2);
+  var div_27 = sibling(child(div_26), 2);
+  var input_5 = child(div_27);
+  remove_input_defaults(input_5);
+  reset(div_27);
+  reset(div_26);
+  var div_28 = sibling(div_26, 2);
+  var div_29 = sibling(child(div_28), 2);
+  var input_6 = child(div_29);
+  remove_input_defaults(input_6);
+  reset(div_29);
+  reset(div_28);
+  var div_30 = sibling(div_28, 2);
+  var div_31 = sibling(child(div_30), 2);
+  var input_7 = child(div_31);
+  remove_input_defaults(input_7);
+  reset(div_31);
+  reset(div_30);
+  var div_32 = sibling(div_30, 6);
+  var node_7 = child(div_32);
   each(
-    node_4,
+    node_7,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().projects || [])),
     (project) => project.id,
     ($$anchor2, project, $$index_2) => {
-      var div_26 = root_66();
-      var div_27 = child(div_26);
-      var div_28 = child(div_27);
-      var span = child(div_28);
-      var text_6 = child(span, true);
-      reset(span);
-      var node_5 = sibling(span, 2);
+      var div_33 = root_10();
+      var div_34 = child(div_33);
+      var div_35 = child(div_34);
+      var span_1 = child(div_35);
+      var text_9 = child(span_1, true);
+      reset(span_1);
+      var node_8 = sibling(span_1, 2);
       {
-        var consequent_3 = ($$anchor3) => {
-          var span_1 = root_75();
-          append($$anchor3, span_1);
+        var consequent_7 = ($$anchor3) => {
+          var span_2 = root_11();
+          append($$anchor3, span_2);
         };
-        if_block(node_5, ($$render) => {
-          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId === get2(project).id)) $$render(consequent_3);
+        if_block(node_8, ($$render) => {
+          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId === get2(project).id)) $$render(consequent_7);
         });
       }
-      reset(div_28);
-      var div_29 = sibling(div_28, 2);
-      var node_6 = child(div_29);
+      reset(div_35);
+      var div_36 = sibling(div_35, 2);
+      var node_9 = child(div_36);
       {
-        var consequent_4 = ($$anchor3) => {
-          var button_1 = root_84();
+        var consequent_8 = ($$anchor3) => {
+          var button_1 = root_122();
           event("click", button_1, stopPropagation(() => {
             settings(settings().activeProjectId = get2(project).id, true), invalidate_inner_signals(() => {
               onProviderChange;
@@ -34000,7 +34417,7 @@ function SettingsView($$anchor, $$props) {
           append($$anchor3, button_1);
         };
         var alternate = ($$anchor3) => {
-          var button_2 = root_93();
+          var button_2 = root_132();
           event("click", button_2, stopPropagation(() => {
             settings(settings().activeProjectId = null, true), invalidate_inner_signals(() => {
               onProviderChange;
@@ -34014,309 +34431,309 @@ function SettingsView($$anchor, $$props) {
           }));
           append($$anchor3, button_2);
         };
-        if_block(node_6, ($$render) => {
-          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId !== get2(project).id)) $$render(consequent_4);
+        if_block(node_9, ($$render) => {
+          if (deep_read_state(settings()), get2(project), untrack(() => settings().activeProjectId !== get2(project).id)) $$render(consequent_8);
           else $$render(alternate, -1);
         });
       }
-      var button_3 = sibling(node_6, 2);
-      var span_2 = sibling(button_3, 2);
-      var text_7 = child(span_2, true);
-      reset(span_2);
-      reset(div_29);
-      reset(div_27);
-      var node_7 = sibling(div_27, 2);
+      var button_3 = sibling(node_9, 2);
+      var span_3 = sibling(button_3, 2);
+      var text_10 = child(span_3, true);
+      reset(span_3);
+      reset(div_36);
+      reset(div_34);
+      var node_10 = sibling(div_34, 2);
       {
-        var consequent_5 = ($$anchor3) => {
-          var div_30 = root_10();
-          var div_31 = child(div_30);
-          var input_7 = sibling(child(div_31), 2);
-          remove_input_defaults(input_7);
-          reset(div_31);
-          var div_32 = sibling(div_31, 2);
-          var input_8 = sibling(child(div_32), 2);
+        var consequent_9 = ($$anchor3) => {
+          var div_37 = root_142();
+          var div_38 = child(div_37);
+          var input_8 = sibling(child(div_38), 2);
           remove_input_defaults(input_8);
-          reset(div_32);
-          var div_33 = sibling(div_32, 2);
-          var input_9 = sibling(child(div_33), 2);
+          reset(div_38);
+          var div_39 = sibling(div_38, 2);
+          var input_9 = sibling(child(div_39), 2);
           remove_input_defaults(input_9);
-          reset(div_33);
-          var div_34 = sibling(div_33, 2);
-          var input_10 = sibling(child(div_34), 2);
+          reset(div_39);
+          var div_40 = sibling(div_39, 2);
+          var input_10 = sibling(child(div_40), 2);
           remove_input_defaults(input_10);
-          reset(div_34);
-          var div_35 = sibling(div_34, 2);
-          var textarea = sibling(child(div_35), 2);
-          remove_textarea_child(textarea);
-          reset(div_35);
-          var div_36 = sibling(div_35, 2);
-          var input_11 = sibling(child(div_36), 2);
+          reset(div_40);
+          var div_41 = sibling(div_40, 2);
+          var input_11 = sibling(child(div_41), 2);
           remove_input_defaults(input_11);
-          reset(div_36);
-          reset(div_30);
-          bind_value(input_7, () => get2(project).name, ($$value) => (get2(project).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_7, handleChange);
-          bind_value(input_8, () => get2(project).description, ($$value) => (get2(project).description = $$value, invalidate_inner_signals(() => settings())));
+          reset(div_41);
+          var div_42 = sibling(div_41, 2);
+          var textarea = sibling(child(div_42), 2);
+          remove_textarea_child(textarea);
+          reset(div_42);
+          var div_43 = sibling(div_42, 2);
+          var input_12 = sibling(child(div_43), 2);
+          remove_input_defaults(input_12);
+          reset(div_43);
+          reset(div_37);
+          bind_value(input_8, () => get2(project).name, ($$value) => (get2(project).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_8, handleChange);
-          bind_value(input_9, () => get2(project).includeFolders, ($$value) => (get2(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_9, () => get2(project).description, ($$value) => (get2(project).description = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_9, handleChange);
-          bind_value(input_10, () => get2(project).includeTags, ($$value) => (get2(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_10, () => get2(project).includeFolders, ($$value) => (get2(project).includeFolders = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_10, handleChange);
+          bind_value(input_11, () => get2(project).includeTags, ($$value) => (get2(project).includeTags = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_11, handleChange);
           bind_value(textarea, () => get2(project).systemPrompt, ($$value) => (get2(project).systemPrompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea, handleChange);
-          bind_value(input_11, () => get2(project).defaultModel, ($$value) => (get2(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_11, handleChange);
-          append($$anchor3, div_30);
+          bind_value(input_12, () => get2(project).defaultModel, ($$value) => (get2(project).defaultModel = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_12, handleChange);
+          append($$anchor3, div_37);
         };
-        if_block(node_7, ($$render) => {
-          if (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id)) $$render(consequent_5);
+        if_block(node_10, ($$render) => {
+          if (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id)) $$render(consequent_9);
         });
       }
-      reset(div_26);
+      reset(div_33);
       template_effect(() => {
         set_class(
-          div_26,
+          div_33,
           1,
           `persona-card ${(get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_6, (get2(project), untrack(() => get2(project).name)));
-        set_text(text_7, (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id ? "\u25BC" : "\u25B6")));
+        set_text(text_9, (get2(project), untrack(() => get2(project).name)));
+        set_text(text_10, (get2(editingProjectId), get2(project), untrack(() => get2(editingProjectId) === get2(project).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_3, stopPropagation(() => deleteProject(get2(project).id)));
-      event("click", div_27, () => selectProject(get2(project).id));
-      append($$anchor2, div_26);
+      event("click", div_34, () => selectProject(get2(project).id));
+      append($$anchor2, div_33);
     }
   );
-  var button_4 = sibling(node_4, 2);
-  reset(div_25);
-  var div_37 = sibling(div_25, 6);
-  var node_8 = child(div_37);
+  var button_4 = sibling(node_7, 2);
+  reset(div_32);
+  var div_44 = sibling(div_32, 6);
+  var node_11 = child(div_44);
   each(
-    node_8,
+    node_11,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().personas)),
     (persona) => persona.id,
     ($$anchor2, persona, $$index_3) => {
-      var div_38 = root_11();
-      var div_39 = child(div_38);
-      var div_40 = child(div_39);
-      var span_3 = child(div_40);
-      var text_8 = child(span_3, true);
-      reset(span_3);
-      var node_9 = sibling(span_3, 2);
+      var div_45 = root_152();
+      var div_46 = child(div_45);
+      var div_47 = child(div_46);
+      var span_4 = child(div_47);
+      var text_11 = child(span_4, true);
+      reset(span_4);
+      var node_12 = sibling(span_4, 2);
       {
-        var consequent_6 = ($$anchor3) => {
-          var span_4 = root_122();
-          append($$anchor3, span_4);
+        var consequent_10 = ($$anchor3) => {
+          var span_5 = root_162();
+          append($$anchor3, span_5);
         };
-        if_block(node_9, ($$render) => {
-          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId === get2(persona).id)) $$render(consequent_6);
+        if_block(node_12, ($$render) => {
+          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId === get2(persona).id)) $$render(consequent_10);
         });
       }
-      reset(div_40);
-      var div_41 = sibling(div_40, 2);
-      var node_10 = child(div_41);
+      reset(div_47);
+      var div_48 = sibling(div_47, 2);
+      var node_13 = child(div_48);
       {
-        var consequent_7 = ($$anchor3) => {
-          var button_5 = root_132();
+        var consequent_11 = ($$anchor3) => {
+          var button_5 = root_172();
           event("click", button_5, stopPropagation(() => setDefault(get2(persona).id)));
           append($$anchor3, button_5);
         };
-        if_block(node_10, ($$render) => {
-          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId !== get2(persona).id)) $$render(consequent_7);
+        if_block(node_13, ($$render) => {
+          if (deep_read_state(settings()), get2(persona), untrack(() => settings().defaultPersonaId !== get2(persona).id)) $$render(consequent_11);
         });
       }
-      var button_6 = sibling(node_10, 2);
-      var span_5 = sibling(button_6, 2);
-      var text_9 = child(span_5, true);
-      reset(span_5);
-      reset(div_41);
-      reset(div_39);
-      var node_11 = sibling(div_39, 2);
+      var button_6 = sibling(node_13, 2);
+      var span_6 = sibling(button_6, 2);
+      var text_12 = child(span_6, true);
+      reset(span_6);
+      reset(div_48);
+      reset(div_46);
+      var node_14 = sibling(div_46, 2);
       {
-        var consequent_8 = ($$anchor3) => {
-          var div_42 = root_142();
-          var div_43 = child(div_42);
-          var input_12 = sibling(child(div_43), 2);
-          remove_input_defaults(input_12);
-          reset(div_43);
-          var div_44 = sibling(div_43, 2);
-          var input_13 = sibling(child(div_44), 2);
+        var consequent_12 = ($$anchor3) => {
+          var div_49 = root_182();
+          var div_50 = child(div_49);
+          var input_13 = sibling(child(div_50), 2);
           remove_input_defaults(input_13);
-          reset(div_44);
-          var div_45 = sibling(div_44, 2);
-          var textarea_1 = sibling(child(div_45), 2);
+          reset(div_50);
+          var div_51 = sibling(div_50, 2);
+          var input_14 = sibling(child(div_51), 2);
+          remove_input_defaults(input_14);
+          reset(div_51);
+          var div_52 = sibling(div_51, 2);
+          var textarea_1 = sibling(child(div_52), 2);
           remove_textarea_child(textarea_1);
-          reset(div_45);
-          reset(div_42);
-          bind_value(input_12, () => get2(persona).name, ($$value) => (get2(persona).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_12, handleChange);
-          bind_value(input_13, () => get2(persona).description, ($$value) => (get2(persona).description = $$value, invalidate_inner_signals(() => settings())));
+          reset(div_52);
+          reset(div_49);
+          bind_value(input_13, () => get2(persona).name, ($$value) => (get2(persona).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_13, handleChange);
+          bind_value(input_14, () => get2(persona).description, ($$value) => (get2(persona).description = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_14, handleChange);
           bind_value(textarea_1, () => get2(persona).prompt, ($$value) => (get2(persona).prompt = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_1, handleChange);
-          append($$anchor3, div_42);
+          append($$anchor3, div_49);
         };
-        if_block(node_11, ($$render) => {
-          if (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id)) $$render(consequent_8);
+        if_block(node_14, ($$render) => {
+          if (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id)) $$render(consequent_12);
         });
       }
-      reset(div_38);
+      reset(div_45);
       template_effect(() => {
         set_class(
-          div_38,
+          div_45,
           1,
           `persona-card ${(get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_8, (get2(persona), untrack(() => get2(persona).name)));
-        set_text(text_9, (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id ? "\u25BC" : "\u25B6")));
+        set_text(text_11, (get2(persona), untrack(() => get2(persona).name)));
+        set_text(text_12, (get2(editingPersonaId), get2(persona), untrack(() => get2(editingPersonaId) === get2(persona).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_6, stopPropagation(() => deletePersona(get2(persona).id)));
-      event("click", div_39, () => selectPersona(get2(persona).id));
-      append($$anchor2, div_38);
+      event("click", div_46, () => selectPersona(get2(persona).id));
+      append($$anchor2, div_45);
     }
   );
-  var button_7 = sibling(node_8, 2);
-  reset(div_37);
-  var div_46 = sibling(div_37, 4);
-  var code = sibling(child(div_46));
+  var button_7 = sibling(node_11, 2);
+  reset(div_44);
+  var div_53 = sibling(div_44, 4);
+  var code = sibling(child(div_53));
   code.textContent = "{{selection}}";
   next();
-  reset(div_46);
-  var div_47 = sibling(div_46, 2);
-  var node_12 = child(div_47);
+  reset(div_53);
+  var div_54 = sibling(div_53, 2);
+  var node_15 = child(div_54);
   each(
-    node_12,
+    node_15,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().customActions || [])),
     (action2) => action2.id,
     ($$anchor2, action2, $$index_4) => {
-      var div_48 = root_152();
-      var div_49 = child(div_48);
-      var div_50 = child(div_49);
-      var span_6 = child(div_50);
-      var text_10 = child(span_6, true);
-      reset(span_6);
-      reset(div_50);
-      var div_51 = sibling(div_50, 2);
-      var button_8 = child(div_51);
-      var span_7 = sibling(button_8, 2);
-      var text_11 = child(span_7, true);
+      var div_55 = root_192();
+      var div_56 = child(div_55);
+      var div_57 = child(div_56);
+      var span_7 = child(div_57);
+      var text_13 = child(span_7, true);
       reset(span_7);
-      reset(div_51);
-      reset(div_49);
-      var node_13 = sibling(div_49, 2);
+      reset(div_57);
+      var div_58 = sibling(div_57, 2);
+      var button_8 = child(div_58);
+      var span_8 = sibling(button_8, 2);
+      var text_14 = child(span_8, true);
+      reset(span_8);
+      reset(div_58);
+      reset(div_56);
+      var node_16 = sibling(div_56, 2);
       {
-        var consequent_9 = ($$anchor3) => {
-          var div_52 = root_162();
-          var div_53 = child(div_52);
-          var input_14 = sibling(child(div_53), 2);
-          remove_input_defaults(input_14);
-          reset(div_53);
-          var div_54 = sibling(div_53, 2);
-          var textarea_2 = sibling(child(div_54), 2);
+        var consequent_13 = ($$anchor3) => {
+          var div_59 = root_20();
+          var div_60 = child(div_59);
+          var input_15 = sibling(child(div_60), 2);
+          remove_input_defaults(input_15);
+          reset(div_60);
+          var div_61 = sibling(div_60, 2);
+          var textarea_2 = sibling(child(div_61), 2);
           remove_textarea_child(textarea_2);
           set_attribute2(textarea_2, "placeholder", "Translate the following text into French:\\n\\n{{selection}}");
-          reset(div_54);
-          reset(div_52);
-          bind_value(input_14, () => get2(action2).name, ($$value) => (get2(action2).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_14, handleChange);
+          reset(div_61);
+          reset(div_59);
+          bind_value(input_15, () => get2(action2).name, ($$value) => (get2(action2).name = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_15, handleChange);
           bind_value(textarea_2, () => get2(action2).promptTemplate, ($$value) => (get2(action2).promptTemplate = $$value, invalidate_inner_signals(() => settings())));
           event("change", textarea_2, handleChange);
-          append($$anchor3, div_52);
+          append($$anchor3, div_59);
         };
-        if_block(node_13, ($$render) => {
-          if (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id)) $$render(consequent_9);
+        if_block(node_16, ($$render) => {
+          if (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id)) $$render(consequent_13);
         });
       }
-      reset(div_48);
+      reset(div_55);
       template_effect(() => {
         set_class(
-          div_48,
+          div_55,
           1,
           `persona-card ${(get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_10, (get2(action2), untrack(() => get2(action2).name)));
-        set_text(text_11, (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id ? "\u25BC" : "\u25B6")));
+        set_text(text_13, (get2(action2), untrack(() => get2(action2).name)));
+        set_text(text_14, (get2(editingCustomActionId), get2(action2), untrack(() => get2(editingCustomActionId) === get2(action2).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_8, stopPropagation(() => deleteCustomAction(get2(action2).id)));
-      event("click", div_49, () => selectCustomAction(get2(action2).id));
-      append($$anchor2, div_48);
+      event("click", div_56, () => selectCustomAction(get2(action2).id));
+      append($$anchor2, div_55);
     }
   );
-  var button_9 = sibling(node_12, 2);
-  reset(div_47);
-  var div_55 = sibling(div_47, 6);
-  var node_14 = child(div_55);
+  var button_9 = sibling(node_15, 2);
+  reset(div_54);
+  var div_62 = sibling(div_54, 6);
+  var node_17 = child(div_62);
   each(
-    node_14,
+    node_17,
     1,
     () => (deep_read_state(settings()), untrack(() => settings().mcpServers || [])),
     (server) => server.id,
     ($$anchor2, server, $$index_5) => {
-      var div_56 = root_172();
-      var div_57 = child(div_56);
-      var div_58 = child(div_57);
-      var span_8 = child(div_58);
-      var text_12 = child(span_8, true);
-      reset(span_8);
-      var node_15 = sibling(span_8, 2);
+      var div_63 = root_21();
+      var div_64 = child(div_63);
+      var div_65 = child(div_64);
+      var span_9 = child(div_65);
+      var text_15 = child(span_9, true);
+      reset(span_9);
+      var node_18 = sibling(span_9, 2);
       {
-        var consequent_10 = ($$anchor3) => {
-          var span_9 = root_182();
-          append($$anchor3, span_9);
-        };
-        var alternate_1 = ($$anchor3) => {
-          var span_10 = root_192();
+        var consequent_14 = ($$anchor3) => {
+          var span_10 = root_222();
           append($$anchor3, span_10);
         };
-        if_block(node_15, ($$render) => {
-          if (get2(server), untrack(() => !get2(server).enabled)) $$render(consequent_10);
+        var alternate_1 = ($$anchor3) => {
+          var span_11 = root_232();
+          append($$anchor3, span_11);
+        };
+        if_block(node_18, ($$render) => {
+          if (get2(server), untrack(() => !get2(server).enabled)) $$render(consequent_14);
           else $$render(alternate_1, -1);
         });
       }
-      reset(div_58);
-      var div_59 = sibling(div_58, 2);
-      var button_10 = child(div_59);
-      var text_13 = child(button_10, true);
+      reset(div_65);
+      var div_66 = sibling(div_65, 2);
+      var button_10 = child(div_66);
+      var text_16 = child(button_10, true);
       reset(button_10);
       var button_11 = sibling(button_10, 2);
-      var span_11 = sibling(button_11, 2);
-      var text_14 = child(span_11, true);
-      reset(span_11);
-      reset(div_59);
-      reset(div_57);
-      var node_16 = sibling(div_57, 2);
+      var span_12 = sibling(button_11, 2);
+      var text_17 = child(span_12, true);
+      reset(span_12);
+      reset(div_66);
+      reset(div_64);
+      var node_19 = sibling(div_64, 2);
       {
-        var consequent_11 = ($$anchor3) => {
-          var div_60 = root_20();
-          var div_61 = child(div_60);
-          var input_15 = sibling(child(div_61), 2);
-          remove_input_defaults(input_15);
-          reset(div_61);
-          var div_62 = sibling(div_61, 2);
-          var input_16 = sibling(child(div_62), 2);
+        var consequent_15 = ($$anchor3) => {
+          var div_67 = root_242();
+          var div_68 = child(div_67);
+          var input_16 = sibling(child(div_68), 2);
           remove_input_defaults(input_16);
-          reset(div_62);
-          var div_63 = sibling(div_62, 2);
-          var input_17 = sibling(child(div_63), 2);
+          reset(div_68);
+          var div_69 = sibling(div_68, 2);
+          var input_17 = sibling(child(div_69), 2);
           remove_input_defaults(input_17);
-          reset(div_63);
-          var div_64 = sibling(div_63, 2);
-          var textarea_3 = sibling(child(div_64), 2);
-          remove_textarea_child(textarea_3);
-          reset(div_64);
-          var div_65 = sibling(div_64, 2);
-          var input_18 = sibling(child(div_65), 2);
+          reset(div_69);
+          var div_70 = sibling(div_69, 2);
+          var input_18 = sibling(child(div_70), 2);
           remove_input_defaults(input_18);
-          reset(div_65);
-          reset(div_60);
+          reset(div_70);
+          var div_71 = sibling(div_70, 2);
+          var textarea_3 = sibling(child(div_71), 2);
+          remove_textarea_child(textarea_3);
+          reset(div_71);
+          var div_72 = sibling(div_71, 2);
+          var input_19 = sibling(child(div_72), 2);
+          remove_input_defaults(input_19);
+          reset(div_72);
+          reset(div_67);
           template_effect(
             ($0, $1) => {
-              set_value(input_17, $0);
+              set_value(input_18, $0);
               set_value(textarea_3, $1);
             },
             [
@@ -34324,180 +34741,182 @@ function SettingsView($$anchor, $$props) {
               () => (get2(server), untrack(() => getEnvString(get2(server).env)))
             ]
           );
-          bind_value(input_15, () => get2(server).name, ($$value) => (get2(server).name = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_15, handleChange);
-          bind_value(input_16, () => get2(server).command, ($$value) => (get2(server).command = $$value, invalidate_inner_signals(() => settings())));
+          bind_value(input_16, () => get2(server).name, ($$value) => (get2(server).name = $$value, invalidate_inner_signals(() => settings())));
           event("change", input_16, handleChange);
-          event("change", input_17, (e) => setArgsString(get2(server), e.currentTarget.value));
+          bind_value(input_17, () => get2(server).command, ($$value) => (get2(server).command = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_17, handleChange);
+          event("change", input_18, (e) => setArgsString(get2(server), e.currentTarget.value));
           event("change", textarea_3, (e) => setEnvString(get2(server), e.currentTarget.value));
-          bind_value(input_18, () => get2(server).cwd, ($$value) => (get2(server).cwd = $$value, invalidate_inner_signals(() => settings())));
-          event("change", input_18, handleChange);
-          append($$anchor3, div_60);
+          bind_value(input_19, () => get2(server).cwd, ($$value) => (get2(server).cwd = $$value, invalidate_inner_signals(() => settings())));
+          event("change", input_19, handleChange);
+          append($$anchor3, div_67);
         };
-        if_block(node_16, ($$render) => {
-          if (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id)) $$render(consequent_11);
+        if_block(node_19, ($$render) => {
+          if (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id)) $$render(consequent_15);
         });
       }
-      reset(div_56);
+      reset(div_63);
       template_effect(() => {
         set_class(
-          div_56,
+          div_63,
           1,
           `persona-card ${(get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id ? "active" : "")) ?? ""}`,
           "svelte-1av9wh"
         );
-        set_text(text_12, (get2(server), untrack(() => get2(server).name)));
+        set_text(text_15, (get2(server), untrack(() => get2(server).name)));
         set_attribute2(button_10, "title", (get2(server), untrack(() => get2(server).enabled ? "Disable Server" : "Enable Server")));
-        set_text(text_13, (get2(server), untrack(() => get2(server).enabled ? "\u{1F50C}" : "\u{1F50C}")));
-        set_text(text_14, (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id ? "\u25BC" : "\u25B6")));
+        set_text(text_16, (get2(server), untrack(() => get2(server).enabled ? "\u{1F50C}" : "\u{1F50C}")));
+        set_text(text_17, (get2(editingMcpServerId), get2(server), untrack(() => get2(editingMcpServerId) === get2(server).id ? "\u25BC" : "\u25B6")));
       });
       event("click", button_10, stopPropagation(() => toggleMcpServer(get2(server).id)));
       event("click", button_11, stopPropagation(() => deleteMcpServer(get2(server).id)));
-      event("click", div_57, () => selectMcpServer(get2(server).id));
-      append($$anchor2, div_56);
+      event("click", div_64, () => selectMcpServer(get2(server).id));
+      append($$anchor2, div_63);
     }
   );
-  var button_12 = sibling(node_14, 2);
-  reset(div_55);
-  var div_66 = sibling(div_55, 6);
-  var div_67 = sibling(child(div_66), 2);
-  var input_19 = child(div_67);
-  remove_input_defaults(input_19);
-  var button_13 = sibling(input_19, 2);
-  var text_15 = child(button_13, true);
+  var button_12 = sibling(node_17, 2);
+  reset(div_62);
+  var div_73 = sibling(div_62, 6);
+  var div_74 = sibling(child(div_73), 2);
+  var input_20 = child(div_74);
+  remove_input_defaults(input_20);
+  var button_13 = sibling(input_20, 2);
+  var text_18 = child(button_13, true);
   reset(button_13);
-  reset(div_67);
-  reset(div_66);
-  var div_68 = sibling(div_66, 2);
-  var button_14 = child(div_68);
-  var span_12 = child(button_14);
-  var text_16 = child(span_12);
-  reset(span_12);
-  var span_13 = sibling(span_12, 2);
-  var text_17 = child(span_13);
+  reset(div_74);
+  reset(div_73);
+  var div_75 = sibling(div_73, 2);
+  var button_14 = child(div_75);
+  var span_13 = child(button_14);
+  var text_19 = child(span_13);
   reset(span_13);
+  var span_14 = sibling(span_13, 2);
+  var text_20 = child(span_14);
+  reset(span_14);
   reset(button_14);
-  var node_17 = sibling(button_14, 2);
+  var node_20 = sibling(button_14, 2);
   {
-    var consequent_17 = ($$anchor2) => {
-      var fragment = root_21();
-      var node_18 = first_child(fragment);
+    var consequent_21 = ($$anchor2) => {
+      var fragment = root_252();
+      var node_21 = first_child(fragment);
       {
-        var consequent_12 = ($$anchor3) => {
-          var input_20 = root_222();
-          remove_input_defaults(input_20);
-          bind_value(input_20, () => get2(skillSearchQuery), ($$value) => set(skillSearchQuery, $$value));
-          append($$anchor3, input_20);
+        var consequent_16 = ($$anchor3) => {
+          var input_21 = root_262();
+          remove_input_defaults(input_21);
+          bind_value(input_21, () => get2(skillSearchQuery), ($$value) => set(skillSearchQuery, $$value));
+          append($$anchor3, input_21);
         };
-        if_block(node_18, ($$render) => {
-          if (get2(discoveredSkills), untrack(() => get2(discoveredSkills).length > 5)) $$render(consequent_12);
+        if_block(node_21, ($$render) => {
+          if (get2(discoveredSkills), untrack(() => get2(discoveredSkills).length > 5)) $$render(consequent_16);
         });
       }
-      var node_19 = sibling(node_18, 2);
+      var node_22 = sibling(node_21, 2);
       {
-        var consequent_13 = ($$anchor3) => {
-          var div_69 = root_232();
-          var text_18 = child(div_69, true);
-          reset(div_69);
-          template_effect(() => set_text(text_18, get2(skillsLoading) ? "Loading skills..." : get2(skillSearchQuery) ? "No skills match your search." : "No skills found. Check your skills path and click Refresh."));
-          append($$anchor3, div_69);
+        var consequent_17 = ($$anchor3) => {
+          var div_76 = root_272();
+          var text_21 = child(div_76, true);
+          reset(div_76);
+          template_effect(() => set_text(text_21, get2(skillsLoading) ? "Loading skills..." : get2(skillSearchQuery) ? "No skills match your search." : "No skills found. Check your skills path and click Refresh."));
+          append($$anchor3, div_76);
         };
-        if_block(node_19, ($$render) => {
-          if (get2(filteredSkills), untrack(() => get2(filteredSkills).length === 0)) $$render(consequent_13);
+        if_block(node_22, ($$render) => {
+          if (get2(filteredSkills), untrack(() => get2(filteredSkills).length === 0)) $$render(consequent_17);
         });
       }
-      var node_20 = sibling(node_19, 2);
-      each(node_20, 1, () => get2(filteredSkills), (skill) => skill.folderPath, ($$anchor3, skill) => {
+      var node_23 = sibling(node_22, 2);
+      each(node_23, 1, () => get2(filteredSkills), (skill) => skill.folderPath, ($$anchor3, skill) => {
         const cfg = derived_safe_equal(() => (get2(skill), untrack(() => getSkillConfig(get2(skill).folderPath))));
-        var div_70 = root_242();
-        var div_71 = child(div_70);
-        var div_72 = child(div_71);
-        var span_14 = child(div_72);
-        var text_19 = child(span_14, true);
-        reset(span_14);
-        var node_21 = sibling(span_14, 2);
+        var div_77 = root_282();
+        var div_78 = child(div_77);
+        var div_79 = child(div_78);
+        var span_15 = child(div_79);
+        var text_22 = child(span_15, true);
+        reset(span_15);
+        var node_24 = sibling(span_15, 2);
         {
-          var consequent_14 = ($$anchor4) => {
-            var span_15 = root_252();
-            append($$anchor4, span_15);
-          };
-          if_block(node_21, ($$render) => {
-            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled && get2(cfg)?.mandatory)) $$render(consequent_14);
-          });
-        }
-        var node_22 = sibling(node_21, 2);
-        {
-          var consequent_15 = ($$anchor4) => {
-            var span_16 = root_262();
+          var consequent_18 = ($$anchor4) => {
+            var span_16 = root_292();
             append($$anchor4, span_16);
           };
-          var alternate_2 = ($$anchor4) => {
-            var span_17 = root_272();
+          if_block(node_24, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled && get2(cfg)?.mandatory)) $$render(consequent_18);
+          });
+        }
+        var node_25 = sibling(node_24, 2);
+        {
+          var consequent_19 = ($$anchor4) => {
+            var span_17 = root_30();
             append($$anchor4, span_17);
           };
-          if_block(node_22, ($$render) => {
-            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_15);
+          var alternate_2 = ($$anchor4) => {
+            var span_18 = root_31();
+            append($$anchor4, span_18);
+          };
+          if_block(node_25, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_19);
             else $$render(alternate_2, -1);
           });
         }
-        reset(div_72);
-        var div_73 = sibling(div_72, 2);
-        var label = child(div_73);
-        var input_21 = child(label);
-        remove_input_defaults(input_21);
+        reset(div_79);
+        var div_80 = sibling(div_79, 2);
+        var label = child(div_80);
+        var input_22 = child(label);
+        remove_input_defaults(input_22);
         reset(label);
-        var node_23 = sibling(label, 2);
+        var node_26 = sibling(label, 2);
         {
-          var consequent_16 = ($$anchor4) => {
-            var button_15 = root_282();
-            var text_20 = child(button_15, true);
+          var consequent_20 = ($$anchor4) => {
+            var button_15 = root_322();
+            var text_23 = child(button_15, true);
             reset(button_15);
             template_effect(() => {
               set_attribute2(button_15, "title", (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "Remove mandatory" : "Make mandatory")));
               set_style(button_15, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "opacity:1;" : "")));
-              set_text(text_20, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "\u2B50" : "\u2606")));
+              set_text(text_23, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.mandatory ? "\u2B50" : "\u2606")));
             });
             event("click", button_15, stopPropagation(() => toggleSkillMandatory(get2(skill).folderPath)));
             append($$anchor4, button_15);
           };
-          if_block(node_23, ($$render) => {
-            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_16);
+          if_block(node_26, ($$render) => {
+            if (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)) $$render(consequent_20);
           });
         }
-        reset(div_73);
-        reset(div_71);
-        var div_74 = sibling(div_71, 2);
-        var text_21 = child(div_74, true);
-        reset(div_74);
-        reset(div_70);
+        reset(div_80);
+        reset(div_78);
+        var div_81 = sibling(div_78, 2);
+        var text_24 = child(div_81, true);
+        reset(div_81);
+        reset(div_77);
         template_effect(() => {
-          set_text(text_19, (get2(skill), untrack(() => get2(skill).name)));
+          set_text(text_22, (get2(skill), untrack(() => get2(skill).name)));
           set_attribute2(label, "title", (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled ? "Disable skill" : "Enable skill")));
-          set_checked(input_21, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)));
-          set_text(text_21, (get2(skill), untrack(() => get2(skill).description)));
+          set_checked(input_22, (deep_read_state(get2(cfg)), untrack(() => get2(cfg)?.enabled)));
+          set_text(text_24, (get2(skill), untrack(() => get2(skill).description)));
         });
-        event("change", input_21, () => toggleSkillEnabled(get2(skill).folderPath));
-        append($$anchor3, div_70);
+        event("change", input_22, () => toggleSkillEnabled(get2(skill).folderPath));
+        append($$anchor3, div_77);
       });
       append($$anchor2, fragment);
     };
-    if_block(node_17, ($$render) => {
-      if (get2(skillsExpanded)) $$render(consequent_17);
+    if_block(node_20, ($$render) => {
+      if (get2(skillsExpanded)) $$render(consequent_21);
     });
   }
-  reset(div_68);
+  reset(div_75);
   reset(div_1);
   reset(div);
   template_effect(
     ($0, $1) => {
       set_text(text_1, `Choose a model from ${get2(currentProviderLabel) ?? ""}`);
-      classes = set_class(button, 1, "test-btn svelte-1av9wh", null, classes, { loading: get2(testStatus) === "loading" });
+      set_attribute2(input_2, "placeholder", (deep_read_state(settings()), untrack(() => settings().provider === "openai-compatible" ? "http://127.0.0.1:8317/v1" : "https://api.openai.com/v1")));
+      classes = set_class(input_2, 1, "svelte-1av9wh", null, classes, { "input-error": get2(baseUrlValidationError) });
+      classes_1 = set_class(button, 1, "test-btn svelte-1av9wh", null, classes_1, { loading: get2(testStatus) === "loading" });
       button.disabled = get2(testStatus) === "loading";
-      set_text(text_4, get2(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
+      set_text(text_6, get2(testStatus) === "loading" ? "Testing\u2026" : "Test Connection");
       button_13.disabled = get2(skillsLoading);
-      set_text(text_15, get2(skillsLoading) ? "Scanning\u2026" : "\u{1F504} Refresh");
-      set_text(text_16, `${get2(skillsExpanded) ? "\u25BC" : "\u25B6"} Skills (${(get2(discoveredSkills), untrack(() => get2(discoveredSkills).length)) ?? ""})`);
-      set_text(text_17, `${$0 ?? ""} enabled \xB7
+      set_text(text_18, get2(skillsLoading) ? "Scanning\u2026" : "\u{1F504} Refresh");
+      set_text(text_19, `${get2(skillsExpanded) ? "\u25BC" : "\u25B6"} Skills (${(get2(discoveredSkills), untrack(() => get2(discoveredSkills).length)) ?? ""})`);
+      set_text(text_20, `${$0 ?? ""} enabled \xB7
         ${$1 ?? ""} mandatory`);
     },
     [
@@ -34560,16 +34979,7 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", select_2, handleChange);
-  bind_value(input_4, () => settings().embeddingModel, ($$value) => (settings(settings().embeddingModel = $$value, true), invalidate_inner_signals(() => {
-    onProviderChange;
-    ALL_PROVIDERS;
-    PROVIDER_LABELS;
-    onModelChange;
-    get2(currentModels);
-    handleChange;
-  })));
-  event("change", input_4, handleChange);
-  bind_checked(input_5, () => settings().autoIndexVault, ($$value) => (settings(settings().autoIndexVault = $$value, true), invalidate_inner_signals(() => {
+  bind_value(input_5, () => settings().embeddingModel, ($$value) => (settings(settings().embeddingModel = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
@@ -34578,7 +34988,7 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", input_5, handleChange);
-  bind_value(input_6, () => settings().indexExclusions, ($$value) => (settings(settings().indexExclusions = $$value, true), invalidate_inner_signals(() => {
+  bind_checked(input_6, () => settings().autoIndexVault, ($$value) => (settings(settings().autoIndexVault = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
@@ -34587,11 +34997,7 @@ function SettingsView($$anchor, $$props) {
     handleChange;
   })));
   event("change", input_6, handleChange);
-  event("click", button_4, addProject);
-  event("click", button_7, addPersona);
-  event("click", button_9, addCustomAction);
-  event("click", button_12, addMcpServer);
-  bind_value(input_19, () => settings().skillsPath, ($$value) => (settings(settings().skillsPath = $$value, true), invalidate_inner_signals(() => {
+  bind_value(input_7, () => settings().indexExclusions, ($$value) => (settings(settings().indexExclusions = $$value, true), invalidate_inner_signals(() => {
     onProviderChange;
     ALL_PROVIDERS;
     PROVIDER_LABELS;
@@ -34599,7 +35005,20 @@ function SettingsView($$anchor, $$props) {
     get2(currentModels);
     handleChange;
   })));
-  event("change", input_19, handleChange);
+  event("change", input_7, handleChange);
+  event("click", button_4, addProject);
+  event("click", button_7, addPersona);
+  event("click", button_9, addCustomAction);
+  event("click", button_12, addMcpServer);
+  bind_value(input_20, () => settings().skillsPath, ($$value) => (settings(settings().skillsPath = $$value, true), invalidate_inner_signals(() => {
+    onProviderChange;
+    ALL_PROVIDERS;
+    PROVIDER_LABELS;
+    onModelChange;
+    get2(currentModels);
+    handleChange;
+  })));
+  event("change", input_20, handleChange);
   event("click", button_13, refreshSkills);
   event("click", button_14, () => set(skillsExpanded, !get2(skillsExpanded)));
   append($$anchor, div);
@@ -34945,9 +35364,9 @@ ${result}`, cursor);
   getAIProvider() {
     switch (this.settings.provider) {
       case "openai":
-        return new OpenAIProvider(this.settings);
+        return new UniversalAPIProvider(this.settings);
       default:
-        return new OpenAIProvider(this.settings);
+        return new UniversalAPIProvider(this.settings);
     }
   }
 };

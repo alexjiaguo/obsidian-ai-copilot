@@ -1,5 +1,6 @@
 import type { AICopilotSettings } from '../settings/Settings';
 import { requestUrl } from 'obsidian';
+import { normalizeBaseUrl } from '../utils/url';
 
 export class EmbeddingService {
     private settings: AICopilotSettings;
@@ -10,9 +11,9 @@ export class EmbeddingService {
 
     private getBaseUrl(): string {
         if (this.settings.embeddingProvider === 'ollama') {
-            return 'http://localhost:11434/v1';
+            return normalizeBaseUrl(this.settings.baseUrl || 'http://localhost:11434/v1');
         }
-        return 'https://api.openai.com/v1';
+        return normalizeBaseUrl(this.settings.baseUrl || 'https://api.openai.com/v1', 'openai');
     }
 
     async getEmbedding(text: string): Promise<number[]> {
@@ -33,12 +34,17 @@ export class EmbeddingService {
         };
 
         try {
-            const response = await requestUrl({
-                url: url,
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(payload)
-            });
+            const response = await Promise.race([
+                requestUrl({
+                    url: url,
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                }),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Embedding request timed out after 30s')), 30000)
+                )
+            ]);
 
             if (response.status !== 200) {
                 throw new Error(`Embedding API error: ${response.status} ${response.text}`);

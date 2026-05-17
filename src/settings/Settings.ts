@@ -67,7 +67,7 @@ export interface ChatSession {
     projectId?: string | null;
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'ollama' | 'groq' | 'gemini';
+export type ProviderType = 'openai' | 'openai-compatible' | 'anthropic' | 'ollama' | 'groq' | 'gemini';
 
 export interface AICopilotSettings {
     apiKey: string;
@@ -102,6 +102,9 @@ export interface AICopilotSettings {
     // Composer
     autoApplyEdits: boolean;
 
+    // Network
+    requestTimeoutMs: number;
+
     // Tabs
     tabs: { id: string; title: string; sessionId: string | null; projectId: string | null; personaId: string; pinned: boolean }[];
     activeTabId: string;
@@ -109,6 +112,7 @@ export interface AICopilotSettings {
 
 // Provider-specific model lists (verified Mar 2026 - Text Generation Only)
 export const PROVIDER_MODELS: Record<ProviderType, string[]> = {
+    'openai-compatible': [], // user types custom model name
     openai: [
         'gpt-5-pro',
         'gpt-5',
@@ -160,6 +164,7 @@ export const PROVIDER_MODELS: Record<ProviderType, string[]> = {
 
 export const PROVIDER_DEFAULT_URLS: Record<ProviderType, string> = {
     openai: 'https://api.openai.com/v1',
+    'openai-compatible': 'http://127.0.0.1:8000/v1',
     anthropic: 'https://api.anthropic.com/v1',
     ollama: 'http://localhost:11434/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -168,13 +173,14 @@ export const PROVIDER_DEFAULT_URLS: Record<ProviderType, string> = {
 
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
     openai: 'OpenAI',
+    'openai-compatible': 'OpenAI-Compatible (Custom)',
     anthropic: 'Anthropic',
     ollama: 'Ollama (Local)',
     groq: 'Groq',
     gemini: 'Google Gemini',
 };
 
-export const ALL_PROVIDERS: ProviderType[] = ['openai', 'anthropic', 'ollama', 'groq', 'gemini'];
+export const ALL_PROVIDERS: ProviderType[] = ['openai', 'openai-compatible', 'anthropic', 'ollama', 'groq', 'gemini'];
 
 export const DEFAULT_PERSONAS: Persona[] = [
     {
@@ -227,6 +233,7 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     skillsPath: '/Users/boss/Documents/ai_skills_hub',
     skillConfigs: [],
     autoApplyEdits: true,
+    requestTimeoutMs: 60000,
     tabs: [{ id: 'default-tab', title: 'New Chat', sessionId: null, projectId: null, personaId: 'default', pinned: false }],
     activeTabId: 'default-tab'
 };

@@ -78,7 +78,9 @@
   let query = "";
   let messages: ChatMessage[] = [];
   let isLoading = false;
-  let activeContextFile: { path: string; content: string } | null = null;
+  let activeContextFile: { path: string; content: string; type?: 'file' | 'folder' } | null = null;
+  let suppressActiveContext = false;
+  let lastActivePath = "";
 
   // Current Session State
   let currentSessionId: string = "";
@@ -149,7 +151,12 @@
 
   async function checkActiveFile() {
     if (plugin.contextManager) {
-      activeContextFile = await plugin.contextManager.getActiveFileContent();
+      const newContext = await plugin.contextManager.getActiveContextContent();
+      if (newContext && newContext.path !== lastActivePath) {
+        lastActivePath = newContext.path;
+        suppressActiveContext = false; // Reset suppression when context changes
+      }
+      activeContextFile = newContext;
     }
   }
 
@@ -350,13 +357,13 @@
 
     const fullPromptText = `${contextText}\n\nUser Question: ${query}`;
 
-    // Include Active File Context if available and not explicitly added
+    // Include Active Context if available, not suppressed, and not explicitly added
     let systemBase = "";
     if (
-      activeContextFile &&
+      activeContextFile && !suppressActiveContext &&
       !textContexts.some((c) => c.path === activeContextFile?.path)
     ) {
-      systemBase += `\n\n=== CURRENT ACTIVE FILE (${activeContextFile.path}) ===\n${activeContextFile.content}\n==========================\n`;
+      systemBase += `\n\n=== CURRENT ACTIVE CONTEXT (${activeContextFile.path}) ===\n${activeContextFile.content}\n==========================\n`;
     }
 
     // Update Display History immediately
@@ -534,12 +541,22 @@
         ? await plugin.toolManager.getToolsDefinition()
         : [];
 
+      console.debug(`[AI Copilot] Starting tool loop. Tools count: ${tools.length}, Messages count: ${currentMessages.length}`);
+
       while (steps < maxSteps) {
         const response = await plugin.aiProvider.generateResponse(
           currentMessages,
           { model: actualModel },
           tools,
         );
+
+        console.debug(`[AI Copilot] Tool loop step ${steps}:`, {
+          hasContent: !!response.content,
+          contentLength: response.content?.length,
+          contentPreview: response.content?.slice(0, 100),
+          hasToolCalls: !!(response.tool_calls && response.tool_calls.length > 0),
+          toolCallNames: response.tool_calls?.map((tc: any) => tc.function?.name),
+        });
 
         if (response.tool_calls && response.tool_calls.length > 0) {
           // 1. Add Assistant Message with tool calls
@@ -628,15 +645,38 @@
         }
       }
 
+      // Safety net: if the tool loop exhausted maxSteps or content is empty,
+      // try one final call WITHOUT tools to force a plain text response
+      if (!finalContent && steps > 0) {
+        console.warn(`[AI Copilot] Empty finalContent after ${steps} tool steps. Retrying WITHOUT tools...`);
+        try {
+          const retryResponse = await plugin.aiProvider.generateResponse(
+            currentMessages,
+            { model: actualModel },
+            [], // No tools — force a text response
+          );
+          finalContent = retryResponse.content;
+          console.debug(`[AI Copilot] Retry response:`, {
+            hasContent: !!finalContent,
+            contentLength: finalContent?.length,
+          });
+        } catch (retryErr: any) {
+          console.error('[AI Copilot] Retry without tools also failed:', retryErr);
+        }
+      }
+
       // Append Sources if in Vault QA mode
       if (isVaultQAMode && nextMessage.qaSources.length > 0 && finalContent) {
         finalContent += `\n\n**Sources:**\n${nextMessage.qaSources.map((s: any) => `- [[${s}]]`).join("\n")}`;
       }
 
       // Save Final Response
+      if (!finalContent) {
+        console.warn('[AI Copilot] Empty finalContent after API loop. Steps taken:', steps, 'Max steps:', maxSteps, 'Total messages sent:', currentMessages.length);
+      }
       saveMessageToHistory(
         "assistant",
-        finalContent || "(No response from model)",
+        finalContent || `(No response from model — the API returned empty content. Check the browser console for debug logs. Steps: ${steps}/${maxSteps})`,
       );
     } catch (error: any) {
       console.error("AI Chat Error:", error);
@@ -905,10 +945,13 @@
         <div class="quote-preview-content">{quotedMessage.content}</div>
       </div>
     {/if}
-    {#if activeContextFile}
-      <div class="active-file-indicator">
-        <span class="indicator-icon">📄</span>
-        <span class="indicator-text">Viewing: {activeContextFile.path}</span>
+    {#if activeContextFile && !suppressActiveContext}
+      <div class="context-pills" style="margin-bottom: 4px;">
+        <ContextPill
+          text={(activeContextFile.type === 'folder' ? '📁 ' : '📄 ') + "Active: " + (activeContextFile.path.split('/').pop() || activeContextFile.path)}
+          type={activeContextFile.type || "file"}
+          on:remove={() => suppressActiveContext = true}
+        />
       </div>
     {/if}
     {#if selectedContext.length > 0}

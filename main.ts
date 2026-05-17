@@ -3,7 +3,7 @@ import type { MarkdownFileInfo } from 'obsidian';
 import type { AICopilotSettings } from './src/settings/Settings';
 import { DEFAULT_SETTINGS } from './src/settings/Settings';
 import type { AIProvider } from './src/services/APIService';
-import { OpenAIProvider } from './src/services/APIService';
+import { UniversalAPIProvider } from './src/services/APIService';
 import { AIChatView, VIEW_TYPE_AI_CHAT } from './src/views/AIChatView';
 import { EditorHandler } from './src/services/EditorHandler';
 import { ContextManager } from './src/services/ContextManager';
@@ -464,9 +464,9 @@ export default class AICopilotPlugin extends Plugin {
 	getAIProvider(): AIProvider {
 		switch (this.settings.provider) {
 			case 'openai':
-				return new OpenAIProvider(this.settings);
+				return new UniversalAPIProvider(this.settings);
 			default:
-				return new OpenAIProvider(this.settings);
+				return new UniversalAPIProvider(this.settings);
 		}
 	}
 }

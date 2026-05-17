@@ -15,6 +15,10 @@
     ALL_PROVIDERS,
   } from "./Settings";
   import { Notice } from "obsidian";
+  import {
+    getUrlValidationError,
+    getProviderMismatchWarning,
+  } from "../utils/url";
 
   export let settings: AICopilotSettings;
   export let saveSettings: () => Promise<void>;
@@ -51,8 +55,8 @@
     testStatus = "loading";
     testMessage = "Testing connection...";
     try {
-      const { OpenAIProvider } = await import("../services/APIService");
-      const provider = new OpenAIProvider(settings);
+      const { UniversalAPIProvider } = await import("../services/APIService");
+      const provider = new UniversalAPIProvider(settings);
       const result = await provider.testConnection();
       testStatus = result.ok ? "ok" : "error";
       testMessage = result.message;
@@ -226,6 +230,12 @@
   $: currentProviderLabel =
     PROVIDER_LABELS[settings.provider as ProviderType] ?? settings.provider;
 
+  $: baseUrlValidationError = getUrlValidationError(settings.baseUrl);
+  $: baseUrlProviderWarning = getProviderMismatchWarning(
+    settings.baseUrl,
+    settings.provider as ProviderType,
+  );
+
   // ── Skill Management ──
   let discoveredSkills: {
     name: string;
@@ -395,6 +405,14 @@
       <div class="setting-item-name">Base URL</div>
       <div class="setting-item-description">
         API endpoint URL. Change for proxies or local models (Ollama).
+        {#if settings.provider === 'openai-compatible'}
+          <div class="url-hint">Include <code>/v1</code> at the end, e.g. <code>http://127.0.0.1:8317/v1</code></div>
+        {/if}
+        {#if baseUrlValidationError}
+          <div class="url-hint error">{baseUrlValidationError}</div>
+        {:else if baseUrlProviderWarning}
+          <div class="url-hint warning">{baseUrlProviderWarning}</div>
+        {/if}
       </div>
     </div>
     <div class="setting-item-control">
@@ -402,10 +420,12 @@
         type="text"
         bind:value={settings.baseUrl}
         on:change={handleChange}
-        placeholder="https://api.openai.com/v1"
+        class:input-error={baseUrlValidationError}
+        placeholder={settings.provider === 'openai-compatible' ? 'http://127.0.0.1:8317/v1' : 'https://api.openai.com/v1'}
       />
     </div>
   </div>
+
 
   <!-- Auto-Apply Edits -->
   <div class="setting-item">
@@ -454,6 +474,34 @@
       {/if}
     </div>
   </div>
+
+  <!-- Request Timeout (shown for local/compatible providers where latency varies) -->
+  {#if settings.provider === 'openai-compatible' || settings.provider === 'ollama'}
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Request timeout</div>
+      <div class="setting-item-description">
+        How long to wait for a model response before giving up.
+        Local models can be slow on first load — increase this if you see timeout errors.
+      </div>
+    </div>
+    <div class="setting-item-control" style="gap: 8px; align-items: center;">
+      <input
+        type="range"
+        min="15000"
+        max="300000"
+        step="15000"
+        bind:value={settings.requestTimeoutMs}
+        on:change={handleChange}
+        style="width: 140px;"
+      />
+      <span style="min-width: 48px; text-align: right; font-variant-numeric: tabular-nums;">
+        {Math.round((settings.requestTimeoutMs ?? 60000) / 1000)}s
+      </span>
+    </div>
+  </div>
+  {/if}
+
 
   <!-- ── Vault QA & Embeddings ── -->
   <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Vault QA & embeddings</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
@@ -1305,5 +1353,20 @@
   }
   .add-btn:hover {
     background: var(--interactive-accent-hover);
+  }
+
+  .url-hint {
+    margin-top: 4px;
+    font-size: 0.85em;
+    line-height: 1.3;
+  }
+  .url-hint.error {
+    color: #dc2626;
+  }
+  .url-hint.warning {
+    color: #d97706;
+  }
+  .input-error {
+    border-color: #dc2626 !important;
   }
 </style>

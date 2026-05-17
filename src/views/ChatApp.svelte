@@ -244,6 +244,8 @@
         }
         tabs = [...tabs];
      }
+     // Focus the input after the session loads and Svelte re-renders
+     tick().then(() => autoFocusActiveInput(10));
   }
 
   function handleHistoryDelete(event: CustomEvent<string>) {
@@ -428,6 +430,7 @@
     padding: 3px 8px;
     background-color: transparent;
     border-radius: 4px 4px 0 0;
+    border-top: 2px solid transparent; /* Reserve space for active accent */
     cursor: pointer;
     font-size: 11px;
     color: var(--text-muted);
@@ -447,7 +450,8 @@
   .tab.active {
     background-color: var(--background-primary);
     color: var(--text-normal);
-    font-weight: 500;
+    font-weight: 600;
+    border-top: 2px solid var(--interactive-accent); /* Make active tab highly visible */
   }
 
   .tab.pinned {

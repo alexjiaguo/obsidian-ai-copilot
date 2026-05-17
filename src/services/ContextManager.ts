@@ -36,7 +36,7 @@ export class ContextManager {
         return `Error: File not found at ${path}`;
     }
 
-    // Get a rich summary of a folder's contents
+    // Get a rich summary of a folder's contents (shallow read)
     private getFolderContent(folder: TFolder): string {
         const lines: string[] = [`Folder: ${folder.path}`];
         const files: TFile[] = [];
@@ -73,8 +73,32 @@ export class ContextManager {
         return lines.join('\n');
     }
 
-    // Get active file content
-    async getActiveFileContent(): Promise<{ content: string; path: string } | null> {
+    // Get active context (folder if selected in file explorer, else active file)
+    async getActiveContextContent(): Promise<{ content: string; path: string; type: 'file' | 'folder' } | null> {
+        // 1. Check if a folder is explicitly selected in the file explorer
+        try {
+            const fileExplorer = document.querySelector('.workspace-leaf-content[data-type="file-explorer"]');
+            if (fileExplorer) {
+                const activeEl = fileExplorer.querySelector('.is-active');
+                if (activeEl) {
+                    const path = activeEl.getAttribute('data-path');
+                    if (path) {
+                        const abstractFile = this.app.vault.getAbstractFileByPath(path);
+                        if (abstractFile instanceof TFolder) {
+                            return {
+                                content: this.getFolderContent(abstractFile),
+                                path: abstractFile.path,
+                                type: 'folder'
+                            };
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error finding active folder:', e);
+        }
+
+        // 2. Fallback to active file
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) return null;
         
@@ -82,7 +106,8 @@ export class ContextManager {
             const content = await this.app.vault.read(activeFile);
             return {
                 content: content,
-                path: activeFile.path
+                path: activeFile.path,
+                type: 'file'
             };
         } catch (e) {
             console.error('Error reading active file:', e);
