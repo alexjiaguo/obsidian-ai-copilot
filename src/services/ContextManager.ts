@@ -25,8 +25,26 @@ export class ContextManager {
     private urlCacheTimeout = 60000; // 60 seconds for URL content
     private contentExtractor = new ContentExtractor();
 
+    private lastActiveUrlState: { url: string; timestamp: number } | null = null;
+    private lastActiveFileTimestamp: number = 0;
+
     constructor(app: App) {
         this.app = app;
+        
+        // Listen to leaf changes to track whether a web view or file was focused most recently
+        this.app.workspace.on('active-leaf-change', (leaf) => {
+            if (leaf && leaf.view) {
+                const viewType = leaf.view.getViewType();
+                if (viewType === 'surfing-view' || viewType === 'web-browser-view') {
+                    const state = leaf.view.getState();
+                    if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
+                        this.lastActiveUrlState = { url: state.url, timestamp: Date.now() };
+                    }
+                } else if (viewType === 'markdown') {
+                    this.lastActiveFileTimestamp = Date.now();
+                }
+            }
+        });
     }
 
     // Read file content from the vault
@@ -102,15 +120,44 @@ export class ContextManager {
             console.error('Error finding active folder:', e);
         }
 
-        // 2. Check for active web view (e.g., Surfing plugin)
-        const activeLeaf = this.app.workspace.activeLeaf;
-        if (activeLeaf && activeLeaf.view) {
-            const viewType = activeLeaf.view.getViewType();
-            if (viewType === 'surfing-view' || viewType === 'web-browser-view') {
-                const state = activeLeaf.view.getState();
-                if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
-                    const url = state.url;
-                    
+        // 2. Determine whether a web view or a markdown file was more recently focused
+        const activeFile = this.app.workspace.getActiveFile();
+        
+        let shouldCheckWebView = false;
+        if (this.lastActiveUrlState && this.lastActiveUrlState.timestamp > this.lastActiveFileTimestamp) {
+            shouldCheckWebView = true;
+        } else if (!activeFile) {
+            shouldCheckWebView = true;
+        }
+
+        if (shouldCheckWebView) {
+            // Find the leaf for this URL to ensure it's still open
+            const webLeaves = [
+                ...this.app.workspace.getLeavesOfType('surfing-view'),
+                ...this.app.workspace.getLeavesOfType('web-browser-view')
+            ];
+            
+            let targetUrl = this.lastActiveUrlState ? this.lastActiveUrlState.url : null;
+            
+            // If we don't have a specific URL but there's exactly 1 web leaf open, use it
+            if (!targetUrl && webLeaves.length === 1) {
+                const state = webLeaves[0].view.getState();
+                if (state && state.url) targetUrl = state.url;
+            }
+            
+            if (targetUrl) {
+                // Ensure the leaf with this URL is still open
+                let isStillOpen = false;
+                for (const leaf of webLeaves) {
+                    const state = leaf.view.getState();
+                    if (state && state.url === targetUrl) {
+                        isStillOpen = true;
+                        break;
+                    }
+                }
+                
+                if (isStillOpen) {
+                    const url = targetUrl;
                     const now = Date.now();
                     const cached = this.urlCache.get(url);
                     if (cached && (now - cached.timestamp < this.urlCacheTimeout)) {
@@ -127,7 +174,6 @@ export class ContextManager {
                         return { content, path: url, type: 'url' };
                     } catch (e) {
                         console.error('Error fetching web view content:', e);
-                        // We can still return the URL as context even if fetch fails
                         return { content: `Error fetching URL: ${url}`, path: url, type: 'url' };
                     }
                 }
@@ -135,7 +181,6 @@ export class ContextManager {
         }
 
         // 3. Fallback to active file
-        const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) return null;
         
         try {

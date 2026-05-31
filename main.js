@@ -17623,8 +17623,23 @@ var ContextManager = class {
   urlCacheTimeout = 6e4;
   // 60 seconds for URL content
   contentExtractor = new ContentExtractor();
+  lastActiveUrlState = null;
+  lastActiveFileTimestamp = 0;
   constructor(app) {
     this.app = app;
+    this.app.workspace.on("active-leaf-change", (leaf) => {
+      if (leaf && leaf.view) {
+        const viewType = leaf.view.getViewType();
+        if (viewType === "surfing-view" || viewType === "web-browser-view") {
+          const state2 = leaf.view.getState();
+          if (state2 && state2.url && typeof state2.url === "string" && state2.url.startsWith("http")) {
+            this.lastActiveUrlState = { url: state2.url, timestamp: Date.now() };
+          }
+        } else if (viewType === "markdown") {
+          this.lastActiveFileTimestamp = Date.now();
+        }
+      }
+    });
   }
   // Read file content from the vault
   async getFileContent(path) {
@@ -17692,13 +17707,34 @@ Files (${files.length}):`);
     } catch (e) {
       console.error("Error finding active folder:", e);
     }
-    const activeLeaf = this.app.workspace.activeLeaf;
-    if (activeLeaf && activeLeaf.view) {
-      const viewType = activeLeaf.view.getViewType();
-      if (viewType === "surfing-view" || viewType === "web-browser-view") {
-        const state2 = activeLeaf.view.getState();
-        if (state2 && state2.url && typeof state2.url === "string" && state2.url.startsWith("http")) {
-          const url2 = state2.url;
+    const activeFile = this.app.workspace.getActiveFile();
+    let shouldCheckWebView = false;
+    if (this.lastActiveUrlState && this.lastActiveUrlState.timestamp > this.lastActiveFileTimestamp) {
+      shouldCheckWebView = true;
+    } else if (!activeFile) {
+      shouldCheckWebView = true;
+    }
+    if (shouldCheckWebView) {
+      const webLeaves = [
+        ...this.app.workspace.getLeavesOfType("surfing-view"),
+        ...this.app.workspace.getLeavesOfType("web-browser-view")
+      ];
+      let targetUrl = this.lastActiveUrlState ? this.lastActiveUrlState.url : null;
+      if (!targetUrl && webLeaves.length === 1) {
+        const state2 = webLeaves[0].view.getState();
+        if (state2 && state2.url) targetUrl = state2.url;
+      }
+      if (targetUrl) {
+        let isStillOpen = false;
+        for (const leaf of webLeaves) {
+          const state2 = leaf.view.getState();
+          if (state2 && state2.url === targetUrl) {
+            isStillOpen = true;
+            break;
+          }
+        }
+        if (isStillOpen) {
+          const url2 = targetUrl;
           const now = Date.now();
           const cached2 = this.urlCache.get(url2);
           if (cached2 && now - cached2.timestamp < this.urlCacheTimeout) {
@@ -17721,7 +17757,6 @@ ${content}`;
         }
       }
     }
-    const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) return null;
     try {
       const content = await this.app.vault.read(activeFile);
