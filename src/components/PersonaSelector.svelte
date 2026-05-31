@@ -59,9 +59,6 @@
           title={persona.description}
         >
           <span class="item-name">{persona.name}</span>
-          {#if persona.description}
-            <span class="item-desc">{persona.description}</span>
-          {/if}
         </button>
       {/each}
     </div>
@@ -117,14 +114,15 @@
   .dropdown-menu {
     position: absolute;
     top: 100%;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     margin-top: 4px;
     background-color: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     z-index: 1000;
-    min-width: 200px;
+    width: max-content;
     padding: 4px;
     max-height: 300px;
     overflow-y: auto;
@@ -134,7 +132,8 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    text-align: left;
+    text-align: center;
+    align-items: center;
     padding: 8px 12px;
     background: transparent;
     border: none;

@@ -60,7 +60,7 @@
       ...selectedContext,
       {
         type: "folder",
-        text: `📁 ${folderName}`,
+        text: `${folderName}`,
         path: folderPath,
       },
     ];
@@ -78,7 +78,7 @@
   let query = "";
   let messages: ChatMessage[] = [];
   let isLoading = false;
-  let activeContextFile: { path: string; content: string; type?: 'file' | 'folder' } | null = null;
+  let activeContextFile: { path: string; content: string; type?: 'file' | 'folder' | 'url' } | null = null;
   let suppressActiveContext = false;
   let lastActivePath = "";
 
@@ -310,7 +310,7 @@
         ...selectedContext,
         {
           type: "folder",
-          text: `📁 ${item.name || item.path}`,
+          text: `${item.name || item.path}`,
           path: item.path,
         },
       ];
@@ -436,9 +436,14 @@
 
       // Inject long-term memories into system prompt
       let memoryPreamble = "";
-      if (plugin.memoryService) {
+      if (
+        plugin.memoryService &&
+        plugin.settings.enableGlobalMemory !== false
+      ) {
         try {
-          memoryPreamble = await plugin.memoryService.getMemoryPreamble();
+          memoryPreamble = await plugin.memoryService.getMemoryPreamble(
+            plugin.settings,
+          );
         } catch (e) {
           console.warn("Could not load memories:", e);
         }
@@ -467,6 +472,7 @@
           soulPreamble =
             await plugin.personaSoulService.buildSoulPreamble(
               selectedPersonaId,
+              plugin.settings,
             );
         } catch (e) {
           console.warn("Could not load persona soul:", e);
@@ -861,11 +867,18 @@
     dispatch('projectChange', newProject.id);
     new Notice(`Created new project: ${projectName}`);
   }
+  let showHeaderBar = true;
 </script>
 
 <div class="ai-copilot-container">
-  <div class="header">
-    <div class="controls">
+  {#if !showHeaderBar}
+  <button class="floating-toggle-btn" on:click={() => showHeaderBar = true} title="Show project & persona bar">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+  </button>
+  {/if}
+  
+  <div class="copilot-chat-header" style="display: {showHeaderBar ? 'flex' : 'none'};">
+    <div class="copilot-chat-controls">
       <ProjectSelector
         selectedProjectId={projectId}
         projects={plugin.settings?.projects || []}
@@ -881,6 +894,11 @@
         on:change={(e) => dispatch('personaChange', e.detail)}
       />
     </div>
+    <div class="copilot-header-toggle">
+      <button class="copilot-toggle-btn" on:click={() => showHeaderBar = false} title="Hide project & persona bar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+      </button>
+    </div>
   </div>
 
   <div class="chat-history">
@@ -888,41 +906,35 @@
       <div class="empty-state">
         <div class="empty-icon">✨</div>
         <h3>How can I help you today?</h3>
-        <div class="suggestions">
-          <button
-            on:click={() => {
-              query = "Summarize this note";
-              sendMessage();
-            }}>Summarize this note</button
-          >
-        </div>
       </div>
     {/if}
 
     {#each messages as message, i}
-      {#if message.composerDiff}
-        <ComposerDiff
-          path={message.composerDiff.path}
-          oldText={message.composerDiff.oldText}
-          newText={message.composerDiff.newText}
-          status={message.composerDiff.status}
-          on:accept={() => performDiffAction(message, "accept")}
-          on:reject={() => performDiffAction(message, "reject")}
-          on:revert={() => performDiffAction(message, "revert")}
-        />
-      {:else}
-        <MessageBubble
-          role={message.role}
-          content={message.content}
-          isStreaming={isLoading && message === messages[messages.length - 1]}
-          app={plugin.app}
-          on:insert={() => handleInsert(message.content)}
-          on:copy={() => handleCopy(message.content)}
-          on:edit={() => handleEditMessage(i)}
-          on:delete={() => handleDeleteMessage(i)}
-          on:regenerate={() => handleRegenerate(i)}
-          on:quote={() => handleQuote(i, message.content)}
-        />
+      {#if message.role !== 'tool' && !(message.content && (message.content.startsWith('🛠️ Using tool:') || message.content.startsWith('🔧 **Tool Result**:')))}
+        {#if message.composerDiff}
+          <ComposerDiff
+            path={message.composerDiff.path}
+            oldText={message.composerDiff.oldText}
+            newText={message.composerDiff.newText}
+            status={message.composerDiff.status}
+            on:accept={() => performDiffAction(message, "accept")}
+            on:reject={() => performDiffAction(message, "reject")}
+            on:revert={() => performDiffAction(message, "revert")}
+          />
+        {:else}
+          <MessageBubble
+            role={message.role}
+            content={message.content}
+            isStreaming={isLoading && message === messages[messages.length - 1]}
+            app={plugin.app}
+            on:insert={() => handleInsert(message.content)}
+            on:copy={() => handleCopy(message.content)}
+            on:edit={() => handleEditMessage(i)}
+            on:delete={() => handleDeleteMessage(i)}
+            on:regenerate={() => handleRegenerate(i)}
+            on:quote={() => handleQuote(i, message.content)}
+          />
+        {/if}
       {/if}
     {/each}
     {#each messageQueue as queuedMsg}
@@ -948,7 +960,7 @@
     {#if activeContextFile && !suppressActiveContext}
       <div class="context-pills" style="margin-bottom: 4px;">
         <ContextPill
-          text={(activeContextFile.type === 'folder' ? '📁 ' : '📄 ') + "Active: " + (activeContextFile.path.split('/').pop() || activeContextFile.path)}
+          text={"Active: " + (activeContextFile.path.split('/').pop() || activeContextFile.path)}
           type={activeContextFile.type || "file"}
           on:remove={() => suppressActiveContext = true}
         />
@@ -989,14 +1001,63 @@
     -webkit-user-select: text;
   }
 
-  .header {
+  .floating-toggle-btn {
+    position: absolute;
+    top: 4px;
+    right: 16px;
+    z-index: 100;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .floating-toggle-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  .copilot-header-toggle {
+    display: flex;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .copilot-toggle-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+  }
+  
+  .copilot-toggle-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  .copilot-chat-header {
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
+    padding: 2px 16px;
     border-bottom: 1px solid var(--background-modifier-border);
     background-color: var(--background-secondary);
+    z-index: 10;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-app-region: no-drag;
   }
 
   .chat-history {
@@ -1062,7 +1123,7 @@
     background: var(--background-modifier-hover);
   }
 
-  .controls {
+  .copilot-chat-controls {
     display: flex;
     gap: 8px;
     align-items: center;

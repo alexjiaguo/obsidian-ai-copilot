@@ -69,17 +69,86 @@ export class SkillService {
         return this.index;
     }
 
+    isSkillEnabled(folderPath: string, settings?: AICopilotSettings): boolean {
+        const cfg = settings?.skillConfigs?.find(c => c.folderPath === folderPath);
+        return cfg?.enabled ?? false;
+    }
+
+    getEnabledFolderPaths(settings?: AICopilotSettings): Set<string> {
+        const enabled = new Set<string>();
+        for (const skill of this.index) {
+            if (this.isSkillEnabled(skill.folderPath, settings)) {
+                enabled.add(skill.folderPath);
+            }
+        }
+        return enabled;
+    }
+
+    /**
+     * Sync skillConfigs with the on-disk index. Adds missing entries, removes stale ones,
+     * and updates names. Returns true if settings were modified.
+     */
+    syncSkillConfigs(settings: AICopilotSettings, defaultEnabled = false): boolean {
+        let changed = false;
+
+        if (!settings.skillConfigs) {
+            settings.skillConfigs = [];
+            changed = true;
+        }
+
+        const discoveredPaths = new Set(this.index.map(s => s.folderPath));
+        const configByPath = new Map(settings.skillConfigs.map(c => [c.folderPath, c]));
+
+        for (const skill of this.index) {
+            const existing = configByPath.get(skill.folderPath);
+            if (!existing) {
+                settings.skillConfigs.push({
+                    name: skill.name,
+                    folderPath: skill.folderPath,
+                    enabled: defaultEnabled,
+                    mandatory: false,
+                });
+                changed = true;
+            } else if (existing.name !== skill.name) {
+                existing.name = skill.name;
+                changed = true;
+            }
+        }
+
+        const before = settings.skillConfigs.length;
+        settings.skillConfigs = settings.skillConfigs.filter(c => discoveredPaths.has(c.folderPath));
+        if (settings.skillConfigs.length !== before) {
+            changed = true;
+        }
+
+        return changed;
+    }
+
     /**
      * Find a skill by exact name (case-insensitive).
      * Falls back to matching against the folder name.
+     * Optionally restricts to skills in enabledOnly set.
      */
-    async findByName(name: string): Promise<SkillEntry | null> {
+    async findByName(name: string, enabledOnly?: Set<string>): Promise<SkillEntry | null> {
         if (!this.loaded) await this.loadIndex();
+        const entry = this.findByNameInIndex(name);
+        if (!entry) return null;
+        if (enabledOnly && !enabledOnly.has(entry.folderPath)) return null;
+        return entry;
+    }
+
+    /**
+     * Find a skill by name without enabled/disabled filtering (for error messages).
+     */
+    async findByNameAny(name: string): Promise<SkillEntry | null> {
+        if (!this.loaded) await this.loadIndex();
+        return this.findByNameInIndex(name);
+    }
+
+    private findByNameInIndex(name: string): SkillEntry | null {
         const lower = name.toLowerCase().trim();
-        // Try exact name match first
         const exact = this.index.find(s => s.name.toLowerCase() === lower);
         if (exact) return exact;
-        // Try folder name match (e.g., "deep-research" matches the folder)
         const byFolder = this.index.find(s => {
             const folderName = s.folderPath.split('/').pop()?.toLowerCase() || '';
             return folderName === lower || folderName === lower.replace(/\s+/g, '-');
@@ -90,26 +159,25 @@ export class SkillService {
     /**
      * Find skills relevant to a user query by keyword matching against skill names and descriptions.
      * Optionally filters by an enabledSet — only skills in this set will be considered.
+     * If enabledSet is provided and empty, returns [] immediately.
      */
     async findRelevant(query: string, maxResults = 3, enabledSet?: Set<string>): Promise<SkillEntry[]> {
         if (!this.loaded) await this.loadIndex();
         if (this.index.length === 0) return [];
+        if (enabledSet !== undefined && enabledSet.size === 0) return [];
 
         const lowerQuery = query.toLowerCase();
         const words = lowerQuery.split(/\s+/).filter(w => w.length > 2);
 
-        // Filter to enabled skills if set is provided
-        const candidates = enabledSet
+        const candidates = enabledSet !== undefined
             ? this.index.filter(s => enabledSet.has(s.folderPath))
             : this.index;
 
-        // Score each skill by word overlap with name + description
         const scored = candidates.map(skill => {
             const text = `${skill.name} ${skill.description}`.toLowerCase();
             let score = 0;
             for (const word of words) {
                 if (text.includes(word)) score++;
-                // Bonus for exact name match
                 if (skill.name.toLowerCase().includes(word)) score += 2;
             }
             return { skill, score };
@@ -117,7 +185,6 @@ export class SkillService {
 
         scored.sort((a, b) => b.score - a.score);
         
-        // Only return skills with a meaningful match (score > 0)
         return scored
             .filter(s => s.score > 0)
             .slice(0, maxResults)
@@ -147,34 +214,24 @@ export class SkillService {
         if (!this.loaded) await this.loadIndex();
 
         const configs = settings?.skillConfigs || [];
-
-        // Build lookup maps
         const configByPath = new Map<string, SkillConfig>();
         for (const cfg of configs) {
             configByPath.set(cfg.folderPath, cfg);
         }
 
-        // Determine enabled/disabled/mandatory sets
-        const enabledSet = new Set<string>();
+        const enabledSet = this.getEnabledFolderPaths(settings);
         const mandatorySkills: SkillEntry[] = [];
 
         for (const skill of this.index) {
+            if (!enabledSet.has(skill.folderPath)) continue;
             const cfg = configByPath.get(skill.folderPath);
-            // If no config exists for this skill, treat it as enabled (but not mandatory)
-            const isEnabled = cfg ? cfg.enabled : true;
-            const isMandatory = cfg ? (cfg.enabled && cfg.mandatory) : false;
-
-            if (isEnabled) {
-                enabledSet.add(skill.folderPath);
-            }
-            if (isMandatory) {
+            if (cfg?.enabled && cfg.mandatory) {
                 mandatorySkills.push(skill);
             }
         }
 
         let context = '';
 
-        // 1. Mandatory skills — always injected
         if (mandatorySkills.length > 0) {
             context += '\n\n=== MANDATORY SKILLS (Always Consult First) ===\n';
             context += 'You MUST consult the following skills first before generating your response. If a mandatory skill is not suitable for this task, you may ignore it and proceed normally.\n\n';
@@ -186,12 +243,10 @@ export class SkillService {
             context += '=== END MANDATORY SKILLS ===\n';
         }
 
-        // 2. Relevant skills — keyword-matched from enabled (non-mandatory) pool
         const mandatoryPaths = new Set(mandatorySkills.map(s => s.folderPath));
         const relevantPool = new Set([...enabledSet].filter(p => !mandatoryPaths.has(p)));
 
-        const matched = await this.findRelevant(query, 2, relevantPool.size > 0 ? relevantPool : undefined);
-        // Filter out any that were already injected as mandatory
+        const matched = await this.findRelevant(query, 2, relevantPool);
         const additionalMatches = matched.filter(s => !mandatoryPaths.has(s.folderPath));
 
         if (additionalMatches.length > 0) {
@@ -209,12 +264,18 @@ export class SkillService {
     }
 
     /**
-     * List all available skills (for UI or tool use).
+     * List enabled skills (for UI or tool use).
      */
-    async listSkills(): Promise<string> {
+    async listSkills(settings?: AICopilotSettings): Promise<string> {
         if (!this.loaded) await this.loadIndex();
-        if (this.index.length === 0) return 'No skills found.';
-        return this.index.map((s, i) => `${i + 1}. **${s.name}**: ${s.description}`).join('\n');
+        const enabledSet = this.getEnabledFolderPaths(settings);
+        const enabled = this.index.filter(s => enabledSet.has(s.folderPath));
+        if (enabled.length === 0) {
+            return settings
+                ? 'No enabled skills. Enable skills in AI Copilot settings to use them.'
+                : 'No skills found.';
+        }
+        return enabled.map((s, i) => `${i + 1}. **${s.name}**: ${s.description}`).join('\n');
     }
 
     /**
@@ -236,4 +297,3 @@ export class SkillService {
         return result;
     }
 }
-

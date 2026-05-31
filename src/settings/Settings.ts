@@ -105,6 +105,14 @@ export interface AICopilotSettings {
     // Network
     requestTimeoutMs: number;
 
+    // Long-term memory
+    enablePersonaMemory: boolean;
+    enableGlobalMemory: boolean;
+    memoryMaxFacts: number;
+    memoryMaxMistakes: number;
+    memoryMaxPreferences: number;
+    memoryMaxGlobal: number;
+
     // Tabs
     tabs: { id: string; title: string; sessionId: string | null; projectId: string | null; personaId: string; pinned: boolean }[];
     activeTabId: string;
@@ -182,30 +190,43 @@ export const PROVIDER_LABELS: Record<ProviderType, string> = {
 
 export const ALL_PROVIDERS: ProviderType[] = ['openai', 'openai-compatible', 'anthropic', 'ollama', 'groq', 'gemini'];
 
+export const DEFAULT_MEMORY_CAPS = {
+    facts: 20,
+    mistakes: 20,
+    preferences: 30,
+    global: 30,
+} as const;
+
+export const PERSONA_MEMORY_INSTRUCTIONS =
+    '\n\nLong-term memory: Before every reply, obey Mistakes and Preferences in your persona memory. ' +
+    'When the user corrects you ("wrong", "no", "don\'t", "not what I meant"), immediately call `save_persona_memory` with category "mistake" using format: Wrong: … → Correct: …. ' +
+    'When they say "remember" or share stable facts/preferences, call `save_persona_memory` (fact or preference). ' +
+    'When they say "forget" or ask to remove a memory, call `delete_persona_memory`. Do not ask permission to save or delete memories.';
+
 export const DEFAULT_PERSONAS: Persona[] = [
     {
         id: 'default',
         name: 'Default Assistant',
         description: 'Standard helpful AI assistant',
-        prompt: 'You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented. When the user asks you to do something, DO it — don\'t just explain how.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too.'
+        prompt: 'You are a helpful AI assistant embedded in Obsidian. You help users write, think, organize, and manage their knowledge vault. You are proactive, concise, and action-oriented. When the user asks you to do something, DO it — don\'t just explain how.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. Use `save_persona_memory`, `delete_persona_memory`, and `save_memory` for long-term memory.' + PERSONA_MEMORY_INSTRUCTIONS
     },
     {
         id: 'code-expert',
         name: 'Code Expert',
         description: 'Specialized in programming and software architecture',
-        prompt: 'You are an expert software engineer and architect embedded in Obsidian. Provide concise, high-quality code solutions using modern best practices (TypeScript preferred). Be direct about code issues.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too.'
+        prompt: 'You are an expert software engineer and architect embedded in Obsidian. Provide concise, high-quality code solutions using modern best practices (TypeScript preferred). Be direct about code issues.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. Use `save_persona_memory`, `delete_persona_memory`, and `save_memory` for long-term memory.' + PERSONA_MEMORY_INSTRUCTIONS
     },
     {
         id: 'creative-writer',
         name: 'Creative Writer',
         description: 'Helps with brainstorming and drafting',
-        prompt: 'You are a creative writer embedded in Obsidian. Help brainstorm ideas, draft content, refine prose, and develop narrative. Be imaginative and engaging. Match the user\'s writing style when editing their work.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too.'
+        prompt: 'You are a creative writer embedded in Obsidian. Help brainstorm ideas, draft content, refine prose, and develop narrative. Be imaginative and engaging. Match the user\'s writing style when editing their work.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. Use `save_persona_memory`, `delete_persona_memory`, and `save_memory` for long-term memory.' + PERSONA_MEMORY_INSTRUCTIONS
     },
     {
         id: 'academic',
         name: 'Academic Researcher',
         description: 'Formal and citation-focused',
-        prompt: 'You are an academic research assistant embedded in Obsidian. Provide formal, well-structured, evidence-based responses. Cite sources where possible. Use precise language and clear structure.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. For mistakes, save them with `save_persona_memory`. For user facts/preferences, save them too.'
+        prompt: 'You are an academic research assistant embedded in Obsidian. Provide formal, well-structured, evidence-based responses. Cite sources where possible. Use precise language and clear structure.\n\nYou have tools: use `read_note` to read files, `edit_note` (with exact old_text/new_text) to edit them, `create_note` to create, `web_search` for web info, `list_skills`/`use_skill` for specialized expertise. When a file is provided via @mention, its content is in context — go straight to `edit_note`. Use `save_persona_memory`, `delete_persona_memory`, and `save_memory` for long-term memory.' + PERSONA_MEMORY_INSTRUCTIONS
     }
 ];
 
@@ -233,7 +254,13 @@ export const DEFAULT_SETTINGS: AICopilotSettings = {
     skillsPath: '/Users/boss/Documents/ai_skills_hub',
     skillConfigs: [],
     autoApplyEdits: true,
-    requestTimeoutMs: 60000,
+    requestTimeoutMs: 120000,
+    enablePersonaMemory: true,
+    enableGlobalMemory: true,
+    memoryMaxFacts: 20,
+    memoryMaxMistakes: 20,
+    memoryMaxPreferences: 30,
+    memoryMaxGlobal: 30,
     tabs: [{ id: 'default-tab', title: 'New Chat', sessionId: null, projectId: null, personaId: 'default', pinned: false }],
     activeTabId: 'default-tab'
 };

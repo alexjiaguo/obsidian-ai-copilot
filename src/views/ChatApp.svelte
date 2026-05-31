@@ -436,6 +436,8 @@
     color: var(--text-muted);
     max-width: 140px;
     min-width: 40px;
+    height: 24px;
+    box-sizing: border-box;
     transition: background-color 0.12s, color 0.12s;
     line-height: 1.3;
     gap: 3px;
@@ -487,13 +489,21 @@
     border: none;
     color: var(--text-faint);
     cursor: pointer;
-    padding: 0 2px;
+    padding: 0;
+    margin: 0;
     font-size: 10px;
     line-height: 1;
     border-radius: 2px;
     opacity: 0;
     transition: opacity 0.12s, color 0.12s;
     flex-shrink: 0;
+    height: 16px;
+    min-height: 16px;
+    width: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
   }
   .tab:hover .tab-close {
     opacity: 1;
@@ -509,6 +519,7 @@
     color: var(--text-muted);
     cursor: pointer;
     padding: 3px 6px;
+    margin: 0;
     font-size: 14px;
     font-weight: 300;
     line-height: 1;
@@ -518,6 +529,9 @@
     border-radius: 4px;
     transition: color 0.12s;
     flex-shrink: 0;
+    height: 24px;
+    min-height: 24px;
+    box-shadow: none;
   }
   .new-tab-btn:hover {
     color: var(--text-normal);

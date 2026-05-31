@@ -45,6 +45,10 @@ export default class AICopilotPlugin extends Plugin {
         this.memoryService = new MemoryService(this.app);
         this.relevantNotes = new RelevantNotes(this.app, this.vaultQA);
         this.skillService = new SkillService(this.app, this.settings.skillsPath);
+        await this.skillService.loadIndex();
+        if (this.skillService.syncSkillConfigs(this.settings, false)) {
+            await this.saveData(this.settings);
+        }
         this.mcpClientService = new MCPClientService();
         this.mcpClientService.connectAll(this.settings.mcpServers || []).catch(e => console.error("MCP Connect Error", e));
         this.personaSoulService = new PersonaSoulService(this.app);
@@ -438,13 +442,37 @@ export default class AICopilotPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		if (this.settings.requestTimeoutMs === 60000) {
+			this.settings.requestTimeoutMs = 120000;
+		}
+		if (this.settings.enablePersonaMemory === undefined) {
+			this.settings.enablePersonaMemory = true;
+		}
+		if (this.settings.enableGlobalMemory === undefined) {
+			this.settings.enableGlobalMemory = true;
+		}
+		if (this.settings.memoryMaxFacts === undefined) {
+			this.settings.memoryMaxFacts = DEFAULT_SETTINGS.memoryMaxFacts;
+		}
+		if (this.settings.memoryMaxMistakes === undefined) {
+			this.settings.memoryMaxMistakes = DEFAULT_SETTINGS.memoryMaxMistakes;
+		}
+		if (this.settings.memoryMaxPreferences === undefined) {
+			this.settings.memoryMaxPreferences = DEFAULT_SETTINGS.memoryMaxPreferences;
+		}
+		if (this.settings.memoryMaxGlobal === undefined) {
+			this.settings.memoryMaxGlobal = DEFAULT_SETTINGS.memoryMaxGlobal;
+		}
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 		try {
 			this.aiProvider = this.getAIProvider();
-			this.toolManager.setAIProvider(this.aiProvider);
+			if (this.toolManager) {
+				this.toolManager.setAIProvider(this.aiProvider);
+				this.toolManager.setSettings(this.settings);
+			}
 		} catch (e: any) {
 			new Notice(e.message);
 		}

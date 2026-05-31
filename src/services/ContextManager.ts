@@ -1,8 +1,9 @@
 import { App, TFile, TFolder, Vault } from 'obsidian';
+import { ContentExtractor } from './ContentExtractor';
 
 export interface ContextItem {
     path: string;
-    type: 'file' | 'folder' | 'selection' | 'heading' | 'image';
+    type: 'file' | 'folder' | 'selection' | 'heading' | 'image' | 'url';
     content?: string;
     heading?: string; // For heading type
     data?: string; // For base64 image data
@@ -19,7 +20,10 @@ export interface SearchResult {
 export class ContextManager {
     app: App;
     private searchCache: Map<string, { results: SearchResult[]; timestamp: number }> = new Map();
+    private urlCache: Map<string, { content: string; timestamp: number }> = new Map();
     private cacheTimeout = 5000; // 5 seconds cache
+    private urlCacheTimeout = 60000; // 60 seconds for URL content
+    private contentExtractor = new ContentExtractor();
 
     constructor(app: App) {
         this.app = app;
@@ -74,7 +78,7 @@ export class ContextManager {
     }
 
     // Get active context (folder if selected in file explorer, else active file)
-    async getActiveContextContent(): Promise<{ content: string; path: string; type: 'file' | 'folder' } | null> {
+    async getActiveContextContent(): Promise<{ content: string; path: string; type: 'file' | 'folder' | 'url' } | null> {
         // 1. Check if a folder is explicitly selected in the file explorer
         try {
             const fileExplorer = document.querySelector('.workspace-leaf-content[data-type="file-explorer"]');
@@ -98,7 +102,39 @@ export class ContextManager {
             console.error('Error finding active folder:', e);
         }
 
-        // 2. Fallback to active file
+        // 2. Check for active web view (e.g., Surfing plugin)
+        const activeLeaf = this.app.workspace.activeLeaf;
+        if (activeLeaf && activeLeaf.view) {
+            const viewType = activeLeaf.view.getViewType();
+            if (viewType === 'surfing-view' || viewType === 'web-browser-view') {
+                const state = activeLeaf.view.getState();
+                if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
+                    const url = state.url;
+                    
+                    const now = Date.now();
+                    const cached = this.urlCache.get(url);
+                    if (cached && (now - cached.timestamp < this.urlCacheTimeout)) {
+                        return { content: cached.content, path: url, type: 'url' };
+                    }
+                    
+                    try {
+                        const extracted = await this.contentExtractor.extract(url);
+                        let content = extracted.content || "No content could be extracted.";
+                        if (extracted.title) {
+                            content = `# ${extracted.title}\n\n${content}`;
+                        }
+                        this.urlCache.set(url, { content, timestamp: now });
+                        return { content, path: url, type: 'url' };
+                    } catch (e) {
+                        console.error('Error fetching web view content:', e);
+                        // We can still return the URL as context even if fetch fails
+                        return { content: `Error fetching URL: ${url}`, path: url, type: 'url' };
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback to active file
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) return null;
         
@@ -126,6 +162,9 @@ export class ContextManager {
             } else if (item.type === 'folder') {
                  const content = await this.getFileContent(item.path);
                  return `\n=== FOLDER: ${item.path} ===\n${content}\n=====================\n`;
+            } else if (item.type === 'url') {
+                 const content = item.content || "URL content not provided.";
+                 return `\n=== WEBPAGE: ${item.path} ===\n${content}\n=====================\n`;
             } else if (item.type === 'heading') {
                 const content = await this.getFileContent(item.path);
                 // Ideally extract just the section. For now, return whole file with note.

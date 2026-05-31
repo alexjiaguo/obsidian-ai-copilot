@@ -257,6 +257,8 @@
   onMount(async () => {
     try {
       await refreshSkills();
+      await loadGlobalMemoriesList();
+      await loadPersonaMemoryEditor(memoryPersonaId);
     } catch (e) {
       console.error("SettingsView onMount error:", e);
     }
@@ -272,32 +274,10 @@
         description: s.description,
         folderPath: s.folderPath,
       }));
-      // Sync: ensure every discovered skill has a config entry
-      if (!settings.skillConfigs) settings.skillConfigs = [];
-      for (const skill of discoveredSkills) {
-        const existing = settings.skillConfigs.find(
-          (c: SkillConfig) => c.folderPath === skill.folderPath,
-        );
-        if (!existing) {
-          settings.skillConfigs = [
-            ...settings.skillConfigs,
-            {
-              name: skill.name,
-              folderPath: skill.folderPath,
-              enabled: true,
-              mandatory: false,
-            },
-          ];
-        }
+      const changed = plugin.skillService.syncSkillConfigs(settings, true);
+      if (changed) {
+        await saveSettings();
       }
-      // Remove configs for skills that no longer exist on disk
-      const discoveredPaths = new Set(
-        discoveredSkills.map((s) => s.folderPath),
-      );
-      settings.skillConfigs = settings.skillConfigs.filter((c: SkillConfig) =>
-        discoveredPaths.has(c.folderPath),
-      );
-      await saveSettings();
     } catch (e) {
       console.error("Failed to load skills:", e);
     } finally {
@@ -305,22 +285,32 @@
     }
   }
 
-  function getSkillConfig(folderPath: string): SkillConfig | undefined {
-    return settings.skillConfigs?.find(
+  function getSkillConfig(folderPath: string, configs = settings.skillConfigs): SkillConfig | undefined {
+    return configs?.find(
       (c: SkillConfig) => c.folderPath === folderPath,
     );
   }
 
   function toggleSkillEnabled(folderPath: string) {
-    const cfg = settings.skillConfigs?.find(
+    if (!settings.skillConfigs) settings.skillConfigs = [];
+    let cfg = settings.skillConfigs.find(
       (c: SkillConfig) => c.folderPath === folderPath,
     );
-    if (cfg) {
-      cfg.enabled = !cfg.enabled;
-      if (!cfg.enabled) cfg.mandatory = false; // disable mandatory when skill disabled
-      settings.skillConfigs = [...settings.skillConfigs];
-      saveSettings();
+    if (!cfg) {
+      const skill = discoveredSkills.find((s) => s.folderPath === folderPath);
+      cfg = {
+        name: skill?.name ?? folderPath.split('/').pop() ?? '',
+        folderPath,
+        enabled: false,
+        mandatory: false,
+      };
+      settings.skillConfigs = [...settings.skillConfigs, cfg];
     }
+    cfg.enabled = !cfg.enabled;
+    if (!cfg.enabled) cfg.mandatory = false;
+    settings.skillConfigs = [...settings.skillConfigs];
+    settings = settings;
+    saveSettings();
   }
 
   function toggleSkillMandatory(folderPath: string) {
@@ -330,7 +320,106 @@
     if (cfg && cfg.enabled) {
       cfg.mandatory = !cfg.mandatory;
       settings.skillConfigs = [...settings.skillConfigs];
+      settings = settings;
       saveSettings();
+    }
+  }
+
+  // ── Memory management ──
+  let memoryPersonaId = settings.defaultPersonaId || "default";
+  let personaMemoryDraft = "";
+  let personaMemoryPath = "";
+  let globalMemories: { id: string; content: string }[] = [];
+  let memoryLoading = false;
+
+  async function loadPersonaMemoryEditor(personaId: string) {
+    if (!plugin?.personaSoulService) return;
+    memoryLoading = true;
+    try {
+      personaMemoryPath =
+        plugin.personaSoulService.getMemoryFilePath(personaId);
+      personaMemoryDraft =
+        (await plugin.personaSoulService.loadMemory(personaId)) ||
+        `# Memory\n\n## Facts\n\n## Mistakes\n\n## Preferences\n`;
+    } catch (e) {
+      console.error("Failed to load persona memory:", e);
+    } finally {
+      memoryLoading = false;
+    }
+  }
+
+  async function onMemoryPersonaChange() {
+    await loadPersonaMemoryEditor(memoryPersonaId);
+  }
+
+  async function loadGlobalMemoriesList() {
+    if (!plugin?.memoryService) return;
+    try {
+      const entries = await plugin.memoryService.getMemoriesForUI();
+      globalMemories = entries.map((m: any) => ({
+        id: m.id,
+        content: m.content,
+      }));
+    } catch (e) {
+      console.error("Failed to load global memories:", e);
+    }
+  }
+
+  async function savePersonaMemoryDraft() {
+    if (!plugin?.personaSoulService) return;
+    try {
+      await plugin.personaSoulService.saveMemoryFile(
+        memoryPersonaId,
+        personaMemoryDraft,
+      );
+      new Notice("Persona memory saved.");
+    } catch (e: any) {
+      new Notice(`Failed to save memory: ${e.message}`);
+    }
+  }
+
+  async function clearPersonaMistakes() {
+    if (!plugin?.personaSoulService) return;
+    try {
+      const msg = await plugin.personaSoulService.clearSection(
+        memoryPersonaId,
+        "mistake",
+      );
+      await loadPersonaMemoryEditor(memoryPersonaId);
+      new Notice(msg);
+    } catch (e: any) {
+      new Notice(`Failed to clear mistakes: ${e.message}`);
+    }
+  }
+
+  async function exportPersonaMemory() {
+    try {
+      await navigator.clipboard.writeText(personaMemoryDraft);
+      new Notice("Persona memory copied to clipboard.");
+    } catch (e: any) {
+      new Notice(`Export failed: ${e.message}`);
+    }
+  }
+
+  async function clearGlobalMemories() {
+    if (!plugin?.memoryService) return;
+    try {
+      const msg = await plugin.memoryService.clearAll();
+      await loadGlobalMemoriesList();
+      new Notice(msg);
+    } catch (e: any) {
+      new Notice(`Failed to clear global memories: ${e.message}`);
+    }
+  }
+
+  async function deleteGlobalMemory(id: string) {
+    if (!plugin?.memoryService) return;
+    try {
+      await plugin.memoryService.deleteMemory(id);
+      await loadGlobalMemoriesList();
+      new Notice("Global memory deleted.");
+    } catch (e: any) {
+      new Notice(`Failed to delete: ${e.message}`);
     }
   }
 </script>
@@ -476,7 +565,7 @@
   </div>
 
   <!-- Request Timeout (shown for local/compatible providers where latency varies) -->
-  {#if settings.provider === 'openai-compatible' || settings.provider === 'ollama'}
+  {#if settings.provider === 'openai-compatible' || settings.provider === 'ollama' || settings.provider === 'openai'}
   <div class="setting-item">
     <div class="setting-item-info">
       <div class="setting-item-name">Request timeout</div>
@@ -496,7 +585,7 @@
         style="width: 140px;"
       />
       <span style="min-width: 48px; text-align: right; font-variant-numeric: tabular-nums;">
-        {Math.round((settings.requestTimeoutMs ?? 60000) / 1000)}s
+        {Math.round((settings.requestTimeoutMs ?? 120000) / 1000)}s
       </span>
     </div>
   </div>
@@ -759,6 +848,118 @@
     <button class="add-btn" on:click={addPersona}>+ Add new persona</button>
   </div>
 
+  <!-- ── Memory ── -->
+  <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Memory</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
+  <div class="setting-description">
+    Long-term memory persists in your vault. Persona memory (per AI personality) is recommended for facts, corrections, and preferences. Global memory applies across all personas. Only the most recent entries are injected each turn to save tokens.
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Persona memory</div>
+      <div class="setting-item-description">Inject per-persona memory.md into chat</div>
+    </div>
+    <div class="setting-item-control">
+      <input
+        type="checkbox"
+        bind:checked={settings.enablePersonaMemory}
+        on:change={handleChange}
+      />
+    </div>
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Global memory</div>
+      <div class="setting-item-description">Inject ai-copilot-memory.json into chat</div>
+    </div>
+    <div class="setting-item-control">
+      <input
+        type="checkbox"
+        bind:checked={settings.enableGlobalMemory}
+        on:change={handleChange}
+      />
+    </div>
+  </div>
+
+  <div class="setting-item">
+    <div class="setting-item-info">
+      <div class="setting-item-name">Injection limits</div>
+      <div class="setting-item-description">Max entries injected per turn (most recent kept)</div>
+    </div>
+    <div class="setting-item-control memory-caps">
+      <label>Facts <input type="number" min="0" max="100" bind:value={settings.memoryMaxFacts} on:change={handleChange} /></label>
+      <label>Mistakes <input type="number" min="0" max="100" bind:value={settings.memoryMaxMistakes} on:change={handleChange} /></label>
+      <label>Prefs <input type="number" min="0" max="100" bind:value={settings.memoryMaxPreferences} on:change={handleChange} /></label>
+      <label>Global <input type="number" min="0" max="100" bind:value={settings.memoryMaxGlobal} on:change={handleChange} /></label>
+    </div>
+  </div>
+
+  <div class="personas-container memory-editor">
+    <div class="persona-card active">
+      <div class="persona-header" style="cursor: default;">
+        <div class="persona-name" style="flex:1;">
+          <span class="name-text">Persona memory file</span>
+        </div>
+        <div class="persona-actions">
+          <select bind:value={memoryPersonaId} on:change={onMemoryPersonaChange} class="memory-persona-select">
+            {#each settings.personas as persona (persona.id)}
+              <option value={persona.id}>{persona.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+      <div class="persona-editor memory-file-editor">
+        <div class="memory-file-form">
+          <div class="memory-path-label">
+            Path: <code>{personaMemoryPath || ".ai-copilot/personas/…/memory.md"}</code>
+          </div>
+          <textarea
+            bind:value={personaMemoryDraft}
+            rows="12"
+            placeholder={memoryLoading ? "Loading…" : "Facts, Mistakes, and Preferences sections…"}
+            disabled={memoryLoading}
+          ></textarea>
+        </div>
+        <div class="memory-actions">
+          <button class="memory-btn memory-btn-primary" type="button" on:click={savePersonaMemoryDraft}>Save memory file</button>
+          <button class="memory-btn" type="button" on:click={clearPersonaMistakes}>Clear mistakes</button>
+          <button class="memory-btn" type="button" on:click={exportPersonaMemory}>Copy to clipboard</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="persona-card">
+      <div class="persona-header" style="cursor: default;">
+        <div class="persona-name">
+          <span class="name-text">Global memories</span>
+          <span class="default-badge">{globalMemories.length}</span>
+        </div>
+        <div class="persona-actions memory-header-actions">
+          <button class="memory-btn" type="button" on:click={loadGlobalMemoriesList}>Refresh</button>
+          <button class="memory-btn" type="button" on:click={clearGlobalMemories}>Clear all</button>
+        </div>
+      </div>
+      <div class="persona-editor">
+        <div class="form-group">
+          <label>File: <code>{plugin?.memoryService?.getMemoryFilePath?.() ?? "ai-copilot-memory.json"}</code></label>
+          {#if globalMemories.length === 0}
+            <div style="color:var(--text-muted); font-size:0.85em;">No global memories saved.</div>
+          {:else}
+            <ul class="global-memory-list">
+              {#each globalMemories as mem (mem.id)}
+                <li>
+                  <span>{mem.content}</span>
+                  <button class="icon-btn" type="button" title="Delete" on:click={() => deleteGlobalMemory(mem.id)}>🗑️</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Custom Actions ── -->
   <div class="setting-item setting-item-heading"><div class="setting-item-info"><div class="setting-item-name">Custom actions</div><div class="setting-item-description"></div></div><div class="setting-item-control"></div></div>
   <div class="setting-description">
@@ -998,7 +1199,7 @@
       {/if}
 
       {#each filteredSkills as skill (skill.folderPath)}
-        {@const cfg = getSkillConfig(skill.folderPath)}
+        {@const cfg = getSkillConfig(skill.folderPath, settings.skillConfigs)}
         <div class="persona-card">
           <div class="persona-header">
             <div class="persona-name" style="flex:1;">
@@ -1280,6 +1481,137 @@
     flex-direction: column;
     gap: 10px;
     background: var(--background-primary-alt, var(--background-secondary));
+  }
+
+  .memory-caps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+    font-size: 0.85em;
+  }
+  .memory-caps label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .memory-caps input[type="number"] {
+    width: 52px;
+  }
+  .memory-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .memory-header-actions {
+    gap: 8px;
+  }
+
+  .memory-btn {
+    margin: 0;
+    padding: 6px 14px;
+    min-height: 32px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .memory-btn:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+    border-color: var(--background-modifier-border-hover);
+  }
+
+  .memory-btn-primary {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+  }
+
+  .memory-btn-primary:hover:not(:disabled) {
+    background: var(--interactive-accent-hover);
+    border-color: var(--interactive-accent-hover);
+  }
+
+  .memory-file-editor {
+    gap: 12px;
+  }
+
+  .memory-file-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .memory-path-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+
+  .memory-path-label code {
+    font-size: 0.95em;
+    color: var(--text-normal);
+  }
+
+  .memory-file-form textarea {
+    width: 100%;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    color: var(--text-normal);
+    border-radius: 4px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    font-family: var(--font-monospace);
+    font-size: 0.8em;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .memory-file-form textarea:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.15);
+  }
+  .memory-persona-select {
+    font-size: 0.85em;
+    max-width: 160px;
+  }
+  .global-memory-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+  .global-memory-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--background-secondary);
+    font-size: 0.85em;
+  }
+  .global-memory-list span {
+    flex: 1;
+    word-break: break-word;
   }
 
   .form-group {

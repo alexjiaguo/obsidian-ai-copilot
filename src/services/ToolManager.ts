@@ -67,6 +67,10 @@ export class ToolManager {
         this.activePersonaId = personaId;
     }
 
+    setSettings(settings: AICopilotSettings) {
+        this.settings = settings;
+    }
+
     private registerTools() {
         // Use static definitions if already created (for non-MCP tools)
         if (ToolManager.toolDefinitions && this.tools.length === 0) {
@@ -311,7 +315,7 @@ export class ToolManager {
         // 9. Save Memory
         this.tools.push({
             name: 'save_memory',
-            description: 'Saves a user preference or instruction to long-term memory. Use this when the user says "remember this", "always do X", or expresses a recurring preference.',
+            description: 'Saves a vault-wide preference to global memory. Prefer save_persona_memory for persona-specific facts, mistakes, and preferences. Use when the user says "remember this" for something that applies across all personas.',
             parameters: {
                 type: 'object',
                 properties: {
@@ -320,6 +324,9 @@ export class ToolManager {
                 required: ['content']
             },
             execute: async ({ content }) => {
+                if (this.settings?.enableGlobalMemory === false) {
+                    return 'Global memory is disabled in AI Copilot settings. Use save_persona_memory instead.';
+                }
                 try {
                     return await this.memoryService.addMemory(content);
                 } catch (error: any) {
@@ -331,17 +338,43 @@ export class ToolManager {
         // 10. List Memories
         this.tools.push({
             name: 'list_memories',
-            description: 'Lists all saved user memories and preferences.',
+            description: 'Lists saved global vault memories (not persona memory).',
             parameters: {
                 type: 'object',
                 properties: {},
                 required: []
             },
             execute: async () => {
+                if (this.settings?.enableGlobalMemory === false) {
+                    return 'Global memory is disabled in AI Copilot settings.';
+                }
                 try {
                     return await this.memoryService.listMemories();
                 } catch (error: any) {
                     return `Error listing memories: ${error.message}`;
+                }
+            }
+        });
+
+        // 10b. Delete global memory
+        this.tools.push({
+            name: 'delete_memory',
+            description: 'Deletes a global vault memory when the user says "forget" and refers to a global preference. Pass id prefix or matching text.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    content: { type: 'string', description: 'Memory id prefix or text that appears in the entry to delete' }
+                },
+                required: ['content']
+            },
+            execute: async ({ content }) => {
+                if (this.settings?.enableGlobalMemory === false) {
+                    return 'Global memory is disabled in AI Copilot settings.';
+                }
+                try {
+                    return await this.memoryService.deleteMemory(content);
+                } catch (error: any) {
+                    return `Error deleting memory: ${error.message}`;
                 }
             }
         });
@@ -441,7 +474,7 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
         // 14. List Skills
         this.tools.push({
             name: 'list_skills',
-            description: 'Lists all available agentic skills with their names and descriptions. Call this first to discover which skills exist before using one.',
+            description: 'Lists enabled agentic skills with their names and descriptions. Disabled skills are omitted. Call this first to discover which skills you can use.',
             parameters: {
                 type: 'object',
                 properties: {},
@@ -450,7 +483,7 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
             execute: async () => {
                 if (!this.skillService) return 'Error: SkillService is not configured.';
                 try {
-                    return await this.skillService.listSkills();
+                    return await this.skillService.listSkills(this.settings ?? undefined);
                 } catch (error: any) {
                     return `Error listing skills: ${error.message}`;
                 }
@@ -472,12 +505,22 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
             execute: async ({ skill_name, task }) => {
                 if (!this.skillService) return 'Error: SkillService is not configured.';
                 try {
-                    // 1. Try exact name match
-                    let skill = await this.skillService.findByName(skill_name);
+                    const enabledSet = this.skillService.getEnabledFolderPaths(this.settings ?? undefined);
 
-                    // 2. Fallback to fuzzy search
+                    // 1. Try exact name match in enabled set
+                    let skill = await this.skillService.findByName(skill_name, enabledSet);
+
+                    // 2. Check if skill exists but is disabled
                     if (!skill) {
-                        const fuzzy = await this.skillService.findRelevant(skill_name, 3);
+                        const anyMatch = await this.skillService.findByNameAny(skill_name);
+                        if (anyMatch && !enabledSet.has(anyMatch.folderPath)) {
+                            return `Skill "${skill_name}" exists but is disabled. Enable it in Settings → Skills to use it.`;
+                        }
+                    }
+
+                    // 3. Fallback to fuzzy search in enabled set only
+                    if (!skill) {
+                        const fuzzy = await this.skillService.findRelevant(skill_name, 3, enabledSet);
                         if (fuzzy.length > 0) {
                             skill = fuzzy[0];
                             const suggestions = fuzzy.map(s => `"${s.name}"`).join(', ');
@@ -506,21 +549,75 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
         // 16. Save Persona Memory
         this.tools.push({
             name: 'save_persona_memory',
-            description: 'Saves a fact, mistake, or preference to this persona\'s persistent memory. Use this when the user tells you something important about themselves (fact), when you make an error and learn from it (mistake), or when the user expresses a recurring preference (preference).',
+            description: 'Saves a fact, mistake, or preference to this persona\'s persistent memory file. Use on corrections (mistake), "remember this" (fact/preference), and recurring workflow rules. Do not ask permission.',
             parameters: {
                 type: 'object',
                 properties: {
-                    content: { type: 'string', description: 'The memory content to save' },
+                    content: { type: 'string', description: 'The memory content to save. For mistakes use: Wrong: … → Correct: …' },
                     category: { type: 'string', enum: ['fact', 'mistake', 'preference'], description: 'Category: fact (about the user), mistake (lesson learned), or preference (how user wants things done)' }
                 },
                 required: ['content', 'category']
             },
             execute: async ({ content, category }) => {
                 if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                if (this.settings?.enablePersonaMemory === false) {
+                    return 'Persona memory is disabled in AI Copilot settings. Enable it under Settings → Memory.';
+                }
                 try {
                     return await this.personaSoulService.addMemory(this.activePersonaId, content, category);
                 } catch (error: any) {
                     return `Error saving persona memory: ${error.message}`;
+                }
+            }
+        });
+
+        // 16b. Delete Persona Memory
+        this.tools.push({
+            name: 'delete_persona_memory',
+            description: 'Removes an entry from this persona\'s memory when the user says "forget that", "remove that memory", or "don\'t remember …". Match by text contained in the bullet.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    content: { type: 'string', description: 'Text that identifies the memory entry to remove' },
+                    category: { type: 'string', enum: ['fact', 'mistake', 'preference'], description: 'Optional: limit search to one section' }
+                },
+                required: ['content']
+            },
+            execute: async ({ content, category }) => {
+                if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                if (this.settings?.enablePersonaMemory === false) {
+                    return 'Persona memory is disabled in AI Copilot settings.';
+                }
+                try {
+                    return await this.personaSoulService.deleteMemory(
+                        this.activePersonaId,
+                        content,
+                        category,
+                    );
+                } catch (error: any) {
+                    return `Error deleting persona memory: ${error.message}`;
+                }
+            }
+        });
+
+        // 16c. List Persona Memory
+        this.tools.push({
+            name: 'list_persona_memories',
+            description: 'Lists this persona\'s saved facts, mistakes, and preferences from memory.md.',
+            parameters: {
+                type: 'object',
+                properties: {},
+                required: []
+            },
+            execute: async () => {
+                if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                if (this.settings?.enablePersonaMemory === false) {
+                    return 'Persona memory is disabled in AI Copilot settings.';
+                }
+                try {
+                    return await this.personaSoulService.listMemorySummary(this.activePersonaId);
+                } catch (error: any) {
+                    return `Error listing persona memories: ${error.message}`;
                 }
             }
         });
@@ -538,6 +635,9 @@ ${isDetailed ? '### Detailed Summary\n(comprehensive paragraph-form summary)\n\n
             },
             execute: async ({ description }) => {
                 if (!this.personaSoulService) return 'Error: PersonaSoulService is not configured.';
+                if (this.settings?.enablePersonaMemory === false) {
+                    return 'Persona memory is disabled in AI Copilot settings.';
+                }
                 try {
                     return await this.personaSoulService.addMemory(this.activePersonaId, description, 'mistake');
                 } catch (error: any) {

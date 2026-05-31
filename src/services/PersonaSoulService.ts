@@ -1,8 +1,25 @@
-import { App, TFile, TFolder, normalizePath } from 'obsidian';
+import { App, TFile, normalizePath } from 'obsidian';
+import type { AICopilotSettings } from '../settings/Settings';
+import { DEFAULT_MEMORY_CAPS } from '../settings/Settings';
 
 const SOUL_DIR = '.ai-copilot/personas';
 
-type MemoryCategory = 'fact' | 'mistake' | 'preference';
+export type MemoryCategory = 'fact' | 'mistake' | 'preference';
+
+const SECTION_HEADINGS: Record<MemoryCategory, string> = {
+    fact: '## Facts',
+    mistake: '## Mistakes',
+    preference: '## Preferences',
+};
+
+const EMPTY_MEMORY_TEMPLATE = `# Memory
+
+## Facts
+
+## Mistakes
+
+## Preferences
+`;
 
 export class PersonaSoulService {
     private app: App;
@@ -10,8 +27,6 @@ export class PersonaSoulService {
     constructor(app: App) {
         this.app = app;
     }
-
-    // ── Path helpers ──────────────────────────────────────────
 
     private personaDir(personaId: string): string {
         return normalizePath(`${SOUL_DIR}/${personaId}`);
@@ -25,7 +40,9 @@ export class PersonaSoulService {
         return normalizePath(`${this.personaDir(personaId)}/memory.md`);
     }
 
-    // ── Folder creation ──────────────────────────────────────
+    getMemoryFilePath(personaId: string): string {
+        return this.memoryPath(personaId);
+    }
 
     private async ensureDir(dirPath: string): Promise<void> {
         const parts = dirPath.split('/');
@@ -39,8 +56,6 @@ export class PersonaSoulService {
             }
         }
     }
-
-    // ── Soul (personality / behavioral instructions) ─────────
 
     async loadSoul(personaId: string): Promise<string> {
         const path = this.soulPath(personaId);
@@ -62,20 +77,15 @@ export class PersonaSoulService {
         }
     }
 
-    /**
-     * Initialise default soul.md for a persona if it doesn't exist yet.
-     */
     async ensureDefaultSoul(personaId: string, personaName: string): Promise<void> {
         const path = this.soulPath(personaId);
         const existing = this.app.vault.getAbstractFileByPath(path);
-        if (existing) return; // already has a soul file
+        if (existing) return;
 
         const defaultSoul = this.getDefaultSoulContent(personaId, personaName);
         await this.ensureDir(this.personaDir(personaId));
         await this.app.vault.create(path, defaultSoul);
     }
-
-    // ── Memory (facts, mistakes, preferences) ────────────────
 
     async loadMemory(personaId: string): Promise<string> {
         const path = this.memoryPath(personaId);
@@ -86,93 +96,193 @@ export class PersonaSoulService {
         return '';
     }
 
-    /**
-     * Append a memory entry under the appropriate category heading.
-     * Creates the file and category headings if they don't exist.
-     */
+    async saveMemoryFile(personaId: string, content: string): Promise<void> {
+        const path = this.memoryPath(personaId);
+        await this.ensureDir(this.personaDir(personaId));
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file && file instanceof TFile) {
+            await this.app.vault.modify(file, content);
+        } else {
+            await this.app.vault.create(path, content || EMPTY_MEMORY_TEMPLATE);
+        }
+    }
+
+    parseMemorySections(content: string): Record<MemoryCategory, string[]> {
+        const sections: Record<MemoryCategory, string[]> = {
+            fact: [],
+            mistake: [],
+            preference: [],
+        };
+
+        for (const category of Object.keys(SECTION_HEADINGS) as MemoryCategory[]) {
+            sections[category] = this.parseSectionLines(content, SECTION_HEADINGS[category]);
+        }
+
+        return sections;
+    }
+
+    private parseSectionLines(content: string, heading: string): string[] {
+        if (!content.includes(heading)) return [];
+
+        const start = content.indexOf(heading) + heading.length;
+        const rest = content.slice(start);
+        const nextHeading = rest.search(/\n## /);
+        const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+
+        return section
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.startsWith('- '));
+    }
+
+    buildMemoryMarkdown(sections: Record<MemoryCategory, string[]>): string {
+        const renderSection = (heading: string, lines: string[]) => {
+            const body = lines.length > 0 ? `\n${lines.join('\n')}\n` : '\n';
+            return `${heading}${body}`;
+        };
+
+        return `# Memory\n\n${renderSection('## Facts', sections.fact)}${renderSection('## Mistakes', sections.mistake)}${renderSection('## Preferences', sections.preference)}`;
+    }
+
+    applyMemoryCaps(
+        content: string,
+        caps: { facts: number; mistakes: number; preferences: number },
+    ): string {
+        const sections = this.parseMemorySections(content || EMPTY_MEMORY_TEMPLATE);
+
+        return this.buildMemoryMarkdown({
+            fact: this.capLines(sections.fact, caps.facts),
+            mistake: this.capLines(sections.mistake, caps.mistakes),
+            preference: this.capLines(sections.preference, caps.preferences),
+        });
+    }
+
+    private capLines(lines: string[], max: number): string[] {
+        if (max <= 0 || lines.length <= max) return lines;
+        return lines.slice(-max);
+    }
+
     async addMemory(personaId: string, content: string, category: MemoryCategory): Promise<string> {
         const path = this.memoryPath(personaId);
         await this.ensureDir(this.personaDir(personaId));
 
-        let existing = '';
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (file && file instanceof TFile) {
-            existing = await this.app.vault.read(file);
-        }
-
-        // Deduplicate (case-insensitive check)
+        let existing = await this.loadMemory(personaId);
         if (existing.toLowerCase().includes(content.toLowerCase().trim())) {
             return 'This memory already exists.';
         }
 
-        // Build entry
         const timestamp = new Date().toISOString().split('T')[0];
         const entry = category === 'mistake'
             ? `- [${timestamp}] ${content.trim()}`
             : `- ${content.trim()}`;
 
-        // Ensure the file has the proper structure
         if (!existing) {
-            existing = `# Memory\n\n## Facts\n\n## Mistakes\n\n## Preferences\n`;
+            existing = EMPTY_MEMORY_TEMPLATE;
         }
 
-        // Find the right section and append
-        const sectionHeading = `## ${category.charAt(0).toUpperCase() + category.slice(1)}`;
-        // Pluralise for the heading
-        const headingMap: Record<MemoryCategory, string> = {
-            fact: '## Facts',
-            mistake: '## Mistakes',
-            preference: '## Preferences',
-        };
-        const heading = headingMap[category];
+        const heading = SECTION_HEADINGS[category];
+        let updated: string;
 
         if (existing.includes(heading)) {
-            // Find the heading and insert the entry right after it
             const headingIndex = existing.indexOf(heading);
             const afterHeading = headingIndex + heading.length;
-            const updated = existing.slice(0, afterHeading) + '\n' + entry + existing.slice(afterHeading);
-
-            if (file && file instanceof TFile) {
-                await this.app.vault.modify(file, updated);
-            } else {
-                await this.app.vault.create(path, updated);
-            }
+            updated = existing.slice(0, afterHeading) + '\n' + entry + existing.slice(afterHeading);
         } else {
-            // Section doesn't exist, append it
-            const updated = existing + `\n${heading}\n${entry}\n`;
-            if (file && file instanceof TFile) {
-                await this.app.vault.modify(file, updated);
-            } else {
-                await this.app.vault.create(path, updated);
-            }
+            updated = existing + `\n${heading}\n${entry}\n`;
+        }
+
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file && file instanceof TFile) {
+            await this.app.vault.modify(file, updated);
+        } else {
+            await this.app.vault.create(path, updated);
         }
 
         return `Memory saved (${category}): "${content.trim().substring(0, 50)}..."`;
     }
 
-    // ── Build preamble for system prompt injection ───────────
+    async deleteMemory(
+        personaId: string,
+        content: string,
+        category?: MemoryCategory,
+    ): Promise<string> {
+        const existing = await this.loadMemory(personaId);
+        if (!existing) return 'No persona memory file found.';
 
-    /**
-     * Combine soul.md + memory.md into a single block for the system prompt.
-     */
-    async buildSoulPreamble(personaId: string): Promise<string> {
+        const needle = content.toLowerCase().trim();
+        if (!needle) return 'Provide text to match the memory entry to delete.';
+
+        const categories = category
+            ? [category]
+            : (Object.keys(SECTION_HEADINGS) as MemoryCategory[]);
+
+        const sections = this.parseMemorySections(existing);
+        let removed = 0;
+
+        for (const cat of categories) {
+            const before = sections[cat].length;
+            sections[cat] = sections[cat].filter(line => !line.toLowerCase().includes(needle));
+            removed += before - sections[cat].length;
+        }
+
+        if (removed === 0) {
+            return `No memory entry matched "${content.trim()}".`;
+        }
+
+        await this.saveMemoryFile(personaId, this.buildMemoryMarkdown(sections));
+        return `Removed ${removed} memory ${removed === 1 ? 'entry' : 'entries'}.`;
+    }
+
+    async clearSection(personaId: string, category: MemoryCategory): Promise<string> {
+        const existing = await this.loadMemory(personaId);
+        const sections = this.parseMemorySections(existing || EMPTY_MEMORY_TEMPLATE);
+        const count = sections[category].length;
+        sections[category] = [];
+        await this.saveMemoryFile(personaId, this.buildMemoryMarkdown(sections));
+        return `Cleared ${count} ${category} ${count === 1 ? 'entry' : 'entries'}.`;
+    }
+
+    async listMemorySummary(personaId: string): Promise<string> {
+        const content = await this.loadMemory(personaId);
+        if (!content) return 'No persona memory saved yet.';
+
+        const sections = this.parseMemorySections(content);
+        const format = (label: string, lines: string[]) => {
+            if (lines.length === 0) return `${label}: (none)`;
+            return `${label}:\n${lines.map(l => `  ${l}`).join('\n')}`;
+        };
+
+        return [
+            format('Facts', sections.fact),
+            format('Mistakes', sections.mistake),
+            format('Preferences', sections.preference),
+        ].join('\n\n');
+    }
+
+    async buildSoulPreamble(personaId: string, settings?: AICopilotSettings): Promise<string> {
         const soul = await this.loadSoul(personaId);
-        const memory = await this.loadMemory(personaId);
-
         let preamble = '';
 
         if (soul) {
             preamble += `\n\n=== PERSONA SOUL ===\n${soul}\n=== END SOUL ===\n`;
         }
 
-        if (memory) {
-            preamble += `\n\n=== PERSONA MEMORY ===\n${memory}\n=== END MEMORY ===\n`;
+        const personaMemoryEnabled = settings?.enablePersonaMemory ?? true;
+        if (personaMemoryEnabled) {
+            const rawMemory = await this.loadMemory(personaId);
+            if (rawMemory) {
+                const caps = {
+                    facts: settings?.memoryMaxFacts ?? DEFAULT_MEMORY_CAPS.facts,
+                    mistakes: settings?.memoryMaxMistakes ?? DEFAULT_MEMORY_CAPS.mistakes,
+                    preferences: settings?.memoryMaxPreferences ?? DEFAULT_MEMORY_CAPS.preferences,
+                };
+                const memory = this.applyMemoryCaps(rawMemory, caps);
+                preamble += `\n\n=== PERSONA MEMORY (obey Mistakes & Preferences before replying) ===\n${memory}\n=== END MEMORY ===\n`;
+            }
         }
 
         return preamble;
     }
-
-    // ── Default soul content per persona ─────────────────────
 
     private getDefaultSoulContent(personaId: string, personaName: string): string {
         const toolInstructions = `
@@ -198,28 +308,35 @@ You have access to powerful tools inside Obsidian. Always use the right tool for
 - \`save_summary_as_note\` — Save a URL summary as a vault note with metadata
 
 ### Skills
-- \`list_skills\` — Discover available agentic skills
-- \`use_skill\` — Activate a skill for specialized expertise
-- Before answering domain-specific questions, consider if a skill exists that could help. Check with \`list_skills\` first.
+- \`list_skills\` — Discover enabled agentic skills
+- \`use_skill\` — Activate an enabled skill for specialized expertise
 
 ### MCP (External Integrations)
 - Tools prefixed with \`mcp__\` are external integrations (calendars, databases, etc.)
-- When the user's request involves external services, check if an MCP tool is available
 
 ### Memory
-- \`save_memory\` — Save a general user preference to long-term memory
-- \`save_persona_memory\` — Save a fact, mistake, or preference specific to this persona
-- \`list_memories\` — List all saved memories
+- \`save_persona_memory\` — Save a fact, mistake, or preference for this persona (preferred)
+- \`delete_persona_memory\` — Remove a memory when the user says "forget" or asks to drop a rule
+- \`save_mistake\` — Shorthand to record a correction as a mistake
+- \`save_memory\` — Save a vault-wide preference (use sparingly; prefer persona memory)
+- \`list_memories\` — List global vault memories
 
-## Memory Protocol
+## Memory Protocol — follow every turn
 
-You have persistent memory across conversations. Use it wisely:
+You have persistent persona memory in \`.ai-copilot/personas/<persona>/memory.md\`.
 
-1. **Facts**: When the user tells you something important about themselves, their preferences, or their workflow, use \`save_persona_memory\` with category "fact".
-2. **Mistakes**: When you make a mistake and the user corrects you, use \`save_persona_memory\` with category "mistake" to remember the lesson. Always describe what went wrong and the correct approach.
-3. **Preferences**: When the user expresses a recurring preference about how they want things done, use \`save_persona_memory\` with category "preference".
+**Before replying:** Read Mistakes and Preferences in PERSONA MEMORY and comply.
 
-Do NOT ask for permission before saving memories — just do it when appropriate.
+**When to save (do not ask permission):**
+1. **Mistake** — User corrects you ("wrong", "no", "don't", "not what I meant"). Use \`save_persona_memory\` category \`mistake\` with: \`Wrong: … → Correct: …\`. Or use \`save_mistake\`.
+2. **Fact** — Stable info about the user ("I'm in Singapore", "my vault uses PARA"). Category \`fact\`.
+3. **Preference** — How they want work done ("plain markdown only", "always cite sources"). Category \`preference\`.
+4. **Remember** — Phrases like "remember this", "keep in mind", "always …" → save immediately.
+
+**When to delete:**
+- User says "forget that", "remove that memory", "don't remember …" → \`delete_persona_memory\` with matching text.
+
+**Do NOT** ask "Should I save this?" — just save or delete when the situation matches.
 `;
 
         const personas: Record<string, string> = {

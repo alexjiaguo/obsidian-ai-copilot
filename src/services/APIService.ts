@@ -56,7 +56,7 @@ export class UniversalAPIProvider implements AIProvider {
         }
 
         let response: Response;
-        const timeoutMs = this.settings.requestTimeoutMs ?? 30000;
+        const timeoutMs = this.settings.requestTimeoutMs ?? 120000;
         console.debug(`[AI Copilot API] POST ${url} (provider: ${this.settings.provider}, model: ${this.settings.model}, timeout: ${timeoutMs}ms)`);
 
         const controller = new AbortController();
@@ -357,7 +357,7 @@ export class UniversalAPIProvider implements AIProvider {
 
     async testConnection(): Promise<{ ok: boolean; message: string }> {
         const baseUrl = this.getBaseUrl();
-        const timeoutMs = this.settings.requestTimeoutMs ?? 60000;
+        const timeoutMs = this.settings.requestTimeoutMs ?? 120000;
 
         // Pre-flight validation
         if (!this.settings.apiKey && this.settings.provider !== 'ollama') {

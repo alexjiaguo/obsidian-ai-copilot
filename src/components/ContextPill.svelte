@@ -2,7 +2,7 @@
   import { createEventDispatcher } from "svelte";
 
   export let text: string;
-  export let type: "file" | "folder" | "selection" | "image" | "heading";
+  export let type: "file" | "folder" | "selection" | "image" | "heading" | "url";
 
   const dispatch = createEventDispatcher();
 </script>
@@ -17,13 +17,15 @@
     {#if type === "file"}
       📄
     {:else if type === "folder"}
-      cpp
+      📁
     {:else if type === "selection"}
       📝
     {:else if type === "image"}
       🖼️
     {:else if type === "heading"}
       #️⃣
+    {:else if type === "url"}
+      🌐
     {/if}
   </span>
 

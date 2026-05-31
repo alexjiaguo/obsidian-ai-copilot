@@ -1,10 +1,12 @@
 import { App, TFile } from 'obsidian';
+import type { AICopilotSettings } from '../settings/Settings';
+import { DEFAULT_MEMORY_CAPS } from '../settings/Settings';
 
 interface MemoryEntry {
     id: string;
     content: string;
     createdAt: number;
-    source?: string; // which session created this
+    source?: string;
 }
 
 const MEMORY_FILE = 'ai-copilot-memory.json';
@@ -13,17 +15,15 @@ export class MemoryService {
     private app: App;
     private memories: MemoryEntry[] = [];
     private loaded = false;
-    private loadPromise: Promise<void> | null = null; // Prevent concurrent loads
+    private loadPromise: Promise<void> | null = null;
 
     constructor(app: App) {
         this.app = app;
     }
 
     async load(): Promise<void> {
-        // Return early if already loaded
         if (this.loaded && this.loadPromise === null) return;
 
-        // Prevent concurrent loads
         if (this.loadPromise) {
             await this.loadPromise;
             return;
@@ -52,16 +52,23 @@ export class MemoryService {
         const json = JSON.stringify(this.memories, null, 2);
         const file = this.app.vault.getAbstractFileByPath(MEMORY_FILE);
         if (file && file instanceof TFile) {
-            await this.app.vault.modify(file, json);
+            await this.vaultModify(file, json);
         } else {
             await this.app.vault.create(MEMORY_FILE, json);
         }
     }
 
+    private async vaultModify(file: TFile, content: string): Promise<void> {
+        await this.app.vault.modify(file, content);
+    }
+
+    getMemoryFilePath(): string {
+        return MEMORY_FILE;
+    }
+
     async addMemory(content: string, source?: string): Promise<string> {
         await this.load();
         
-        // Deduplicate: skip if very similar to an existing entry
         const isDuplicate = this.memories.some(m => 
             m.content.toLowerCase().trim() === content.toLowerCase().trim()
         );
@@ -78,15 +85,30 @@ export class MemoryService {
         return `Memory saved: "${content.trim().substring(0, 50)}..."`;
     }
 
-    async deleteMemory(id: string): Promise<string> {
+    async deleteMemory(idOrContent: string): Promise<string> {
         await this.load();
+        const needle = idOrContent.toLowerCase().trim();
         const before = this.memories.length;
-        this.memories = this.memories.filter(m => m.id !== id);
+
+        this.memories = this.memories.filter(m => {
+            if (m.id === idOrContent || m.id.startsWith(idOrContent)) return false;
+            if (m.content.toLowerCase().includes(needle)) return false;
+            return true;
+        });
+
         if (this.memories.length < before) {
             await this.save();
             return "Memory deleted.";
         }
         return "Memory not found.";
+    }
+
+    async clearAll(): Promise<string> {
+        await this.load();
+        const count = this.memories.length;
+        this.memories = [];
+        await this.save();
+        return `Cleared ${count} global ${count === 1 ? 'memory' : 'memories'}.`;
     }
 
     async listMemories(): Promise<string> {
@@ -97,14 +119,26 @@ export class MemoryService {
         ).join('\n');
     }
 
-    /**
-     * Get all memories as a formatted preamble for system prompt injection.
-     */
-    async getMemoryPreamble(): Promise<string> {
+    async getMemoriesForUI(): Promise<MemoryEntry[]> {
+        await this.load();
+        return [...this.memories];
+    }
+
+    async getMemoryPreamble(settings?: AICopilotSettings): Promise<string> {
         await this.load();
         if (this.memories.length === 0) return '';
+
+        const maxGlobal = settings?.memoryMaxGlobal ?? DEFAULT_MEMORY_CAPS.global;
+        const capped = maxGlobal > 0 && this.memories.length > maxGlobal
+            ? this.memories.slice(-maxGlobal)
+            : this.memories;
         
-        const lines = this.memories.map(m => `- ${m.content}`).join('\n');
-        return `\n\n=== USER PREFERENCES & MEMORIES ===\nThe user has asked you to remember the following:\n${lines}\n===================================\n`;
+        const lines = capped.map(m => `- ${m.content}`).join('\n');
+        const omitted = this.memories.length - capped.length;
+        const note = omitted > 0
+            ? `\n(Showing ${capped.length} most recent of ${this.memories.length} global memories.)`
+            : '';
+
+        return `\n\n=== USER PREFERENCES & MEMORIES (global) ===\nThe user has asked you to remember the following:\n${lines}${note}\n===================================\n`;
     }
 }
