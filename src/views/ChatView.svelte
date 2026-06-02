@@ -981,6 +981,8 @@
     <ChatInput
       bind:this={chatInputRef}
       bind:value={query}
+      disabled={isLoading}
+      isLoading={isLoading}
       on:submit={sendMessage}
       on:add-context={(e) => handleAddContext(e.detail)}
       onSearch={handleSearch}

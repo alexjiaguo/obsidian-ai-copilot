@@ -30,7 +30,8 @@
     if (textarea) {
       // Force a proper reflow by collapsing to 0 first, then measuring
       textarea.style.height = "0";
-      textarea.style.height = textarea.scrollHeight + "px";
+      const scrollHeight = textarea.scrollHeight;
+      textarea.style.height = (scrollHeight > 0 ? scrollHeight : 24) + "px";
     }
   }
 
@@ -310,6 +311,7 @@
       {disabled}
       on:input={handleInput}
       on:keydown={handleKeydown}
+      on:focus={resize}
       rows="1"
       tabindex="0"
       autocomplete="off"></textarea>

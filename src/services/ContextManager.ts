@@ -25,21 +25,34 @@ export class ContextManager {
     private urlCacheTimeout = 60000; // 60 seconds for URL content
     private contentExtractor = new ContentExtractor();
 
-    private lastActiveUrlState: { url: string; timestamp: number } | null = null;
+    private lastActiveWebLeaf: any = null;
+    private lastActiveWebTimestamp: number = 0;
     private lastActiveFileTimestamp: number = 0;
 
     constructor(app: App) {
         this.app = app;
         
+        // Initialize state on layout ready
+        this.app.workspace.onLayoutReady(() => {
+            const activeLeaf = this.app.workspace.activeLeaf;
+            if (activeLeaf && activeLeaf.view) {
+                const viewType = activeLeaf.view.getViewType();
+                if (viewType === 'surfing-view' || viewType === 'web-browser-view') {
+                    this.lastActiveWebLeaf = activeLeaf;
+                    this.lastActiveWebTimestamp = Date.now();
+                } else if (viewType === 'markdown') {
+                    this.lastActiveFileTimestamp = Date.now();
+                }
+            }
+        });
+
         // Listen to leaf changes to track whether a web view or file was focused most recently
         this.app.workspace.on('active-leaf-change', (leaf) => {
             if (leaf && leaf.view) {
                 const viewType = leaf.view.getViewType();
                 if (viewType === 'surfing-view' || viewType === 'web-browser-view') {
-                    const state = leaf.view.getState();
-                    if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
-                        this.lastActiveUrlState = { url: state.url, timestamp: Date.now() };
-                    }
+                    this.lastActiveWebLeaf = leaf;
+                    this.lastActiveWebTimestamp = Date.now();
                 } else if (viewType === 'markdown') {
                     this.lastActiveFileTimestamp = Date.now();
                 }
@@ -124,58 +137,55 @@ export class ContextManager {
         const activeFile = this.app.workspace.getActiveFile();
         
         let shouldCheckWebView = false;
-        if (this.lastActiveUrlState && this.lastActiveUrlState.timestamp > this.lastActiveFileTimestamp) {
+        if (this.lastActiveWebTimestamp > this.lastActiveFileTimestamp) {
             shouldCheckWebView = true;
         } else if (!activeFile) {
             shouldCheckWebView = true;
         }
 
         if (shouldCheckWebView) {
-            // Find the leaf for this URL to ensure it's still open
             const webLeaves = [
                 ...this.app.workspace.getLeavesOfType('surfing-view'),
                 ...this.app.workspace.getLeavesOfType('web-browser-view')
             ];
             
-            let targetUrl = this.lastActiveUrlState ? this.lastActiveUrlState.url : null;
+            let targetUrl = null;
             
-            // If we don't have a specific URL but there's exactly 1 web leaf open, use it
+            // Check if our tracked leaf is still among the open web leaves
+            if (this.lastActiveWebLeaf && webLeaves.includes(this.lastActiveWebLeaf)) {
+                const state = this.lastActiveWebLeaf.view.getState();
+                if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
+                    targetUrl = state.url;
+                }
+            }
+            
+            // Fallback: If we don't have a tracked leaf but exactly 1 web leaf is open
             if (!targetUrl && webLeaves.length === 1) {
                 const state = webLeaves[0].view.getState();
-                if (state && state.url) targetUrl = state.url;
+                if (state && state.url && typeof state.url === 'string' && state.url.startsWith('http')) {
+                    targetUrl = state.url;
+                }
             }
             
             if (targetUrl) {
-                // Ensure the leaf with this URL is still open
-                let isStillOpen = false;
-                for (const leaf of webLeaves) {
-                    const state = leaf.view.getState();
-                    if (state && state.url === targetUrl) {
-                        isStillOpen = true;
-                        break;
-                    }
+                const url = targetUrl;
+                const now = Date.now();
+                const cached = this.urlCache.get(url);
+                if (cached && (now - cached.timestamp < this.urlCacheTimeout)) {
+                    return { content: cached.content, path: url, type: 'url' };
                 }
                 
-                if (isStillOpen) {
-                    const url = targetUrl;
-                    const now = Date.now();
-                    const cached = this.urlCache.get(url);
-                    if (cached && (now - cached.timestamp < this.urlCacheTimeout)) {
-                        return { content: cached.content, path: url, type: 'url' };
+                try {
+                    const extracted = await this.contentExtractor.extract(url);
+                    let content = extracted.content || "No content could be extracted.";
+                    if (extracted.title) {
+                        content = `# ${extracted.title}\n\n${content}`;
                     }
-                    
-                    try {
-                        const extracted = await this.contentExtractor.extract(url);
-                        let content = extracted.content || "No content could be extracted.";
-                        if (extracted.title) {
-                            content = `# ${extracted.title}\n\n${content}`;
-                        }
-                        this.urlCache.set(url, { content, timestamp: now });
-                        return { content, path: url, type: 'url' };
-                    } catch (e) {
-                        console.error('Error fetching web view content:', e);
-                        return { content: `Error fetching URL: ${url}`, path: url, type: 'url' };
-                    }
+                    this.urlCache.set(url, { content, timestamp: now });
+                    return { content, path: url, type: 'url' };
+                } catch (e) {
+                    console.error('Error fetching web view content:', e);
+                    return { content: `Error fetching URL: ${url}`, path: url, type: 'url' };
                 }
             }
         }

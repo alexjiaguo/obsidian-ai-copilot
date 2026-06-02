@@ -14300,7 +14300,8 @@ function ChatInput($$anchor, $$props) {
   function resize() {
     if (get2(textarea)) {
       mutate(textarea, get2(textarea).style.height = "0");
-      mutate(textarea, get2(textarea).style.height = get2(textarea).scrollHeight + "px");
+      const scrollHeight = get2(textarea).scrollHeight;
+      mutate(textarea, get2(textarea).style.height = (scrollHeight > 0 ? scrollHeight : 24) + "px");
     }
   }
   async function handleInput(event2) {
@@ -14558,6 +14559,7 @@ function ChatInput($$anchor, $$props) {
   bind_value(textarea_1, value);
   event("input", textarea_1, handleInput);
   event("keydown", textarea_1, handleKeydown);
+  event("focus", textarea_1, resize);
   event("click", button, triggerFileUpload);
   event("click", button_1, grabSelection);
   append($$anchor, div);
@@ -16030,6 +16032,12 @@ ${nextMessage.qaSources.map((s) => `- [[${s}]]`).join("\n")}`;
   var node_12 = sibling(node_11, 2);
   bind_this(
     ChatInput(node_12, {
+      get disabled() {
+        return get2(isLoading);
+      },
+      get isLoading() {
+        return get2(isLoading);
+      },
       onSearch: handleSearch,
       get editorHandler() {
         return deep_read_state(plugin()), untrack(() => plugin().editorHandler);
@@ -17623,18 +17631,29 @@ var ContextManager = class {
   urlCacheTimeout = 6e4;
   // 60 seconds for URL content
   contentExtractor = new ContentExtractor();
-  lastActiveUrlState = null;
+  lastActiveWebLeaf = null;
+  lastActiveWebTimestamp = 0;
   lastActiveFileTimestamp = 0;
   constructor(app) {
     this.app = app;
+    this.app.workspace.onLayoutReady(() => {
+      const activeLeaf = this.app.workspace.activeLeaf;
+      if (activeLeaf && activeLeaf.view) {
+        const viewType = activeLeaf.view.getViewType();
+        if (viewType === "surfing-view" || viewType === "web-browser-view") {
+          this.lastActiveWebLeaf = activeLeaf;
+          this.lastActiveWebTimestamp = Date.now();
+        } else if (viewType === "markdown") {
+          this.lastActiveFileTimestamp = Date.now();
+        }
+      }
+    });
     this.app.workspace.on("active-leaf-change", (leaf) => {
       if (leaf && leaf.view) {
         const viewType = leaf.view.getViewType();
         if (viewType === "surfing-view" || viewType === "web-browser-view") {
-          const state2 = leaf.view.getState();
-          if (state2 && state2.url && typeof state2.url === "string" && state2.url.startsWith("http")) {
-            this.lastActiveUrlState = { url: state2.url, timestamp: Date.now() };
-          }
+          this.lastActiveWebLeaf = leaf;
+          this.lastActiveWebTimestamp = Date.now();
         } else if (viewType === "markdown") {
           this.lastActiveFileTimestamp = Date.now();
         }
@@ -17709,7 +17728,7 @@ Files (${files.length}):`);
     }
     const activeFile = this.app.workspace.getActiveFile();
     let shouldCheckWebView = false;
-    if (this.lastActiveUrlState && this.lastActiveUrlState.timestamp > this.lastActiveFileTimestamp) {
+    if (this.lastActiveWebTimestamp > this.lastActiveFileTimestamp) {
       shouldCheckWebView = true;
     } else if (!activeFile) {
       shouldCheckWebView = true;
@@ -17719,41 +17738,39 @@ Files (${files.length}):`);
         ...this.app.workspace.getLeavesOfType("surfing-view"),
         ...this.app.workspace.getLeavesOfType("web-browser-view")
       ];
-      let targetUrl = this.lastActiveUrlState ? this.lastActiveUrlState.url : null;
+      let targetUrl = null;
+      if (this.lastActiveWebLeaf && webLeaves.includes(this.lastActiveWebLeaf)) {
+        const state2 = this.lastActiveWebLeaf.view.getState();
+        if (state2 && state2.url && typeof state2.url === "string" && state2.url.startsWith("http")) {
+          targetUrl = state2.url;
+        }
+      }
       if (!targetUrl && webLeaves.length === 1) {
         const state2 = webLeaves[0].view.getState();
-        if (state2 && state2.url) targetUrl = state2.url;
+        if (state2 && state2.url && typeof state2.url === "string" && state2.url.startsWith("http")) {
+          targetUrl = state2.url;
+        }
       }
       if (targetUrl) {
-        let isStillOpen = false;
-        for (const leaf of webLeaves) {
-          const state2 = leaf.view.getState();
-          if (state2 && state2.url === targetUrl) {
-            isStillOpen = true;
-            break;
-          }
+        const url2 = targetUrl;
+        const now = Date.now();
+        const cached2 = this.urlCache.get(url2);
+        if (cached2 && now - cached2.timestamp < this.urlCacheTimeout) {
+          return { content: cached2.content, path: url2, type: "url" };
         }
-        if (isStillOpen) {
-          const url2 = targetUrl;
-          const now = Date.now();
-          const cached2 = this.urlCache.get(url2);
-          if (cached2 && now - cached2.timestamp < this.urlCacheTimeout) {
-            return { content: cached2.content, path: url2, type: "url" };
-          }
-          try {
-            const extracted = await this.contentExtractor.extract(url2);
-            let content = extracted.content || "No content could be extracted.";
-            if (extracted.title) {
-              content = `# ${extracted.title}
+        try {
+          const extracted = await this.contentExtractor.extract(url2);
+          let content = extracted.content || "No content could be extracted.";
+          if (extracted.title) {
+            content = `# ${extracted.title}
 
 ${content}`;
-            }
-            this.urlCache.set(url2, { content, timestamp: now });
-            return { content, path: url2, type: "url" };
-          } catch (e) {
-            console.error("Error fetching web view content:", e);
-            return { content: `Error fetching URL: ${url2}`, path: url2, type: "url" };
           }
+          this.urlCache.set(url2, { content, timestamp: now });
+          return { content, path: url2, type: "url" };
+        } catch (e) {
+          console.error("Error fetching web view content:", e);
+          return { content: `Error fetching URL: ${url2}`, path: url2, type: "url" };
         }
       }
     }
